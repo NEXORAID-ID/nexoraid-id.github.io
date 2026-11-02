@@ -1579,12 +1579,12 @@ export const services = [
     "name": "NEXORAID Seller",
     "badge": "LIMITED",
     "desc": "Program seller dengan harga khusus untuk dijual kembali. Slot dibatasi.",
-    "price": "Daftar Rp500.000",
+    "price": "Daftar Rp1.500.000",
     "accent": "rgba(255,195,76,.14)",
     "details": [
       [
         "Biaya Daftar",
-        "Rp500.000"
+        "Rp1.500.000"
       ],
       [
         "Benefit",

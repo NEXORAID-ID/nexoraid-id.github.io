@@ -1,14 +1,14 @@
 # NEXORAID — Multipage Digital Service Hub
 
-Website statis multipage bertema ungu, pink, dan biru. Siap dibuild dan dideploy ke GitHub Pages. Tidak membutuhkan API key, database, atau dependensi npm.
+Website statis multipage bertema biru neon dengan aksen pink, tampilan terminal futuristik, dan siap dibuild serta dideploy ke GitHub Pages. Tidak membutuhkan API key, database, atau dependensi npm.
 
 ## Halaman
 
-- `index.html` — Beranda, logo PNG transparan, animasi orbit, pilihan layanan, dan program seller.
-- `layanan.html` — Katalog 32 layanan, pencarian isi detail, filter kategori, urutan nama/harga, pagination, dan kondisi hasil kosong.
+- `index.html` — Beranda bertema terminal dengan pencarian instan, shortcut keyboard, direktori kategori dinamis, preview ilustrasi layanan, local activity feed, animasi orbit, dan program seller.
+- `layanan.html` — Katalog 32 layanan, pencarian isi detail, filter kategori, pembanding hingga tiga layanan, subtotal indikatif untuk harga pasti, urutan nama/harga, pagination, dan kondisi hasil kosong.
 - `detail.html?id=akun-game-premium` — Detail yang bisa dibagikan, pricelist lengkap, salin format pesanan, salin tautan, dan layanan terkait. Semua 32 ID layanan bisa dibuka langsung.
 - `cara-order.html` — Alur pemesanan serta catatan GTA, akun game, dan lisensi.
-- `seller.html` — Program seller Rp500.000 dan langkah pendaftaran.
+- `seller.html` — Program seller Rp1.500.000 dan langkah pendaftaran.
 - `faq.html` — Pencarian pertanyaan dan accordion yang bisa dibuka lewat keyboard.
 - `404.html` — Halaman tidak ditemukan, termasuk tautan beranda yang disesuaikan dengan subfolder repository saat build.
 
@@ -18,12 +18,19 @@ Website statis multipage bertema ungu, pink, dan biru. Siap dibuild dan dideploy
 - Seluruh data GTA Online dan Windows/Office sebelumnya dipertahankan.
 - Tombol Open Ticket/Order menuju channel Discord yang sudah dikonfigurasi.
 - Search, kategori, sort, dan nomor halaman tersimpan di URL; mendukung refresh dan tombol Back browser.
+- Pencarian cepat dari beranda dengan saran langsung, akses keyboard `/` atau `Ctrl+K`, dan pintasan ke hasil detail.
+- Direktori kategori menampilkan jumlah layanan aktual dari katalog, tanpa angka stok atau klaim ketersediaan buatan.
+- Bandingkan hingga tiga layanan sekaligus dan salin ringkasannya untuk tiket Discord. Subtotal hanya mencakup harga tetap; harga mulai, rentang, atau request harus dikonfirmasi admin.
+- Preview unggulan memakai visual ilustrasi generatif CSS yang secara jelas bukan foto bukti pengerjaan.
+- Live terminal berisi log lokal antarmuka browser dan heartbeat sesi; tidak mengklaim aktivitas order, pembayaran, stok, atau status server live. Feed dapat dijeda dan mengikuti preferensi gerakan.
 - Pencarian mencakup nama, deskripsi, kategori, serta isi pricelist. Harga request ditempatkan terakhir dalam pengurutan harga.
 - Salin format pesanan dan link layanan. Jika clipboard ditolak browser, tersedia dialog salin manual.
 - Responsive mobile/tablet/desktop, menu mobile, skip link, focus indicator, breadcrumb, dan kembali ke atas.
 - Loading page neon dengan orbit, logo, garis cahaya, tombol lewati, dan batas waktu otomatis 4 detik. Loading dilewati saat reduced motion/jeda animasi aktif; tetap aman jika modul aplikasi gagal.
-- Logo melayang, orbit berputar, partikel, gradien bergerak, kilau tombol, kartu tilt mengikuti kursor, reveal, dan ticker.
+- Tema dominan biru neon dengan aksen pink, panel bergaya terminal, indikator sistem, serta logo dan kartu layanan melayang.
+- Orbit berputar, partikel, gradien bergerak, kilau tombol, kartu tilt mengikuti kursor, reveal bertahap, dan ticker.
 - Animasi dapat dijeda lewat footer. Preferensi berlaku selama sesi browser dan menghormati `prefers-reduced-motion`.
+- Program seller memiliki harga pendaftaran Rp1.500.000; konfirmasi slot dan ketentuan tetap melalui tiket Discord.
 - Build memeriksa tautan/aset lokal. Metadata sosial dan sitemap dibuat dengan URL deployment sebenarnya.
 - Pemesanan dan pembayaran melalui tiket/admin. Website tidak menyimpan data akun, password, pembayaran, atau pesanan.
 
@@ -38,7 +45,7 @@ npm run dev
 Buka **http://127.0.0.1:4173/**. Setelah mengubah source, jalankan `npm run build`, lalu refresh browser. Preview menyajikan folder `dist/`. Jangan membuka file dengan `file://`, karena browser membatasi JavaScript modules pada protokol tersebut.
 
 ```sh
-npm run check    # sintaks, 8 pengujian katalog, build, dan pemeriksaan tautan
+npm run check    # sintaks, 10 pengujian katalog, build, dan pemeriksaan tautan
 npm run build    # menghasilkan dist/
 npm run preview  # menyajikan build terakhir di port 4173
 ```

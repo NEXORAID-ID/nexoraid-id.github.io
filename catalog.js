@@ -14,6 +14,19 @@ export function priceValue(price) {
   return Number(match[1].replaceAll('.', '')) * (match[2]?.toUpperCase() === 'K' ? 1000 : match[2]?.toUpperCase() === 'JT' ? 1000000 : 1);
 }
 
+export function fixedPriceValue(price) {
+  const match = price.trim().match(/^(?:Daftar\s+)?Rp\s*(\d{1,3}(?:\.\d{3})+|\d+)$/i);
+  return match ? Number(match[1].replaceAll('.', '')) : null;
+}
+
+export function comparisonTotals(services) {
+  const prices = services.map(service => fixedPriceValue(service.price));
+  return {
+    knownTotal: prices.reduce((total, price) => total + (price ?? 0), 0),
+    needsQuote: prices.filter(price => price === null).length
+  };
+}
+
 export function queryCatalog(services, {category = 'all', query = '', sort = 'recommended', page = 1} = {}) {
   const terms = query.trim().toLocaleLowerCase('id').split(/\s+/).filter(Boolean);
   const rows = services.filter(service => {

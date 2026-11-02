@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { services, CONFIG } from '../services-data.js';
-import { categories, queryCatalog, priceValue, escapeHTML, orderText } from '../catalog.js';
+import { categories, queryCatalog, priceValue, fixedPriceValue, comparisonTotals, escapeHTML, orderText } from '../catalog.js';
 
 test('catalog records have unique stable routes and complete order information', () => {
   assert.equal(services.length, 32);
@@ -38,6 +38,22 @@ test('price sorting handles rupiah formats and keeps request prices last in both
   assert.deepEqual(queryCatalog(rows, {sort:'price-asc'}).rows.map(s=>s.price), ['Rp2.500','Rp100K','Sesuai Request']);
   assert.deepEqual(queryCatalog(rows, {sort:'price-desc'}).rows.map(s=>s.price), ['Rp100K','Rp2.500','Sesuai Request']);
 });
+test('comparison subtotal accepts only exact catalog prices, never ranges or starting prices', () => {
+  assert.equal(fixedPriceValue('Rp14.999'), 14999);
+  assert.equal(fixedPriceValue('Rp 75.000'), 75000);
+  assert.equal(fixedPriceValue('Daftar Rp500.000'), 500000);
+  assert.equal(fixedPriceValue('Mulai Rp100.000'), null);
+  assert.equal(fixedPriceValue('Rp300K — Rp550K'), null);
+  assert.equal(fixedPriceValue('Sesuai Request'), null);
+});
+test('comparison totals exclude every non-fixed price and count quotes to confirm', () => {
+  assert.deepEqual(comparisonTotals([
+    {price:'Rp14.999'},
+    {price:'Rp75.000'},
+    {price:'Mulai Rp100.000'},
+    {price:'Sesuai Request'}
+  ]), {knownTotal:89999, needsQuote:2});
+});
 test('pagination clamps malformed and out-of-range pages without dropping records', () => {
   assert.equal(queryCatalog(services, {page:-2}).currentPage, 1);
   assert.equal(queryCatalog(services, {page:'x'}).currentPage, 1);
@@ -63,4 +79,9 @@ test('Windows and Office prices and GTA login-only terms remain intact', () => {
   assert.equal(gta.length,19);
   assert.ok(!/mabar|non-login/i.test(JSON.stringify(gta)));
   assert.ok(gta.every(s=>JSON.stringify(s.details).includes('via login akun')));
+});
+test('seller registration price matches the published Rp1.500.000 fee', () => {
+  const seller = services.find(service => service.id === 'seller');
+  assert.equal(seller.price, 'Daftar Rp1.500.000');
+  assert.equal(seller.details.find(([label]) => label === 'Biaya Daftar')?.[1], 'Rp1.500.000');
 });
