@@ -6,7 +6,7 @@ export const categories = {
 export const PAGE_SIZE = 9;
 const synonyms = { joki:'boost', lisensi:'license', lisence:'license', hp:'mobile', handphone:'mobile', ponsel:'mobile', reseller:'seller', 'windows':'windows', 'akun':'akun' };
 export function searchTerms(query) { return String(query ?? '').normalize('NFKC').toLocaleLowerCase('id').trim().split(/\s+/).filter(Boolean); }
-export function matchesSearch(text, terms) { const normalized = text.normalize('NFKC').toLocaleLowerCase('id'); return terms.every(t=>normalized.includes(t) || (synonyms[t] && normalized.includes(synonyms[t]))); }
+export function matchesSearch(text, terms) { const normalized = text.normalize('NFKC').toLocaleLowerCase('id'); return terms.every(t=>normalized.includes(t) || (Object.hasOwn(synonyms,t) && normalized.includes(synonyms[t]))); }
 export function safeSelection(raw, services, limit = 50) { const ids = Array.isArray(raw) ? raw : []; return [...new Set(ids.filter(id=>typeof id==='string' && services.some(s=>s.id===id)))].slice(0,limit); }
 export function safeBasket(raw, services) { if (!Array.isArray(raw)) return []; const out=[]; for (const row of raw) { if (!row || !services.some(s=>s.id===row.id) || out.some(s=>s.id===row.id)) continue; const quantity=Number(row.quantity); if (Number.isInteger(quantity) && quantity>=1 && quantity<=99) out.push({id:row.id,quantity}); } return out.slice(0,50); }
 export function basketTotals(rows, services) { let total=0,needsQuote=0; for (const row of safeBasket(rows,services)) { const price=fixedPriceValue(services.find(s=>s.id===row.id).price); if(price===null) needsQuote++; else total+=price*row.quantity; } return {total,needsQuote}; }
@@ -27,6 +27,18 @@ export function fixedPriceValue(price) {
   return match ? Number(match[1].replaceAll('.', '')) : null;
 }
 
+export function pricingInfo(price) {
+ const value=String(price).trim();const fixed=fixedPriceValue(value);
+ if(fixed!==null)return {type:'fixed',min:fixed,max:fixed};
+ const values=[...value.matchAll(/Rp\s*([\d.]+)\s*(K|JT)?/gi)].map(m=>Number(m[1].replaceAll('.',''))*(m[2]?.toUpperCase()==='K'?1000:m[2]?.toUpperCase()==='JT'?1000000:1)).filter(Number.isFinite);
+ if(values.length>=2)return {type:'range',min:Math.min(...values),max:Math.max(...values)};
+ if(values.length===1)return {type:'starting',min:values[0],max:null};
+ return {type:'quote',min:null,max:null};
+}
+export function packageOptions(service){
+ if(pricingInfo(service.price).type!=='starting')return [];
+ return service.details.flatMap(([label,value],index)=>{const match=value.match(/^Rp\s*(\d{1,3}(?:\.\d{3})+|\d+)(?=\s|$)/i);return match?[{id:String(index),label,amount:Number(match[1].replaceAll('.',''))}]:[];});
+}
 export function comparisonTotals(services) {
   const prices = services.map(service => fixedPriceValue(service.price));
   return {
