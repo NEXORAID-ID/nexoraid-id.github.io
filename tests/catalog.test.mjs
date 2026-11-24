@@ -93,3 +93,5 @@ test('featured and related cards do not enable orphan compare controls',async()=
 test('seller fee is consistent in source HTML',async()=>{const {readFile}=await import('node:fs/promises');for(const p of ['faq.html','seller.html'])assert.ok((await readFile(new URL('../'+p,import.meta.url),'utf8')).includes('Rp1.500.000'));});
 
 test('pricing type is explicit and range preserves maximum',async()=>{const {pricingInfo,packageOptions}=await import('../catalog.js');assert.deepEqual(pricingInfo('Rp300.000 — Rp550.000'),{type:'range',min:300000,max:550000});assert.deepEqual(pricingInfo('Sesuai Request'),{type:'quote',min:null,max:null});assert.equal(packageOptions(services.find(s=>s.id==='gta-heist'))[0].amount,2500);assert.equal(packageOptions(services.find(s=>s.id==='cherax')).length,0);});
+
+test('official invite is distinct from member-only ticket URL',()=>{assert.match(CONFIG.discordInvite,/^https:\/\/discord\.gg\/[A-Za-z0-9-]+$/);assert.notEqual(CONFIG.discordInvite,CONFIG.discordUrl);});

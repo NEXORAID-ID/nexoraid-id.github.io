@@ -40,6 +40,8 @@ for (const page of pages) {
     if(page==='detail.html')content=content.replace('<p class="loading-copy">Menyiapkan detail layanan…</p>','<h1>Detail layanan</h1><p>Jika detail tidak muncul, pilih layanan di katalog.</p><a href="layanan.html">Buka katalog</a>');
   }
   content = content.replace(/href="https:\/\/discord\.com\/channels\/\d+\/\d+"/g, `href="${escapeHTML(CONFIG.discordUrl)}"`);
+  if(page==='kontak.html') content=content.replace(/href="https:\/\/discord\.gg\/[A-Za-z0-9-]+"/g,()=> 'href="'+escapeHTML(CONFIG.discordInvite)+'"');
+  else content=content.replace(/<a\b[^>]*\bdata-discord-link\b[^>]*>/g,tag=>tag.replace(/href="[^"]*"/,'href="kontak.html"').replace(/\s+target="_blank"/,'').replace(/\s+rel="noopener noreferrer"/,'').replace(/\s+data-discord-link\b/,''));
   if (page === '404.html') content = content.replace('href="./index.html"', `href="${escapeHTML(basePath)}index.html"`);
   if (siteURL && page !== '404.html') {
     const canonical = page === 'detail.html' ? '' : `<link rel="canonical" href="${new URL(page === 'index.html' ? '' : page, siteURL).href}">`;

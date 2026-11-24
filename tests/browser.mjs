@@ -28,5 +28,5 @@ try{
   const noJS=await browser.newContext({javaScriptEnabled:false,viewport:{width:390,height:844}});const staticPage=await noJS.newPage();
   await staticPage.goto(url+'layanan.html');assert.equal(await staticPage.locator('.static-catalog li').count(),32);
   assert.ok(await staticPage.locator('#navMenu').isVisible());await staticPage.goto(url+'layanan-optiwindows.html');assert.match(await staticPage.locator('h1').innerText(),/OptiWindows/);
-  await context.close();await noJS.close();console.log('Browser smoke test passed (mobile, cart, comparison, variants, legacy URL, static fallback).');
+  await staticPage.goto(url+'kontak.html');assert.match(await staticPage.locator('[data-discord-invite]').getAttribute('href'),/^https:\/\/discord\.gg\//);await context.close();await noJS.close();console.log('Browser smoke test passed (mobile, cart, comparison, variants, legacy URL, static fallback).');
 }finally{await browser?.close();server.kill();}

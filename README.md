@@ -115,6 +115,8 @@ Font Inter dan Space Grotesk dimuat dari Google Fonts; fallback sans-serif terse
 
 ## Storefront V3
 
-Build menghasilkan 32 halaman detail statis, 13 halaman umum termasuk 404, sitemap, daftar harga CSV, dan layout bersama. URL detail lama tetap didukung. Keranjang, favorit, filter lanjutan, perbandingan tersimpan, dan ringkasan pesanan berjalan lokal. Tidak ada akun, pembayaran, invoice, tracking atau status stok live yang diklaim. Undangan publik Discord dan kebijakan bisnis spesifik belum dikonfirmasi. Harga reseller mengikuti katalog saat ini (Rp1.500.000). Jalankan npm run check sebelum rilis. Untuk pengujian browser gunakan deployment preview; jangan masukkan kredensial ke formulir.
+Build menghasilkan 32 halaman detail statis, 13 halaman umum termasuk 404, sitemap, daftar harga CSV, dan layout bersama. URL detail lama tetap didukung. Keranjang, favorit, filter lanjutan, perbandingan tersimpan, dan ringkasan pesanan berjalan lokal. Tidak ada akun, pembayaran, invoice, tracking atau status stok live yang diklaim. Undangan publik Discord mengikuti tautan resmi yang sebelumnya diberikan pemilik; status aktifnya perlu verifikasi eksternal. Kebijakan bisnis spesifik belum dikonfirmasi. Harga reseller mengikuti katalog saat ini (Rp1.500.000). Jalankan npm run check sebelum rilis. Untuk pengujian browser gunakan deployment preview; jangan masukkan kredensial ke formulir.
 
 V3 includes optional browser smoke tests: `npm install --no-save --package-lock=false playwright@1.56.1`, `npx playwright install chromium`, `npm run build`, `node tests/browser.mjs`. Browser test checks mobile navigation, comparison persistence, favorites, cart, package estimates, legacy route, and static fallback. Prices are indicative; checkout is not a payment gateway.
+
+CI browser gate runs Chromium smoke tests before publishing the Pages artifact. The contact page separates the public invite from the members-only ticket channel.

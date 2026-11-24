@@ -1,6 +1,7 @@
 // Sumber data katalog. Harga dan detail dapat diperbarui di sini.
 export const CONFIG = {
-  "discordUrl": "https://discord.com/channels/1487728359482851348/1505557388969644052"
+  "discordUrl": "https://discord.com/channels/1487728359482851348/1505557388969644052",
+  "discordInvite": "https://discord.gg/sBUA95rnFN"
 };
 
 export const services = [
