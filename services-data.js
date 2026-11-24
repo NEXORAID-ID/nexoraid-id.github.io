@@ -1352,11 +1352,11 @@ export const services = [
       ],
       [
         "Sewa Standard",
-        "Promo pernah Rp220.000 / bulan"
+        "Harga promo lama Rp220.000/bulan; konfirmasi tarif saat ini"
       ],
       [
         "Sewa Premium",
-        "Promo pernah Rp420.000 / bulan"
+        "Harga promo lama Rp420.000/bulan; konfirmasi tarif saat ini"
       ]
     ]
   },
@@ -1394,7 +1394,7 @@ export const services = [
     "icon": "🖥",
     "name": "Windows License",
     "badge": "LICENSE",
-    "desc": "Lisensi Windows 10 / 11 dengan panduan aktivasi dan support aktivasi basic. Stok dari admin/owner.",
+    "desc": "Lisensi Windows 10 / 11 dengan panduan aktivasi dan bantuan aktivasi dasar. Ketersediaan dikonfirmasi oleh tim.",
     "price": "Rp75.000",
     "accent": "rgba(49,215,255,.15)",
     "details": [
@@ -1430,7 +1430,7 @@ export const services = [
     "icon": "📄",
     "name": "Microsoft Office License",
     "badge": "LICENSE",
-    "desc": "Lisensi Microsoft Office dengan panduan aktivasi dan support aktivasi basic. Stok dari admin/owner.",
+    "desc": "Lisensi Microsoft Office dengan panduan aktivasi dan bantuan aktivasi dasar. Ketersediaan dikonfirmasi oleh tim.",
     "price": "Rp75.000",
     "accent": "rgba(138,92,255,.16)",
     "details": [
@@ -1462,7 +1462,7 @@ export const services = [
     "icon": "📦",
     "name": "Bundle Windows + Office",
     "badge": "BUNDLE",
-    "desc": "Bundle lisensi Windows + Microsoft Office, termasuk panduan aktivasi dan support aktivasi basic. Stok dari admin/owner.",
+    "desc": "Bundle lisensi Windows + Microsoft Office, termasuk panduan aktivasi dan bantuan aktivasi dasar. Ketersediaan dikonfirmasi oleh tim.",
     "price": "Rp100.000",
     "accent": "rgba(73,245,173,.13)",
     "details": [
@@ -1495,11 +1495,11 @@ export const services = [
     "name": "Unblock IMEI",
     "badge": "MOBILE",
     "desc": "Layanan unblock IMEI. Harga menyesuaikan device, kondisi, dan jenis penanganan.",
-    "price": "Rp300K — Rp550K",
+    "price": "Rp300.000 — Rp550.000",
     "accent": "rgba(83,243,163,.14)",
     "details": [
       [
-        "Range Harga",
+        "Kisaran harga",
         "Rp300.000 — Rp550.000"
       ],
       [
@@ -1508,7 +1508,7 @@ export const services = [
       ],
       [
         "Kondisi",
-        "Dicek via ticket"
+        "Dicek melalui tiket"
       ],
       [
         "Harga Final",
@@ -1523,11 +1523,11 @@ export const services = [
     "name": "Custom ROM",
     "badge": "MOBILE",
     "desc": "Instalasi dan setup Custom ROM Android sesuai dukungan perangkat dan kebutuhan pengguna.",
-    "price": "Rp150K — Rp350K",
+    "price": "Rp150.000 — Rp350.000",
     "accent": "rgba(138,92,255,.16)",
     "details": [
       [
-        "Range Harga",
+        "Kisaran harga",
         "Rp150.000 — Rp350.000"
       ],
       [
@@ -1536,7 +1536,7 @@ export const services = [
       ],
       [
         "ROM",
-        "Dikonfirmasi di ticket"
+        "Dikonfirmasi di tiket"
       ],
       [
         "Backup",
@@ -1551,11 +1551,11 @@ export const services = [
     "name": "iOS Service / Bypass",
     "badge": "MOBILE",
     "desc": "Layanan iOS dengan harga menyesuaikan model, kondisi perangkat, dan jenis pengerjaan.",
-    "price": "Mulai Rp100K — Rp1JT",
+    "price": "Rp100.000 — Rp1.000.000",
     "accent": "rgba(255,255,255,.11)",
     "details": [
       [
-        "Range Harga",
+        "Kisaran harga",
         "Rp100.000 — Rp1.000.000"
       ],
       [
@@ -1564,7 +1564,7 @@ export const services = [
       ],
       [
         "Assessment",
-        "Wajib via ticket"
+        "Wajib melalui tiket"
       ],
       [
         "Catatan",
@@ -1596,7 +1596,7 @@ export const services = [
       ],
       [
         "Pendaftaran",
-        "Discord Ticket"
+        "Tiket Discord"
       ]
     ]
   },
@@ -1623,7 +1623,7 @@ export const services = [
       ],
       [
         "Penentuan harga",
-        "Menyesuaikan stok, spesifikasi akun, dan request customer"
+        "Menyesuaikan stok, spesifikasi akun, dan permintaan pelanggan"
       ],
       [
         "Ketersediaan",
@@ -1658,7 +1658,7 @@ export const services = [
       ],
       [
         "Penentuan harga",
-        "Menyesuaikan stok, spesifikasi akun, dan request customer"
+        "Menyesuaikan stok, spesifikasi akun, dan permintaan pelanggan"
       ],
       [
         "Ketersediaan",
@@ -1693,7 +1693,7 @@ export const services = [
       ],
       [
         "Penentuan harga",
-        "Menyesuaikan stok, spesifikasi akun, dan request customer"
+        "Menyesuaikan stok, spesifikasi akun, dan permintaan pelanggan"
       ],
       [
         "Ketersediaan",
@@ -1728,7 +1728,7 @@ export const services = [
       ],
       [
         "Penentuan harga",
-        "Menyesuaikan stok, spesifikasi akun, dan request customer"
+        "Menyesuaikan stok, spesifikasi akun, dan permintaan pelanggan"
       ],
       [
         "Ketersediaan",

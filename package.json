@@ -1,13 +1,13 @@
 {
   "name": "nexoraid-web",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "private": true,
   "type": "module",
   "description": "NEXORAID multipage static catalog for GitHub Pages",
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check app.js && node --check loader.js && node --check services-data.js && npm test && npm run build",
+    "check": "node --check app.js && node --check catalog.js && node --check services-data.js && npm test && npm run build",
     "dev": "npm run build && node scripts/serve.mjs",
     "preview": "node scripts/serve.mjs"
   },

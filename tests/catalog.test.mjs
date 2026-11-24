@@ -85,3 +85,9 @@ test('seller registration price matches the published Rp1.500.000 fee', () => {
   assert.equal(seller.price, 'Daftar Rp1.500.000');
   assert.equal(seller.details.find(([label]) => label === 'Biaya Daftar')?.[1], 'Rp1.500.000');
 });
+
+test('saved selection validates IDs and deduplicates', async()=>{const {safeSelection}=await import('../catalog.js');assert.deepEqual(safeSelection(['missing',services[0].id,services[0].id],services),[services[0].id]);});
+test('basket validates quantities and excludes variable price from subtotal',async()=>{const {safeBasket,basketTotals,basketText}=await import('../catalog.js');const rows=[{id:'optiwindows',quantity:2},{id:'gta-heist',quantity:1},{id:'missing',quantity:1},{id:'windows-license',quantity:0}];assert.equal(safeBasket(rows,services).length,2);assert.deepEqual(basketTotals(rows,services),{total:300000,needsQuote:1});assert.ok(basketText(rows,services).includes('OptiWindows'));});
+test('advanced filters distinguish fixed and quoted pricing',()=>{const fixed=queryCatalog(services,{maxPrice:75000,priceType:'fixed'});assert.ok(fixed.total>0);assert.ok(fixed.rows.every(s=>fixedPriceValue(s.price)<=75000&&fixedPriceValue(s.price)!==null));assert.equal(queryCatalog(services,{savedIds:['optiwindows']}).total,1);assert.equal(queryCatalog(services,{query:'lisensi',category:'software'}).total>0,true);});
+test('featured and related cards do not enable orphan compare controls',async()=>{const {readFile}=await import('node:fs/promises');const js=await readFile(new URL('../app.js',import.meta.url),'utf8');assert.ok(!js.includes('.map(serviceCard)'));});
+test('seller fee is consistent in source HTML',async()=>{const {readFile}=await import('node:fs/promises');for(const p of ['faq.html','seller.html'])assert.ok((await readFile(new URL('../'+p,import.meta.url),'utf8')).includes('Rp1.500.000'));});

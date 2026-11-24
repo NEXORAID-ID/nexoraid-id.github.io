@@ -112,3 +112,7 @@ styles.css                   Desain responsive dan pengaturan gerakan
 Logo hero final: `assets/nexoraid-logo-transparent.png` (RGBA dengan kanal alpha), dibuat lewat ImageGen bawaan. Header/favicon menggunakan SVG transparan. Lihat `assets/README.md` untuk brief aset.
 
 Font Inter dan Space Grotesk dimuat dari Google Fonts; fallback sans-serif tersedia jika koneksi font tidak tersedia. Discord tetap membutuhkan login dan akses ke server/channel. Validasi lokal tidak membuktikan deployment sudah live; push repository dan aktivasi GitHub Pages tetap diperlukan.
+
+## Storefront V3
+
+Build menghasilkan 32 halaman detail statis, 13 halaman umum termasuk 404, sitemap, daftar harga CSV, dan layout bersama. URL detail lama tetap didukung. Keranjang, favorit, filter lanjutan, perbandingan tersimpan, dan ringkasan pesanan berjalan lokal. Tidak ada akun, pembayaran, invoice, tracking atau status stok live yang diklaim. Undangan publik Discord dan kebijakan bisnis spesifik belum dikonfirmasi. Harga reseller mengikuti katalog saat ini (Rp1.500.000). Jalankan npm run check sebelum rilis. Untuk pengujian browser gunakan deployment preview; jangan masukkan kredensial ke formulir.

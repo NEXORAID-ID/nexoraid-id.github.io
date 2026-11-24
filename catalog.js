@@ -1,9 +1,17 @@
 export const categories = {
   all: 'Semua', gaming: 'Gaming', accounts: 'Akun Game',
-  software: 'Software', mobile: 'Mobile', seller: 'Seller'
+  software: 'Software', mobile: 'Mobile', seller: 'Mitra'
 };
 
 export const PAGE_SIZE = 9;
+const synonyms = { joki:'boost', lisensi:'license', lisence:'license', hp:'mobile', handphone:'mobile', ponsel:'mobile', reseller:'seller', 'windows':'windows', 'akun':'akun' };
+export function searchTerms(query) { return String(query ?? '').normalize('NFKC').toLocaleLowerCase('id').trim().split(/\s+/).filter(Boolean); }
+export function matchesSearch(text, terms) { const normalized = text.normalize('NFKC').toLocaleLowerCase('id'); return terms.every(t=>normalized.includes(t) || (synonyms[t] && normalized.includes(synonyms[t]))); }
+export function safeSelection(raw, services, limit = 50) { const ids = Array.isArray(raw) ? raw : []; return [...new Set(ids.filter(id=>typeof id==='string' && services.some(s=>s.id===id)))].slice(0,limit); }
+export function safeBasket(raw, services) { if (!Array.isArray(raw)) return []; const out=[]; for (const row of raw) { if (!row || !services.some(s=>s.id===row.id) || out.some(s=>s.id===row.id)) continue; const quantity=Number(row.quantity); if (Number.isInteger(quantity) && quantity>=1 && quantity<=99) out.push({id:row.id,quantity}); } return out.slice(0,50); }
+export function basketTotals(rows, services) { let total=0,needsQuote=0; for (const row of safeBasket(rows,services)) { const price=fixedPriceValue(services.find(s=>s.id===row.id).price); if(price===null) needsQuote++; else total+=price*row.quantity; } return {total,needsQuote}; }
+export function basketText(rows, services, note='') { const items=safeBasket(rows,services); const sums=basketTotals(items,services); return ['Halo tim NEXORAID!', '', 'Saya ingin meminta konfirmasi layanan:', ...items.map(row=>{const s=services.find(s=>s.id===row.id);return '- '+s.name+' × '+row.quantity+' — '+s.price;}),'','Subtotal harga tetap (indikatif): Rp'+sums.total.toLocaleString('id-ID'), 'Layanan yang memerlukan penawaran: '+sums.needsQuote, 'Catatan: '+String(note).slice(0,500), '', 'Mohon konfirmasi ketersediaan, rincian, harga final dan estimasi sebelum pembayaran.'].join('\n'); }
+
 export const escapeHTML = value => String(value).replace(/[&<>"']/g, char => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 })[char]);
@@ -27,12 +35,16 @@ export function comparisonTotals(services) {
   };
 }
 
-export function queryCatalog(services, {category = 'all', query = '', sort = 'recommended', page = 1} = {}) {
-  const terms = query.trim().toLocaleLowerCase('id').split(/\s+/).filter(Boolean);
+export function queryCatalog(services, {category = 'all', query = '', sort = 'recommended', page = 1, maxPrice = null, priceType = 'all', savedIds = null} = {}) {
+  const terms = searchTerms(query);
   const rows = services.filter(service => {
     if (category !== 'all' && service.category !== category) return false;
     const text = [service.name, service.desc, categories[service.category], ...service.details.flat()].join(' ').toLocaleLowerCase('id');
-    return terms.every(term => text.includes(term));
+    const price=priceValue(service.price); const fixed=fixedPriceValue(service.price);
+    if (maxPrice !== null && Number.isFinite(maxPrice) && (price===null || price>maxPrice)) return false;
+    if (priceType==='fixed' && fixed===null || priceType==='variable' && fixed!==null) return false;
+    if (Array.isArray(savedIds) && !savedIds.includes(service.id)) return false;
+    return matchesSearch(text,terms);
   });
   if (sort === 'name') rows.sort((a, b) => a.name.localeCompare(b.name, 'id'));
   if (sort === 'price-asc' || sort === 'price-desc') rows.sort((a, b) => {

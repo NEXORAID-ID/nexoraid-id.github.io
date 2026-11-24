@@ -1,8 +1,18 @@
 import { CONFIG, services } from './services-data.js';
-import { categories, escapeHTML as esc, queryCatalog, orderText, fixedPriceValue, comparisonTotals, PAGE_SIZE } from './catalog.js';
+import { categories, escapeHTML as esc, queryCatalog, orderText, fixedPriceValue, comparisonTotals, PAGE_SIZE, safeSelection, safeBasket, basketTotals, basketText } from './catalog.js';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
+const money = amount => 'Rp'+amount.toLocaleString('id-ID');
+function readStore(key, fallback) { try {return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback;} catch {return fallback;} }
+function saveStore(key, value) { try {localStorage.setItem(key,JSON.stringify(value));return true;} catch {return false;} }
+let favorites = safeSelection(readStore('nexoraid-favorites',[]), services);
+let basket = safeBasket(readStore('nexoraid-basket',[]), services);
+const basketNav=$('#basketNav');
+function updateBasketNav(){if(basketNav)basketNav.textContent='Keranjang ('+basket.reduce((n,r)=>n+r.quantity,0)+')';}
+function updateFavorites(){ $('[data-favorite]').forEach(b=>{const selected=favorites.includes(b.dataset.favorite);b.setAttribute('aria-pressed',String(selected));b.textContent=selected?'♥ Tersimpan':'♡ Favorit';}); }
+function addBasket(id){if(!services.some(s=>s.id===id))return;const row=basket.find(s=>s.id===id);if(row){if(row.quantity>=99){showToast('Jumlah maksimal 99.');return;}row.quantity++;}else{if(basket.length>=50){showToast('Keranjang sudah penuh.');return;}basket.push({id,quantity:1});}const saved=saveStore('nexoraid-basket',basket);updateBasketNav();renderBasket();showToast(saved?'Ditambahkan ke keranjang.':'Ditambahkan untuk sesi halaman ini; penyimpanan browser tidak tersedia.');}
+updateBasketNav();
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const icons = {
   gaming: '<path d="M6 8h12l3 10a2 2 0 0 1-3 2l-4-3h-4l-4 3a2 2 0 0 1-3-2L6 8Z"/><path d="M7 12h4m-2-2v4m7-2h.01M18 14h.01M9 8V5h6"/>',
@@ -17,10 +27,10 @@ function icon(category) {
 function serviceCard(service, index = 0, compareEnabled = false) {
   return `<article class="service-card reveal" style="--delay:${index % 3 * 60}ms">
     <div class="service-top"><div class="service-icon">${icon(service.category)}</div><span class="service-badge">${esc(categories[service.category])}</span></div>
-    <h3><a href="detail.html?id=${encodeURIComponent(service.id)}">${esc(service.name)}</a></h3><p>${esc(service.desc)}</p>
+    <h3><a href="layanan-${encodeURIComponent(service.id)}.html">${esc(service.name)}</a></h3><p>${esc(service.desc)}</p>
     <div class="service-price"><small>${service.price === 'Sesuai Request' ? 'Harga sesuai kebutuhan' : 'Harga layanan'}</small><strong>${esc(service.price)}</strong></div>
-    <div class="service-actions"><a class="text-link" href="detail.html?id=${encodeURIComponent(service.id)}" aria-label="Lihat detail ${esc(service.name)}">Lihat detail ↗</a><a class="btn btn-primary btn-sm" href="${CONFIG.discordUrl}" target="_blank" rel="noopener noreferrer" aria-label="Order ${esc(service.name)} via Discord">Order ↗</a></div>
-    ${compareEnabled ? `<button type="button" class="compare-add" data-compare="${esc(service.id)}" aria-pressed="false">+ Bandingkan</button>` : ''}</article>`;
+    <div class="service-actions"><a class="text-link" href="layanan-${encodeURIComponent(service.id)}.html" aria-label="Lihat detail ${esc(service.name)}">Lihat detail ↗</a><a class="btn btn-primary btn-sm" href="layanan-${encodeURIComponent(service.id)}.html#pesan" aria-label="Pesan ${esc(service.name)}">Pesan ↗</a></div>
+    <div class="card-tools"><button type="button" class="compare-add" data-favorite="${esc(service.id)}" aria-pressed="${favorites.includes(service.id)}">${favorites.includes(service.id)?'♥ Tersimpan':'♡ Favorit'}</button><button type="button" class="compare-add" data-basket="${esc(service.id)}">+ Keranjang</button></div>${compareEnabled ? `<button type="button" class="compare-add" data-compare="${esc(service.id)}" aria-pressed="false">+ Bandingkan</button>` : ''}</article>`;
 }
 
 // Progressive enhancement: content remains visible without JavaScript.
@@ -29,7 +39,7 @@ const observer = 'IntersectionObserver' in window ? new IntersectionObserver(ent
 }, { threshold: 0.06 }) : null;
 function reveal() {
   $$('.reveal:not(.is-visible)').forEach(element => {
-    if (reducedMotion.matches || !observer) element.classList.add('is-visible');
+    if (reducedMotion.matches || motionPaused || !observer) element.classList.add('is-visible');
     else { element.classList.add('will-reveal'); observer.observe(element); }
   });
 }
@@ -38,6 +48,7 @@ $$('[data-icon]').forEach(element => { element.innerHTML = icon(element.dataset.
 $$('[data-year]').forEach(element => { element.textContent = new Date().getFullYear(); });
 
 const menuButton = $('#navToggle'), menu = $('#navMenu');
+if(menuButton && menu) document.documentElement.classList.add('nav-ready');
 function closeMenu() { menu?.classList.remove('open'); menuButton?.setAttribute('aria-expanded', 'false'); menuButton?.setAttribute('aria-label', 'Buka menu'); }
 menuButton?.addEventListener('click', () => {
   const open = menu.classList.toggle('open');
@@ -72,96 +83,35 @@ const homeProof = $('.hero-proof');
 if (homeProof) {
   homeProof.querySelector('span').textContent = `${services.length} layanan di katalog`;
   homeProof.insertAdjacentHTML('afterend', `<form class="terminal-search" id="homeSearch" action="layanan.html" method="get" role="search">
-    <label for="homeSearchInput"><span class="terminal-prompt">nexo@catalog:~$</span> search --services</label>
+    <label for="homeSearchInput"><span class="terminal-prompt">NEXORAID</span> Cari layanan</label>
     <div class="terminal-search-box"><span class="terminal-search-symbol" aria-hidden="true">&gt;</span><input id="homeSearchInput" name="q" type="search" placeholder="Cari GTA, Windows, akun game..." autocomplete="off" aria-controls="homeSearchResults" aria-expanded="false" aria-label="Cari layanan"><kbd aria-hidden="true">CTRL K</kbd><button type="submit">CARI ↵</button></div>
     <div class="terminal-results" id="homeSearchResults" role="listbox" aria-label="Hasil pencarian" hidden></div>
-    <p class="terminal-hint"><strong>TIP:</strong><span>ketik untuk melihat hasil cepat · tekan / atau Ctrl K untuk mencari</span></p>
+    <p class="terminal-hint"><strong>Tips:</strong><span>ketik untuk melihat hasil cepat · tekan / atau Ctrl K untuk mencari</span></p>
   </form>`);
 }
 const ticker = $('.ticker');
 if (ticker) {
   const directoryIds = Object.keys(categories).filter(category => category !== 'all');
-  const directoryLabels = {gaming: 'Gaming', accounts: 'Akun Game', software: 'Software', mobile: 'Mobile', seller: 'Seller'};
+  const directoryLabels = {gaming: 'Gaming', accounts: 'Akun Game', software: 'Software', mobile: 'Mobile', seller: 'Mitra'};
   const directoryLinks = directoryIds.map((category, index) => {
     const count = services.filter(service => service.category === category).length;
-    return `<a class="directory-card" href="layanan.html?category=${encodeURIComponent(category)}"><span class="directory-index">${String(index + 1).padStart(2, '0')}</span><span class="directory-copy"><strong>${esc(directoryLabels[category])}</strong><small>${String(count).padStart(2, '0')} ITEMS // OPEN</small></span><span class="directory-arrow" aria-hidden="true">↗</span></a>`;
+    return `<a class="directory-card" href="layanan.html?category=${encodeURIComponent(category)}"><span class="directory-index">${String(index + 1).padStart(2, '0')}</span><span class="directory-copy"><strong>${esc(directoryLabels[category])}</strong><small>${String(count).padStart(2, '0')} LAYANAN</small></span><span class="directory-arrow" aria-hidden="true">↗</span></a>`;
   }).join('');
   ticker.insertAdjacentHTML('afterend', `<section class="command-center reveal" aria-labelledby="commandCenterTitle"><div class="container">
-    <div class="command-center-head"><div><span class="kicker">NEXO://DIRECTORY</span><h2 id="commandCenterTitle">Pilih direktori.</h2></div><p>SELECT TARGET // BROWSE CATALOG</p></div>
+    <div class="command-center-head"><div><span class="kicker">KATEGORI LAYANAN</span><h2 id="commandCenterTitle">Jelajahi kategori</h2></div><p>Pilih sesuai kebutuhan</p></div>
     <div class="directory-grid">${directoryLinks}</div>
-    <div class="system-strip"><span class="system-online">SYSTEM ONLINE</span><span>CATALOG <b>${services.length}</b> ITEMS</span><span>CHANNELS <b>${directoryIds.length}</b></span><span>SUPPORT VIA DISCORD TICKET</span></div>
+    <div class="system-strip"><span class="system-online">KATALOG DIMUAT</span><span>KATALOG <b>${services.length}</b> LAYANAN</span><span>KATEGORI <b>${directoryIds.length}</b></span><span>BANTUAN MELALUI DISCORD</span></div>
   </div></section>`);
   const showcaseIds = ['gta-nexo-spark', 'akun-game-premium', 'windows-license', 'custom-rom'];
-  const showcaseCards = showcaseIds.map(id => services.find(service => service.id === id)).filter(Boolean).map(service => `<a class="showcase-card" href="detail.html?id=${encodeURIComponent(service.id)}">
+  const showcaseCards = showcaseIds.map(id => services.find(service => service.id === id)).filter(Boolean).map(service => `<a class="showcase-card" href="layanan-${encodeURIComponent(service.id)}.html">
     <span class="showcase-visual showcase-visual--${esc(service.category)}" aria-hidden="true"><span class="showcase-gridlines"></span><span class="showcase-index">NEXO / ${esc(service.category.toUpperCase())}</span><span class="showcase-icon">${icon(service.category)}</span><span class="showcase-scan"></span></span>
-    <span class="showcase-info"><span class="showcase-category">${esc(categories[service.category])} // PREVIEW</span><strong>${esc(service.name)}</strong><span class="showcase-price">${esc(service.price)}</span></span><span class="showcase-open" aria-hidden="true">↗</span>
+    <span class="showcase-info"><span class="showcase-category">${esc(categories[service.category])}</span><strong>${esc(service.name)}</strong><span class="showcase-price">${esc(service.price)}</span></span><span class="showcase-open" aria-hidden="true">↗</span>
   </a>`).join('');
   ticker.nextElementSibling.insertAdjacentHTML('afterend', `<section class="showcase-section" id="showcaseSection" aria-labelledby="showcaseTitle"><div class="container">
-    <div class="showcase-heading"><div><span class="kicker">NEXO://SHOWCASE</span><h2 id="showcaseTitle">Lihat pilihan unggulan.</h2></div><a class="text-link" href="layanan.html">Jelajahi katalog ↗</a></div>
+    <div class="showcase-heading"><div><span class="kicker">PILIHAN LAYANAN</span><h2 id="showcaseTitle">Pilihan layanan unggulan</h2></div><a class="text-link" href="layanan.html">Jelajahi katalog ↗</a></div>
     <div class="showcase-grid">${showcaseCards}</div>
     <p class="showcase-disclaimer">Visual ilustrasi untuk preview kategori, bukan foto bukti pengerjaan. Detail dan ketersediaan mengikuti halaman layanan.</p>
   </div></section>`);
-  $('#showcaseSection').insertAdjacentHTML('afterend', `<section class="live-terminal-section" aria-labelledby="liveTerminalTitle"><div class="container">
-    <div class="live-terminal-heading"><div><span class="kicker">NEXO://LOCAL-FEED</span><h2 id="liveTerminalTitle">Live terminal logs.</h2></div><button type="button" class="terminal-feed-toggle" id="terminalFeedToggle" aria-pressed="false">Pause feed</button></div>
-    <div class="live-terminal" id="liveTerminal">
-      <div class="live-terminal-bar"><span class="terminal-lights" aria-hidden="true"><i></i><i></i><i></i></span><span>nexoraid@browser:~ / activity.log</span><span class="terminal-local-status"><i></i>LOCAL FEED</span></div>
-      <ol class="terminal-log-list" id="terminalLogList" role="log" aria-label="Log aktivitas antarmuka lokal" aria-live="off"></ol>
-      <div class="terminal-prompt-line" aria-hidden="true"><span>nexo@local:~$</span><i></i></div>
-    </div>
-    <p class="terminal-disclaimer">Log ini mencatat status antarmuka dan aktivitas lokal di browser ini saja. Tidak menampilkan order, pembayaran, stok, atau status server live.</p>
-  </div></section>`);
-  const terminalLogList = $('#terminalLogList');
-  const terminalFeedToggle = $('#terminalFeedToggle');
-  const terminalClock = new Intl.DateTimeFormat('id-ID', {hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false});
-  const terminalStartedAt = performance.now();
-  let terminalSequence = 0;
-  const terminalEvents = [
-    ['HEARTBEAT', 'Browser UI aktif · sesi lokal berjalan'],
-    ['CATALOG', `${services.length} entri katalog tersedia dari data lokal`],
-    ['TELEMETRY', 'Order, pembayaran, dan status server tidak terhubung']
-  ];
-  function appendTerminalLog(type, message) {
-    const row = document.createElement('li');
-    const time = document.createElement('time');
-    const marker = document.createElement('span');
-    const text = document.createElement('span');
-    time.dateTime = new Date().toISOString();
-    time.textContent = terminalClock.format(new Date());
-    marker.className = 'terminal-log-type';
-    marker.textContent = type;
-    text.className = 'terminal-log-message';
-    text.textContent = message;
-    row.append(time, marker, text);
-    terminalLogList.append(row);
-    while (terminalLogList.children.length > 6) terminalLogList.firstElementChild.remove();
-    terminalLogList.scrollTop = terminalLogList.scrollHeight;
-  }
-  [
-    ['BOOT', 'Antarmuka browser berhasil diinisialisasi'],
-    ['CATALOG', `${services.length} entri katalog dimuat dari bundle lokal`],
-    ['SOURCE', 'Feed hanya untuk UI lokal · tidak ada telemetri order'],
-    ['READY', 'Menunggu interaksi di halaman']
-  ].forEach(([type, message]) => appendTerminalLog(type, message));
-  let terminalEventIndex = 0;
-  window.setInterval(() => {
-    if (document.hidden || document.documentElement.classList.contains('motion-paused') || terminalFeedToggle.getAttribute('aria-pressed') === 'true') return;
-    const [type, message] = terminalEvents[terminalEventIndex % terminalEvents.length];
-    terminalEventIndex += 1;
-    if (type === 'HEARTBEAT') {
-      const elapsedSeconds = Math.floor((performance.now() - terminalStartedAt) / 1000);
-      appendTerminalLog(type, `${message} · ${elapsedSeconds} dtk`);
-    } else appendTerminalLog(type, message);
-  }, 3200);
-  terminalFeedToggle.addEventListener('click', () => {
-    const paused = terminalFeedToggle.getAttribute('aria-pressed') !== 'true';
-    terminalFeedToggle.setAttribute('aria-pressed', String(paused));
-    terminalFeedToggle.textContent = paused ? 'Resume feed' : 'Pause feed';
-    if (!paused) appendTerminalLog('FEED', 'Pembaruan feed lokal dilanjutkan');
-  });
-  $('#homeSearch')?.addEventListener('submit', () => appendTerminalLog('SEARCH', 'Pencarian katalog lokal diminta'));
-  $('#homeSearchResults')?.addEventListener('click', event => {
-    if (event.target.closest('[data-suggestion]')) appendTerminalLog('ROUTE', 'Pilihan layanan lokal dibuka');
-  });
   reveal();
 }
 const homeSearchInput = $('#homeSearchInput');
@@ -177,8 +127,8 @@ function renderHomeSuggestions() {
   }
   const matches = queryCatalog(services, {query}).rows.slice(0, 5);
   homeSearchResults.innerHTML = matches.length
-    ? matches.map(service => `<a role="option" data-suggestion href="detail.html?id=${encodeURIComponent(service.id)}"><span class="terminal-result-name">${esc(service.name)}<span class="sr-only"> — ${esc(categories[service.category])}</span></span><span class="terminal-result-meta">${esc(service.price)}</span></a>`).join('')
-    : '<div class="terminal-empty" role="status">NO MATCH // Coba kata kunci lain.</div>';
+    ? matches.map(service => `<a role="option" data-suggestion href="layanan-${encodeURIComponent(service.id)}.html"><span class="terminal-result-name">${esc(service.name)}<span class="sr-only"> — ${esc(categories[service.category])}</span></span><span class="terminal-result-meta">${esc(service.price)}</span></a>`).join('')
+    : '<div class="terminal-empty" role="status">Tidak ada hasil. Coba kata kunci lain.</div>';
   homeSearchResults.hidden = false;
   homeSearchInput.setAttribute('aria-expanded', 'true');
 }
@@ -259,17 +209,20 @@ function updateScroll() {
 window.addEventListener('scroll', () => { if (!scrollScheduled) { requestAnimationFrame(updateScroll); scrollScheduled = true; } }, { passive: true });
 updateScroll();
 $('#backToTop')?.addEventListener('click', () => { window.scrollTo({ top: 0, behavior: reducedMotion.matches || motionPaused ? 'instant' : 'smooth' }); $('.brand')?.focus({ preventScroll: true }); });
-if ($('#featuredServices')) $('#featuredServices').innerHTML = ['gta-nexo-spark', 'akun-game-random', 'windows-license'].map(id => services.find(s => s.id === id)).map(serviceCard).join('');
+if ($('#featuredServices')) $('#featuredServices').innerHTML = ['gta-nexo-spark', 'akun-game-random', 'windows-license'].map(id => services.find(s => s.id === id)).filter(Boolean).map((service,index)=>serviceCard(service,index,false)).join('');
 
 const grid = $('#serviceGrid');
 if (grid) {
   const search = $('#serviceSearch'), sort = $('#serviceSort');
-  const compareSelection = new Map();
+  const compareSelection = new Map(safeSelection(readStore('nexoraid-compare',[]),services,3).map(id=>[id,services.find(s=>s.id===id)]));
+  const maxPrice=$('#maxPrice'), priceType=$('#priceType'), savedOnly=$('#savedOnly');
+  $('#advancedFilters').hidden=false;
   const comparePanel = $('#comparePanel');
   const compareTable = $('#compareTable');
   const compareSummary = $('#compareSummary');
   function renderComparison() {
     const selected = [...compareSelection.values()];
+    saveStore('nexoraid-compare',selected.map(s=>s.id));
     comparePanel.hidden = selected.length === 0;
     grid.querySelectorAll('[data-compare]').forEach(button => {
       const active = compareSelection.has(button.dataset.compare);
@@ -278,7 +231,7 @@ if (grid) {
     });
     if (!selected.length) return;
     compareTable.innerHTML = `<caption class="sr-only">Perbandingan layanan yang dipilih</caption>
-      <thead><tr><th scope="col">RINGKASAN</th>${selected.map(service => `<th scope="col"><a href="detail.html?id=${encodeURIComponent(service.id)}">${esc(service.name)} ↗</a><button type="button" class="compare-remove" data-remove-compare="${esc(service.id)}" aria-label="Hapus ${esc(service.name)} dari perbandingan">×</button></th>`).join('')}</tr></thead>
+      <thead><tr><th scope="col">RINGKASAN</th>${selected.map(service => `<th scope="col"><a href="layanan-${encodeURIComponent(service.id)}.html">${esc(service.name)} ↗</a><button type="button" class="compare-remove" data-remove-compare="${esc(service.id)}" aria-label="Hapus ${esc(service.name)} dari perbandingan">×</button></th>`).join('')}</tr></thead>
       <tbody><tr><th scope="row">Kategori</th>${selected.map(service => `<td>${esc(categories[service.category])}</td>`).join('')}</tr>
       <tr><th scope="row">Harga katalog</th>${selected.map(service => `<td class="compare-price">${esc(service.price)}</td>`).join('')}</tr>
       <tr><th scope="row">Ringkasan</th>${selected.map(service => `<td>${esc(service.desc)}</td>`).join('')}</tr></tbody>`;
@@ -324,30 +277,35 @@ if (grid) {
     search.value = (params.get('q') || '').slice(0, 160);
     sort.value = ['recommended', 'name', 'price-asc', 'price-desc'].includes(params.get('sort')) ? params.get('sort') : 'recommended';
     page = Number.parseInt(params.get('page'), 10) || 1;
+    maxPrice.value=/^\d{1,12}$/.test(params.get('max')||'')?params.get('max'):''; priceType.value=['fixed','variable'].includes(params.get('type'))?params.get('type'):'all'; savedOnly.checked=params.get('saved')==='1';
   }
   function render(mode = 'replace', moveFocus = false) {
-    const result = queryCatalog(services, { category, query: search.value, sort: sort.value, page }); page = result.currentPage;
+    const result = queryCatalog(services, { category, query: search.value, sort: sort.value, page, maxPrice:maxPrice.value===''?null:Math.max(0,Number(maxPrice.value)), priceType:priceType.value, savedIds:savedOnly.checked?favorites:null }); page = result.currentPage;
     const params = new URLSearchParams();
     if (category !== 'all') params.set('category', category);
     if (search.value.trim()) params.set('q', search.value.trim());
     if (sort.value !== 'recommended') params.set('sort', sort.value);
     if (page > 1) params.set('page', page);
-    if (mode !== 'none') history[mode === 'push' ? 'pushState' : 'replaceState'](null, '', location.pathname + (params.size ? '?' + params : ''));
+    if(maxPrice.value!=='') params.set('max',maxPrice.value); if(priceType.value!=='all')params.set('type',priceType.value); if(savedOnly.checked)params.set('saved','1');
+    if (mode !== 'none') history[mode === 'push' ? 'pushState' : 'replaceState'](null, '', location.pathname + (params.size ? '?' + params : '') + location.hash);
     $$('[data-filter]').forEach(button => { const active = button.dataset.filter === category; button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active)); });
     $('#resultCount').textContent = result.total ? `${result.total} layanan · Menampilkan ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, result.total)}` : '0 layanan ditemukan';
     grid.innerHTML = result.rows.map((service, index) => serviceCard(service, index, true)).join(''); $('#emptyState').hidden = result.total !== 0; renderComparison();
     $('#pagination').innerHTML = result.totalPages > 1 ? Array.from({ length: result.totalPages }, (_, i) => `<button type="button" class="page-button ${page === i + 1 ? 'active' : ''}" data-page="${i + 1}" ${page === i + 1 ? 'aria-current="page"' : ''} aria-label="Halaman ${i + 1}">${i + 1}</button>`).join('') : '';
-    $('#clearSearch').hidden = !search.value; reveal();
-    if (moveFocus) { $('#resultCount').focus({ preventScroll: true }); $('#catalogControls').scrollIntoView({ behavior: reducedMotion.matches ? 'instant' : 'smooth', block: 'start' }); }
+    $('#clearSearch').hidden = !search.value; document.querySelector('.static-catalog')?.setAttribute('hidden',''); updateFavorites(); reveal();
+    if (moveFocus) { $('#resultCount').focus({ preventScroll: true }); $('#catalogControls').scrollIntoView({ behavior: reducedMotion.matches || motionPaused ? 'instant' : 'smooth', block: 'start' }); }
   }
   search.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { page = 1; render(); }, 150); });
   $('#catalogSearchForm').addEventListener('submit', event => { event.preventDefault(); clearTimeout(searchTimer); page = 1; render('push'); });
-  sort.addEventListener('change', () => { page = 1; render('push'); });
-  $$('[data-filter]').forEach(button => button.addEventListener('click', () => { category = button.dataset.filter; page = 1; render('push'); }));
-  $('#clearSearch').addEventListener('click', () => { search.value = ''; page = 1; render(); search.focus(); });
-  $('#resetFilters').addEventListener('click', () => { search.value = ''; sort.value = 'recommended'; category = 'all'; page = 1; render('push'); search.focus(); });
+  sort.addEventListener('change', () => { clearTimeout(searchTimer); page = 1; render('push'); });
+  $$('[data-filter]').forEach(button => button.addEventListener('click', () => { clearTimeout(searchTimer); category = button.dataset.filter; page = 1; render('push'); }));
+  $('#clearSearch').addEventListener('click', () => { clearTimeout(searchTimer); search.value = ''; page = 1; render(); search.focus(); });
+  $('#resetFilters').addEventListener('click', () => { clearTimeout(searchTimer); maxPrice.value='';priceType.value='all';savedOnly.checked=false;search.value = ''; sort.value = 'recommended'; category = 'all'; page = 1; render('push'); search.focus(); });
   $('#pagination').addEventListener('click', event => { const button = event.target.closest('[data-page]'); if (button) { page = Number(button.dataset.page); render('push', true); } });
   window.addEventListener('popstate', () => { clearTimeout(searchTimer); readURL(); render('none'); });
+  for(const control of [maxPrice,priceType,savedOnly])control.addEventListener('change',()=>{clearTimeout(searchTimer);page=1;render('push');});
+  $('#clearAdvanced').addEventListener('click',()=>{clearTimeout(searchTimer);maxPrice.value='';priceType.value='all';savedOnly.checked=false;page=1;render('push');});
+  document.addEventListener('nexoraid-favorites',()=>{if(savedOnly.checked){page=1;render();}});
   readURL(); render();
 }
 
@@ -371,24 +329,24 @@ async function copyText(text, label) {
 $('#closeCopyDialog')?.addEventListener('click', () => $('#copyDialog').close());
 const detail = $('#detailContent');
 if (detail) {
-  const service = services.find(item => item.id === new URLSearchParams(location.search).get('id'));
+  const service = services.find(item => item.id === (detail.dataset.serviceId || new URLSearchParams(location.search).get('id')));
   if (!service) {
     detail.innerHTML = '<div class="empty-state"><span class="empty-symbol">↗</span><h1>Layanan tidak ditemukan.</h1><p>Tautan mungkin tidak lengkap. Temukan layananmu di katalog.</p><a class="btn btn-primary" href="layanan.html">Buka katalog ↗</a></div>';
     document.title = 'Layanan tidak ditemukan — NEXORAID';
   } else {
     document.title = `${service.name} — NEXORAID`;
-    $('meta[name="description"]').content = `${service.desc} Harga: ${service.price}. Order melalui Discord Ticket NEXORAID.`;
-    const serviceURL = new URL(`detail.html?id=${encodeURIComponent(service.id)}`, location.href).href;
+    $('meta[name="description"]').content = `${service.desc} Harga: ${service.price}. Order melalui Tiket Discord NEXORAID.`;
+    const serviceURL = new URL(`layanan-${encodeURIComponent(service.id)}.html`, location.href).href;
     const related = services.filter(item => item.category === service.category && item.id !== service.id).slice(0, 3);
     const suggestions = related.length ? related : services.filter(item => item.id !== service.id).slice(0, 3);
     detail.innerHTML = `<nav class="breadcrumbs" aria-label="Breadcrumb"><a href="index.html">Beranda</a><span>/</span><a href="layanan.html?category=${service.category}">${esc(categories[service.category])}</a><span>/</span><span aria-current="page">${esc(service.name)}</span></nav>
       <div class="detail-layout"><div class="detail-main"><span class="category-label">${esc(categories[service.category])}</span><h1>${esc(service.name)}</h1><p class="lead">${esc(service.desc)}</p>
       <section class="detail-spec"><h2>Detail layanan</h2><dl class="spec-list">${service.details.map(([key, value]) => `<div><dt>${esc(key)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl></section></div>
-      <aside class="order-panel"><span class="kicker">PILIH. KONFIRMASI. UPGRADE.</span><h2>Siap mulai?</h2><span class="muted">Harga katalog</span><strong class="order-price">${esc(service.price)}</strong><p>Kirim pilihanmu lewat Discord. Admin akan mengonfirmasi detail dan harga sebelum pembayaran.</p>
-      <a class="btn btn-primary btn-block" href="${CONFIG.discordUrl}" target="_blank" rel="noopener noreferrer">Order via Discord ↗</a><button type="button" class="btn btn-ghost btn-block" id="copyOrder">Salin format pesanan</button><button type="button" class="text-link share-link" id="copyServiceLink">Salin tautan layanan ↗</button>
+      <aside class="order-panel" id="pesan"><span class="kicker">RINGKASAN PEMESANAN</span><h2>Pesan layanan</h2><span class="muted">Harga katalog</span><strong class="order-price">${esc(service.price)}</strong><p>Kirim pilihanmu lewat Discord. Admin akan mengonfirmasi detail dan harga sebelum pembayaran.</p>
+      <div class="order-draft"><label for="orderPlatform">Platform / perangkat</label><input id="orderPlatform" maxlength="100" placeholder="Contoh: PC"><label for="orderRequest">Paket / kebutuhan</label><textarea id="orderRequest" rows="3" maxlength="500" placeholder="Jangan masukkan kata sandi atau OTP"></textarea><button type="button" class="btn btn-primary btn-block" id="copyOrder">Salin ringkasan pesanan</button><button type="button" class="btn btn-ghost btn-block" data-basket="${esc(service.id)}">Tambahkan ke keranjang</button><button type="button" class="btn btn-ghost btn-block" data-favorite="${esc(service.id)}" aria-pressed="false">Favorit</button></div><a class="btn btn-ghost btn-block" href="kontak.html">Lanjut ke kontak &amp; tiket ↗</a><button type="button" class="text-link share-link" id="copyServiceLink">Salin tautan layanan ↗</button>
       <div class="order-note">Stok, pilihan paket, dan estimasi proses dikonfirmasi oleh admin melalui tiket.</div><a class="text-link" href="cara-order.html">Lihat cara order →</a></aside></div>
-      <section class="related-section"><div class="section-head"><h2>${related.length ? 'Layanan terkait.' : 'Layanan lainnya.'}</h2><a class="text-link" href="layanan.html?category=${service.category}">Lihat kategori ↗</a></div><div class="service-grid">${suggestions.map(serviceCard).join('')}</div></section>`;
-    $('#copyOrder').addEventListener('click', () => copyText(orderText(service, serviceURL), 'Format pesanan disalin. Tempelkan di tiket Discord.'));
+      <section class="related-section"><div class="section-head"><h2>${related.length ? 'Layanan terkait.' : 'Layanan lainnya.'}</h2><a class="text-link" href="layanan.html?category=${service.category}">Lihat kategori ↗</a></div><div class="service-grid">${suggestions.map((service,index)=>serviceCard(service,index,false)).join('')}</div></section>`;
+    $('#copyOrder').addEventListener('click', () => copyText(orderText(service, serviceURL).replace('Game / platform / perangkat: ',()=> 'Game / platform / perangkat: '+$('#orderPlatform').value.trim()).replace('Paket / spesifikasi / request: ',()=> 'Paket / spesifikasi / request: '+$('#orderRequest').value.trim()), 'Ringkasan disalin. Tempelkan di tiket Discord.'));
     $('#copyServiceLink').addEventListener('click', () => copyText(serviceURL, 'Tautan layanan disalin.'));
   }
 }
@@ -398,3 +356,20 @@ $('#faqSearch')?.addEventListener('input', () => {
   $('#faqEmpty').hidden = count !== 0; $('#faqCount').textContent = `${count} pertanyaan`;
 });
 reveal();
+
+function renderBasket(){
+ const host=$('#basketItems');if(!host)return;
+ host.innerHTML=basket.length?basket.map(row=>{const s=services.find(x=>x.id===row.id);return '<article class="basket-row"><div><h3><a href="layanan-'+esc(s.id)+'.html">'+esc(s.name)+'</a></h3><p>'+esc(s.price)+'</p></div><label>Jumlah <input type="number" min="1" max="99" value="'+row.quantity+'" data-quantity="'+esc(s.id)+'"></label><button type="button" class="btn btn-ghost" data-remove-basket="'+esc(s.id)+'">Hapus</button></article>';}).join(''):'<div class="empty-state"><h2>Keranjang masih kosong</h2><p>Pilih layanan yang ingin dikonsultasikan.</p><a class="btn btn-primary" href="layanan.html">Jelajahi katalog</a></div>';
+ const sums=basketTotals(basket,services);$('#basketTotal').textContent='Subtotal harga tetap (indikatif): '+money(sums.total)+'. '+sums.needsQuote+' layanan perlu penawaran.';$('#basketCopy').disabled=!basket.length;$('#basketClear').disabled=!basket.length;
+}
+document.addEventListener('click',event=>{
+ const fav=event.target.closest('[data-favorite]');const add=event.target.closest('[data-basket]');const rem=event.target.closest('[data-remove-basket]');
+ if(fav){const id=fav.dataset.favorite;if(!services.some(s=>s.id===id))return;favorites=favorites.includes(id)?favorites.filter(x=>x!==id):safeSelection([...favorites,id],services);saveStore('nexoraid-favorites',favorites);updateFavorites();document.dispatchEvent(new Event('nexoraid-favorites'));}
+ if(add)addBasket(add.dataset.basket);
+ if(rem){basket=basket.filter(r=>r.id!==rem.dataset.removeBasket);saveStore('nexoraid-basket',basket);updateBasketNav();renderBasket();}
+});
+$('#basketItems')?.addEventListener('change',event=>{const id=event.target.dataset.quantity;if(!id)return;const row=basket.find(r=>r.id===id);if(!row)return;const value=Number(event.target.value);row.quantity=Number.isInteger(value)?Math.max(1,Math.min(99,value)):1;saveStore('nexoraid-basket',basket);updateBasketNav();renderBasket();});
+$('#basketClear')?.addEventListener('click',()=>{basket=[];saveStore('nexoraid-basket',basket);updateBasketNav();renderBasket();});
+$('#favoritesClear')?.addEventListener('click',()=>{favorites=[];saveStore('nexoraid-favorites',favorites);updateFavorites();showToast('Favorit dihapus.');});
+$('#basketForm')?.addEventListener('submit',event=>{event.preventDefault();if(basket.length)copyText(basketText(basket,services,$('#basketNote').value),'Ringkasan disalin. Tempelkan di tiket Discord.');});
+renderBasket();updateFavorites();
