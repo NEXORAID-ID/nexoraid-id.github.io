@@ -24,7 +24,7 @@ echo "Node: $(node --version)"
 [[ "$(git branch --show-current)" == main ]] || { echo 'Gunakan branch main.' >&2; exit 1; }
 [[ -z "$(git status --porcelain --untracked-files=no)" ]] || { echo 'Ada perubahan lokal; simpan dahulu.' >&2; exit 1; }
 export WRANGLER_SEND_METRICS=false
-wr() { npx --yes wrangler@4 "$@"; }
+wr() { npx --yes wrangler@4.168.0 "$@"; }
 ask() { local dest="$1" prompt="$2" value; local default="${!dest:-}"; if [[ -n "$default" ]]; then read -r -p "$prompt [$default]: " value; else read -r -p "$prompt: " value; fi; printf -v "$dest" '%s' "${value:-$default}"; }
 echo 'NEXORAID V4 — setup Cloudflare (staging dahulu).'
 echo 'Tidak mengaktifkan paket berbayar. Periksa kuota dan akun tujuan sendiri.'
@@ -72,6 +72,8 @@ list_db() {
 }
 STEP='D1 provisioning'
 D1_DATABASE_ID="$(list_db)"
+EXISTING_DB=false
+if [[ -n "$D1_DATABASE_ID" ]]; then EXISTING_DB=true; fi
 if [[ -z "$D1_DATABASE_ID" ]]; then
   wr d1 create nexoraid-v4 --update-config=false
   D1_DATABASE_ID="$(list_db)"
@@ -92,6 +94,15 @@ printf '%s' "$DISCORD_SECRET" | node --input-type=module -e 'let s="";for await(
 unset DISCORD_SECRET
 STEP='Worker dry-run'
 wr deploy --dry-run --config "$CONFIG" --secrets-file "$SECRET_FILE"
+STEP='Browser regression'
+npm install --no-save --package-lock=false playwright@1.56.1
+npx playwright install chromium
+node tests/browser.mjs
+STEP='Financial migration gate'
+if [[ "$EXISTING_DB" == true ]]; then
+  bash v4/scripts/backup.sh
+fi
+node v4/scripts/financial-migration-gate.mjs
 STEP='D1 migrations'
 wr d1 migrations apply nexoraid-v4 --remote --config "$CONFIG"
 STEP='Worker deployment'

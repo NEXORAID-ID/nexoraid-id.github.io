@@ -13,12 +13,15 @@ node -e 'const fs=require("node:fs");const p=process.argv[1],c=JSON.parse(fs.rea
 echo "Deploy existing Worker: $PUBLIC_ORIGIN ($RELEASE_SHA)"
 npm test
 SITE_URL="$PUBLIC_ORIGIN" npm run build
-for file in portal.html portal.css portal.mjs; do cp "v4/$file" "dist/$file"; done
-npx --yes wrangler@4 whoami
-npx --yes wrangler@4 deploy --dry-run --config "$CONFIG"
+for file in portal.html portal.css portal.mjs portal.webmanifest portal-sw.js portal-offline.html; do cp "v4/$file" "dist/$file"; done
+npm install --no-save --package-lock=false playwright@1.56.1
+npx playwright install chromium
+node tests/browser.mjs
+npx --yes wrangler@4.168.0 whoami
+npx --yes wrangler@4.168.0 deploy --dry-run --config "$CONFIG"
 bash v4/scripts/backup.sh
 node v4/scripts/financial-migration-gate.mjs
-npx --yes wrangler@4 d1 migrations apply nexoraid-v4 --remote --config "$CONFIG"
-npx --yes wrangler@4 deploy --config "$CONFIG"
+npx --yes wrangler@4.168.0 d1 migrations apply nexoraid-v4 --remote --config "$CONFIG"
+npx --yes wrangler@4.168.0 deploy --config "$CONFIG"
 node v4/scripts/verify.mjs
 echo "Portal: $PUBLIC_ORIGIN/portal.html"
