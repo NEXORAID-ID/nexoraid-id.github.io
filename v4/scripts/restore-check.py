@@ -5,6 +5,7 @@ without logging amounts or row contents.
 Usage: age -d -i /secure/identity backup.sql.age | python3 v4/scripts/restore-check.py --expected /secure/summary.json
 """
 import argparse
+import hashlib
 import json
 import pathlib
 import sqlite3
@@ -24,6 +25,8 @@ def snapshot(db):
     return {
         "counts": {name: db.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0] for name in NAMES},
         "totals": {name: db.execute(query).fetchone()[0] for name, query in TOTALS.items()},
+        "attachments": {row[0]: hashlib.sha256(row[1]).hexdigest()
+                        for row in db.execute("SELECT id,bytes FROM order_attachments ORDER BY id")},
     }
 
 def verify(sql, expected=None):

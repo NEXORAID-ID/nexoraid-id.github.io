@@ -30,6 +30,8 @@ class RestoreTests(unittest.TestCase):
         INSERT INTO order_work(order_id,worker_id,evidence,submitted_at) VALUES('fixture-order','w','synthetic evidence only',3);
         UPDATE orders SET status='completed',updated_at=4 WHERE id='fixture-order';
         """)
+        self.db.execute("INSERT INTO order_attachments VALUES(?,?,?,?,?,?,?)",
+                        ("fixture-attachment","fixture-order","c","payment","image/png",b"synthetic-attachment-bytes",5))
         self.db.commit()
         self.expected = restore.snapshot(self.db)
         self.legacy_rows = {
@@ -65,6 +67,10 @@ class RestoreTests(unittest.TestCase):
         self.expected["totals"]["verified_invoice_amount"] += 1
         with self.assertRaisesRegex(ValueError,"Source snapshot mismatch"):
             restore.verify(self.dump,self.expected)
+    def test_attachment_content_mismatch(self):
+        self.expected["attachments"]["fixture-attachment"] = "0" * 64
+        with self.assertRaisesRegex(ValueError,"Source snapshot mismatch"):
+            restore.verify(self.dump,self.expected)
     def test_malformed_export(self):
         with self.assertRaises(sqlite3.Error):
             restore.verify("not SQL")
@@ -74,5 +80,47 @@ class RestoreTests(unittest.TestCase):
             with self.assertRaises(sqlite3.Error):
                 restore.verify("ATTACH DATABASE '"+str(target)+"' AS outside;")
             self.assertFalse(target.exists())
+class OwnerBackupTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("finance_backup", ROOT / "v4/scripts/finance-backup.py")
+        cls.helper = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.helper)
+
+    def test_pending_digest_matches_node_gate_byte_for_byte(self):
+        import hashlib
+        from unittest.mock import patch
+        sha="a"*40
+        name="0016_installment_ledger.sql"
+        sql=b"CREATE TABLE fixture(id TEXT);\n"
+        def git(args):
+            if args[1]=="rev-parse": return (sha+"\n").encode()
+            if args[1]=="ls-tree": return ("0015_rental_investor_guard.sql\n"+name+"\n").encode()
+            if args[1]=="show": return sql
+            raise AssertionError("unexpected command")
+        with patch.object(self.helper,"run",side_effect=git):
+            self.assertEqual(self.helper.pending_digest("fixture",["0015_rental_investor_guard.sql"]),
+                ([name],hashlib.sha256(name.encode()+b"\0"+sql+b"\0").hexdigest()))
+            with self.assertRaisesRegex(ValueError,"Divergent migration"):
+                self.helper.pending_digest("fixture",["0015_other.sql"])
+
+    def test_source_attachment_hash_is_independent_and_chunked(self):
+        import hashlib
+        from unittest.mock import patch
+        data=b"a"*65536+b"z"*20
+        def scalar(sql):
+            if sql.startswith("SELECT length(bytes)"): return len(data)
+            return 1 if "order_attachments" in sql else 0
+        def query(sql):
+            if sql.startswith("SELECT id"): return [{"id":"fixture"}]
+            if "substr(bytes,1,65536)" in sql: return [{"data":data[:65536].hex()}]
+            if "substr(bytes,65537,65536)" in sql: return [{"data":data[65536:].hex()}]
+            raise AssertionError("unexpected query")
+        with patch.object(self.helper,"scalar",side_effect=scalar), patch.object(self.helper,"query",side_effect=query):
+            self.assertEqual(self.helper.source_snapshot()["attachments"],{"fixture":hashlib.sha256(data).hexdigest()})
+        with patch.object(self.helper,"scalar",side_effect=scalar), patch.object(self.helper,"query",return_value=[]):
+            with self.assertRaisesRegex(ValueError,"Attachment inventory"):
+                self.helper.source_snapshot()
+
 if __name__ == "__main__":
     unittest.main()
