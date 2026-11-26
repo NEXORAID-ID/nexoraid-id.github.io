@@ -54,19 +54,19 @@ Status: candidate development, not stable. Source: owner-approved 26 Nov 2026 au
 | A49 | P1 | Portal modularization | TEST PASSED |
 | A50 | P1 | Real responsive E2E | IN PROGRESS |
 | A51 | P2 | Language consistency | TEST PASSED |
-| A52 | P0 | Logging channel ID mapping | O |
-| A53 | P1 | Legacy role names | O |
-| A54 | P0 | Role permissions mapping | O |
-| A55 | P0 | Owner-only structure commands | O |
-| A56 | P1 | Single-replica persistence boundary | O |
-| A57 | P0 | Lost-volume recovery | O |
-| A58 | P0 | Encrypted off-volume backup | O |
-| A59 | P0 | Deleted-channel reconciliation | O |
-| A60 | P1 | Integrated closure | O |
-| A61 | P2 | Command docs | O |
-| A62 | P1 | Audio legacy dependency audit | O |
-| A63 | P1 | Real music control tests | O |
-| A64 | P0 | Transcript/log privacy | O |
+| A52 | P0 | Logging channel ID mapping | IN PROGRESS |
+| A53 | P1 | Legacy role names | IN PROGRESS |
+| A54 | P0 | Role permissions mapping | IN PROGRESS |
+| A55 | P0 | Owner-only structure commands | IN PROGRESS |
+| A56 | P1 | Single-replica persistence boundary | IN PROGRESS |
+| A57 | P0 | Lost-volume recovery | IN PROGRESS |
+| A58 | P0 | Encrypted off-volume backup | IN PROGRESS |
+| A59 | P0 | Deleted-channel reconciliation | IN PROGRESS |
+| A60 | P1 | Integrated closure | IN PROGRESS |
+| A61 | P2 | Command docs | IN PROGRESS |
+| A62 | P1 | Audio legacy dependency audit | IN PROGRESS |
+| A63 | P1 | Real music control tests | IN PROGRESS |
+| A64 | P0 | Transcript/log privacy | IN PROGRESS |
 | A65 | P0 | Account suspension | O |
 | A66 | P0 | Key rotation | O |
 | A67 | P0 | CVE scan | O |
@@ -136,3 +136,25 @@ Do not mark VERIFIED or Final Stable without current main CI, deployment evidenc
 
 ## Release gate evidence — 27 Nov
 See [FINAL-STABLE-EVIDENCE.md](FINAL-STABLE-EVIDENCE.md). Scoped historical CI and deployment evidence is not blanket production certification. Production finance migration is blocked pending valid encrypted backup/restore evidence. Cloud staging and live drift monitoring still require dedicated configuration.
+
+## Section E — HYPEBOTX evidence, 27 Nov 2026 WIB
+
+Railway deployment `fec51821-590e-4393-9db9-8a590c6ba0e5` reports SUCCESS for bot commit `e058346d82a0e6bb4c865f2d231ae388d7debc3a`. Runtime logs 26 Nov 18:52:43–45 UTC show database initialized, 54 commands loaded, backup job started, HYPEBOTX ready, actor and machine probes true, queueRequested false. Startup is not acceptance of data recovery, external backup or Discord permissions. Prior service configuration showed one replica and persistent mount `/data/nexoraid`.
+
+| ID | Evidence | Merge SHA | Bot PR CI | Outstanding acceptance |
+|---|---|---|---|---|
+| A52 | Fixed log IDs; moderation privacy guard PR 40 | 1b96b8d9 | [passed 45878381508](https://github.com/NEXORAID-ID/nexoraid-bot/actions/runs/45878381508) | Verify live destinations, dedicated moderation mapping and role visibility |
+| A53 | Canonical role IDs independent of names, PR 43 | 6831111a | [passed 45878645058](https://github.com/NEXORAID-ID/nexoraid-bot/actions/runs/45878645058) | Verify renamed and optional roles live |
+| A54 | Canonical role lookup and permission checks, PR 43 | 6831111a | [passed 45878645058](https://github.com/NEXORAID-ID/nexoraid-bot/actions/runs/45878645058) | Live all-role matrix and combined permissions |
+| A55 | Owner-only central dispatcher, PR 34 | 13495547 | [passed 45877582235](https://github.com/NEXORAID-ID/nexoraid-bot/actions/runs/45877582235) | Live owner/non-owner command UAT |
+| A56 | Single replica and persistent startup observed | e058346d | [passed 45879041281](https://github.com/NEXORAID-ID/nexoraid-bot/actions/runs/45879041281) | Production record count reconciliation and restart retention |
+| A57 | Isolated encrypted restore, PR 37 | 7ce80190 | [passed 45877907186](https://github.com/NEXORAID-ID/nexoraid-bot/actions/runs/45877907186) | Actual owner-controlled production-derived drill |
+| A58 | External receiver, PR 44 | 7051d1d4 | [passed 45878861588](https://github.com/NEXORAID-ID/nexoraid-bot/actions/runs/45878861588) | External destination, scheduling, receipt and key custody |
+| A59 | Owner-only missing-ticket audit, PR 41 | d5f0ab65 | [passed 45878456004](https://github.com/NEXORAID-ID/nexoraid-bot/actions/runs/45878456004) | Actual canonical D1 reconciliation of missing channels |
+| A60 | Durable closure candidate, paired PR 29 | candidate | candidate; recheck current head | Migration sequencing, backup attestation, integrated staging, queue remains disabled |
+| A61 | Generated registered command reference, PR 34 | 13495547 | [passed 45877582235](https://github.com/NEXORAID-ID/nexoraid-bot/actions/runs/45877582235) | Verify registered commands against live guild |
+| A62 | Native FFmpeg/Opus and security audit, PR 35 | 7bb96e4c | [passed 45878081495](https://github.com/NEXORAID-ID/nexoraid-bot/actions/runs/45878081495) | Actual runtime media sources and dependencies |
+| A63 | Music control handler regressions, PR 45 | e058346d | [passed 45879041281](https://github.com/NEXORAID-ID/nexoraid-bot/actions/runs/45879041281) | Human listener and real Discord control acceptance |
+| A64 | Transcript bounds PR 33 and moderation log privacy PR 40 | 138fbb34 / 1b96b8d9 | [passed 45878381508](https://github.com/NEXORAID-ID/nexoraid-bot/actions/runs/45878381508) | Live transcript privacy, retention, PR 47 pending |
+
+All thirteen remain open for final acceptance, not Closed. This registry does not authorize enabling the queue, applying production migrations, or creating a second bot replica. PR CI evidence is tied to tested PR heads; deployment is tied to the stated merge commit.
