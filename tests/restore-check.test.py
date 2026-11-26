@@ -69,15 +69,15 @@ class OwnerBackupTests(unittest.TestCase):
         from unittest.mock import patch
         sha="a"*40
         name="0016_installment_ledger.sql"
-        sql=b"CREATE TABLE fixture(id TEXT);\\n"
+        sql=b"CREATE TABLE fixture(id TEXT);\n"
         def git(args):
-            if args[1]=="rev-parse": return (sha+"\\n").encode()
-            if args[1]=="ls-tree": return ("0015_rental_investor_guard.sql\\n"+name+"\\n").encode()
+            if args[1]=="rev-parse": return (sha+"\n").encode()
+            if args[1]=="ls-tree": return ("0015_rental_investor_guard.sql\n"+name+"\n").encode()
             if args[1]=="show": return sql
             raise AssertionError("unexpected command")
         with patch.object(self.helper,"run",side_effect=git):
             self.assertEqual(self.helper.pending_digest("fixture",["0015_rental_investor_guard.sql"]),
-                ([name],hashlib.sha256(name.encode()+b"\\0"+sql+b"\\0").hexdigest()))
+                ([name],hashlib.sha256(name.encode()+b"\0"+sql+b"\0").hexdigest()))
             with self.assertRaisesRegex(ValueError,"Divergent migration"):
                 self.helper.pending_digest("fixture",["0015_other.sql"])
 
