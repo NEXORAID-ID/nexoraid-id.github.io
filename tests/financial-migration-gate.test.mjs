@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {pendingFinancialMigrations,verifyEvidence} from '../v4/scripts/financial-migration-gate.mjs';
+import {migrationInventory,pendingFinancialMigrations,verifyEvidence} from '../v4/scripts/financial-migration-gate.mjs';
 const files=['0015_rental_investor_guard.sql','0016_installment_ledger.sql','0017_business_controls.sql'];
 const pending=files.slice(1),databaseId='fixture-db',digest='a'.repeat(64),now=Date.parse('2026-11-26T17:00:00Z');
 const evidence={database_id:databaseId,migration_digest:digest,backup_sha256:'b'.repeat(64),pending_migrations:pending,external_encrypted_copy:true,isolated_restore_verified:true,independent_totals_matched:true,attachment_checksums_matched:true,verified_at:new Date(now-60000).toISOString()};
@@ -35,4 +35,9 @@ test('rejects out-of-order applied history and incomplete baseline; pending orde
  assert.throws(()=>pendingFinancialMigrations(files,[files[0],files[2]]),/exact prefix/);
  assert.throws(()=>pendingFinancialMigrations(files,[]),/baseline not applied/);
  assert.deepEqual(pendingFinancialMigrations([...files].reverse(),[files[0]]),pending);
+});
+
+test('read-only migration report exposes only validated filenames and identifies unknown history',()=>{
+ assert.deepEqual(migrationInventory(files,[files[0],'0019_other.sql']),{local:files,applied:[files[0],'0019_other.sql'],pending,unknown:['0019_other.sql']});
+ assert.throws(()=>migrationInventory(files,['secret value\n']),/Invalid migration inventory/);
 });
