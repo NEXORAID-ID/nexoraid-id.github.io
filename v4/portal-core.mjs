@@ -17,7 +17,7 @@ export function createPortalApi({isExpired,expiredError,hasUser,expireSession,is
   if(r.status===401&&hasUser()){expireSession();throw expiredError();}
   const j=await r.json().catch(()=>null);
   if(isExpired())throw expiredError();
-  if(!r.ok||!j){const e=Error(j?.error||'Respons server tidak valid.');e.status=r.status;throw e;}
+  if(!r.ok||!j){const e=Error(j?.error||'Respons server tidak valid.');e.status=r.status;e.validError=typeof j?.error==='string';throw e;}
   return j;
  };
 }

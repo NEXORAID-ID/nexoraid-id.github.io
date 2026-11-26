@@ -17,5 +17,12 @@ test('all authorized deployment routes pin Wrangler and gate migrations before r
 });
 test('manual redeploy copies every portal PWA asset',async()=>{
  const s=await read('v4/scripts/redeploy.sh');
- for(const p of ['portal.html','portal.css','portal.mjs','portal.webmanifest','portal-sw.js','portal-offline.html'])assert.ok(s.includes(p),p);
+ for(const p of ['portal.html','portal.css','portal.mjs','portal-ui.mjs','portal-core.mjs','portal.webmanifest','portal-sw.js','portal-offline.html'])assert.ok(s.includes(p),p);
+});
+
+test('manual redeploy and prepare copy the identical portal asset list',async()=>{
+ const prepare=await read('v4/scripts/prepare.mjs'),manual=await read('v4/scripts/redeploy.sh');
+ const a=prepare.match(/for\(const name of \[(.*?)\]\)/)?.[1]?.match(/'[^']+'/g)?.map(x=>x.slice(1,-1));
+ const b=manual.match(/for file in (.*?)\s*; do cp/ )?.[1]?.split(/\s+/);
+ assert.ok(a?.length&&b?.length);assert.deepEqual([...a].sort(),[...b].sort());
 });
