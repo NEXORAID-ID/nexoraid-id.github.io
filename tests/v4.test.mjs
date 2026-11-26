@@ -56,7 +56,7 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   db.prepare('INSERT INTO sessions VALUES(?,?,?)').run(hash,id,Math.floor(Date.now()/1000)+3600);
  }
  const DB={prepare(sql){return {args:[],bind(...args){this.args=args;return this;},async first(){return db.prepare(sql).get(...this.args)||null;},async all(){return {results:db.prepare(sql).all(...this.args)};},async run(){return {meta:{changes:Number(db.prepare(sql).run(...this.args).changes)}};}};},async batch(statements){db.exec('BEGIN');try{const out=[];for(const stmt of statements)out.push(await stmt.run());db.exec('COMMIT');return out;}catch(e){db.exec('ROLLBACK');throw e;}}};
- const env={DB,PUBLIC_ORIGIN:'https://nexoraid.example',OWNER_DISCORD_ID:ids.owner,NEXORAID_BOT_API_KEY:'b'.repeat(64),DISCORD_MEMBERSHIP_BOT_TOKEN:'fixture',DISCORD_MEMBERSHIP_FETCH:async url=>Response.json({user:{id:url.split('/').at(-1)}})};
+ const env={DB,PUBLIC_ORIGIN:'https://nexoraid.example',OWNER_DISCORD_ID:ids.owner,NEXORAID_BOT_API_KEY:'b'.repeat(64),DISCORD_MEMBERSHIP_BOT_TOKEN:'fixture',DISCORD_MEMBERSHIP_FETCH:async url=>{const id=url.split('/').at(-1);return Response.json({user:{id},roles:id===ids.worker?['1511392414516903966']:[]});}};
  let fixtureRequest=0;
  const call=async(role,path,data)=>{if(path==='orders'&&data&&data.request_id===undefined)data={...data,request_id:'fixture-order-'+String(++fixtureRequest).padStart(8,'0')};const headers={cookie:cookies[role],origin:env.PUBLIC_ORIGIN,'content-type':'application/json'};return worker.fetch(req('/api/'+path,{headers,...(data===undefined?{}:{method:'POST',body:JSON.stringify(data)})}),env);};
  try{

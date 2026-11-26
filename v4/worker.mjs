@@ -10,7 +10,7 @@ import { collaboration } from './collaboration.mjs';
 import { customer,deviceLabel } from './customer.mjs';
 
 import { ticketQueue } from './ticket-queue.mjs';
-import { membershipStatus,membershipMessage } from './membership.mjs';
+import { membershipStatus,membershipMessage,discordWorkerRole,oauthGuildMember,workerRoleSyncStatements,guildMembership } from './membership.mjs';
 import { cashLedger } from './cash-ledger.mjs';
 import { guardedCatalogPrice,catalogPriceBindings,catalogChangedError } from './catalog-snapshot.mjs';
 const DAY=86400;
@@ -56,7 +56,7 @@ export function oauthFailure(status,value){
  return status===429?'rate_limited':known.includes(value?.error)?value.error:status===401?'invalid_client':'provider_error';
 }
 // Never log the request, response body, authorization code, token or secret.
-export async function discordIdentity(env,code,request=fetch,report=(details)=>console.warn('Discord OAuth diagnostic',details),verifier=null){
+export async function discordIdentity(env,code,request=fetch,report=(details)=>console.warn('Discord OAuth diagnostic',details),verifier=null,checkGuild=false){
  let stage='token_request';
  const fail=(reason,details={})=>{report({stage,reason,...details});return {error:reason};};
  const kind=e=>['AbortError','TimeoutError','TypeError','NetworkError'].includes(e?.name)?e.name:'Error';
@@ -83,8 +83,14 @@ export async function discordIdentity(env,code,request=fetch,report=(details)=>c
   if(!identity.ok)return fail('identity_error',{status:identity.status});
   const user=await identity.json();
   if(!validId(user.id))return fail('identity_error');
+  if(checkGuild&&!(validId(env.OWNER_DISCORD_ID)&&user.id===env.OWNER_DISCORD_ID)){
+   stage='guild_member';
+   const membership=await oauthGuildMember(user.id,token.access_token,send);
+   if(membership.status===503)return fail('membership_unavailable',{status:membership.upstreamStatus||0,reason_code:membership.reason});
+   return {user,membership};
+  }
   return {user};
- }catch(e){return fail(stage.startsWith('token')?'token_transport':'identity_transport',{exception:kind(e)});}
+ }catch(e){return fail(stage.startsWith('token')?'token_transport':stage==='guild_member'?'membership_unavailable':'identity_transport',{exception:kind(e)});}
 }
 const loginFailure=(code)=>redirect('/portal.html?login_error='+encodeURIComponent(code),[cookie('nexo_state','',0),cookie('nexo_pkce','',0)]);
 function oauthReady(env){return Boolean(env.PUBLIC_ORIGIN&&env.DISCORD_CLIENT_ID&&env.DISCORD_CLIENT_SECRET&&env.DB);}
@@ -130,10 +136,15 @@ async function handle(r,env){
   const u=await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+' FROM users u WHERE u.id=?').bind(actor).first();
   botUser=u?{...u,role:roleFor(u,env)}:null;
   if(botUser&&await env.DB.prepare('SELECT user_id FROM account_suspensions WHERE user_id=?').bind(actor).first())return err('Akun dinonaktifkan.',403);
+  if(botUser?.role==='worker'){
+   const verified=await guildMembership(env,actor,env.DISCORD_MEMBERSHIP_FETCH||fetch);
+   if(verified.status!==200)return err(membershipMessage(verified.status),verified.status);
+   if(!discordWorkerRole(verified))return err('Role Penjoki Discord tidak lagi terverifikasi.',403);
+  }
  }else if(m!=='GET'&&r.headers.get('origin')!==env.PUBLIC_ORIGIN)return err('Origin tidak diizinkan.',403);
  if(p==='/api/auth/login'&&m==='GET'){
   if(!oauthReady(env))return err('Login belum dikonfigurasi.',503);
-  const state=random(),verifier=pkceVerifier(),challenge=await pkceChallenge(verifier);const q=new URLSearchParams({client_id:env.DISCORD_CLIENT_ID.trim(),response_type:'code',redirect_uri:env.PUBLIC_ORIGIN+'/api/auth/callback',scope:'identify',state,prompt:'consent',code_challenge:challenge,code_challenge_method:'S256'});
+  const state=random(),verifier=pkceVerifier(),challenge=await pkceChallenge(verifier);const q=new URLSearchParams({client_id:env.DISCORD_CLIENT_ID.trim(),response_type:'code',redirect_uri:env.PUBLIC_ORIGIN+'/api/auth/callback',scope:'identify guilds.members.read',state,prompt:'consent',code_challenge:challenge,code_challenge_method:'S256'});
   return redirect('https://discord.com/oauth2/authorize?'+q,[cookie('nexo_state',state,600),cookie('nexo_pkce',verifier,600)]);
  }
  if(p==='/api/auth/callback'&&m==='GET'){
@@ -143,18 +154,34 @@ async function handle(r,env){
   if(url.searchParams.get('error')==='access_denied')return loginFailure('access_denied');
   if(!code||code.length>2048)return loginFailure('invalid_grant');
   const verifier=getCookie(r,'nexo_pkce');if(!/^[a-zA-Z0-9_-]{43}$/.test(verifier))return loginFailure('invalid_state');
-  const result=await discordIdentity(env,code,fetch,undefined,verifier);
+  const result=await discordIdentity(env,code,env.DISCORD_OAUTH_FETCH||fetch,undefined,verifier,true);
   if(result.error)return loginFailure(result.error);
   const user=result.user;
   if(await env.DB.prepare('SELECT user_id FROM account_suspensions WHERE user_id=?').bind(user.id).first())return loginFailure('account_suspended');
   const t=now(),s=random(),sessionHash=await hash(s);
-  await env.DB.batch([
-   env.DB.prepare('INSERT INTO users(id,display_name,created_at) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET display_name=excluded.display_name').bind(user.id,String(user.global_name||user.username||'Pelanggan').slice(0,100),t),
+  const isOwner=validId(env.OWNER_DISCORD_ID)&&user.id===env.OWNER_DISCORD_ID;
+  const displayName=String(user.global_name||user.username||'Pelanggan').slice(0,100);
+  // Discord's exact PENJOKI role can authorize a worker; management/seller
+  // still require existing owner-approved D1 grants. Never infer owner.
+  const workerVerified=!isOwner&&discordWorkerRole(result.membership);
+  const sync=isOwner?[]:workerRoleSyncStatements(env.DB,user.id,workerVerified,t);
+  // Bound automatically synced worker sessions; a fresh OAuth member check is
+  // required to renew. Old sessions are revoked atomically on role changes.
+  const age=isOwner?7*DAY:workerVerified?900:7*DAY;
+  try{await env.DB.batch([
+   env.DB.prepare('INSERT INTO users(id,display_name,created_at) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET display_name=excluded.display_name').bind(user.id,displayName,t),
+   ...sync,
    env.DB.prepare('DELETE FROM sessions WHERE expires_at<=?').bind(t),
-   env.DB.prepare('INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)').bind(sessionHash,user.id,t+7*DAY),
+   env.DB.prepare('INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)').bind(sessionHash,user.id,t+age),
    env.DB.prepare('INSERT INTO session_metadata VALUES(?,?,?,?)').bind(sessionHash,crypto.randomUUID(),deviceLabel(r.headers.get('user-agent')||''),t)
-  ]);
-  return redirect('/portal.html',[cookie('nexo_state','',0),cookie('nexo_pkce','',0),cookie('nexo_session',s,7*DAY)]);
+  ]);}catch(e){
+   if(!isOwner&&String(e?.message).includes('worker_has_active_orders')){
+    await env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(user.id).run();
+    return loginFailure('worker_role_review');
+   }
+   throw e;
+  }
+  return redirect('/portal.html',[cookie('nexo_state','',0),cookie('nexo_pkce','',0),cookie('nexo_session',s,age)]);
  }
  if(env.MAINTENANCE_MODE==='true'&&!['GET','HEAD'].includes(m)&&!['/api/auth/logout','/api/auth/logout-all'].includes(p))return err('Sistem sedang dalam pemeliharaan. Tidak ada perubahan yang disimpan.',503);
  const user=bot?botUser:await session(r,env);
