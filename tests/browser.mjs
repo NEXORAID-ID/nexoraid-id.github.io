@@ -24,6 +24,8 @@ try{
   await page.locator('[data-quantity="optiwindows"]').fill('2');await page.locator('[data-quantity="optiwindows"]').press('Tab');
   assert.match(await page.locator('#basketTotal').innerText(),/300\.000/);
   await page.goto(url+'layanan-gta-heist.html');await page.locator('#orderVariant').waitFor();await page.locator('#orderVariant').selectOption({index:1});assert.match(await page.locator('#orderEstimate').innerText(),/2\.500/);
+  await page.goto(url+'layanan-gta-rank.html');await page.locator('#orderVariant').selectOption('gta-rank-v-100-rank');await page.locator('#orderQuantity').fill('2');assert.match(await page.locator('#orderEstimate').innerText(),/25\.998/);
+  await page.locator('#detailContent [data-basket="gta-rank-v-100-rank"]').click();await page.goto(url+'keranjang.html');await page.locator('[data-quantity="gta-rank-v-100-rank"]').waitFor();assert.equal(await page.locator('[data-quantity="gta-rank-v-100-rank"]').inputValue(),'2');
   await page.goto(url+'detail.html?id=optiwindows');await page.locator('#orderQuantity').waitFor();assert.match(await page.locator('h1').innerText(),/OptiWindows/);assert.equal(await page.locator('.related-section [data-compare]').count(),0);
   for(const name of ['harga','promo','tentang','kontak','kebijakan','cara-order','seller','faq']){const response=await page.goto(url+name+'.html');assert.ok(response.ok(),name);await page.locator('h1').waitFor();}
   assert.deepEqual(errors,[]);
