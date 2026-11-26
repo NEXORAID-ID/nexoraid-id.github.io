@@ -14,8 +14,10 @@ class RestoreTests(unittest.TestCase):
     def setUp(self):
         self.db = sqlite3.connect(":memory:")
         self.db.execute("PRAGMA foreign_keys=ON")
-        for path in sorted((ROOT / "v4/migrations").glob("*.sql")):
-            self.db.executescript(path.read_text())
+        self.migrations = sorted((ROOT / "v4/migrations").glob("*.sql"))
+        for path in self.migrations:
+            if int(path.name[:4]) <= 15:
+                self.db.executescript(path.read_text())
         self.db.executescript("""
         INSERT INTO users(id,display_name,role,created_at) VALUES
          ('c','synthetic customer','customer',1),('o','synthetic owner','customer',1),('w','synthetic worker','worker',1);
@@ -30,6 +32,15 @@ class RestoreTests(unittest.TestCase):
         """)
         self.db.commit()
         self.expected = restore.snapshot(self.db)
+        self.legacy_rows = {
+            table: self.db.execute(f"SELECT * FROM {table}").fetchall()
+            for table in ("users", "orders", "order_finance", "order_settlements", "sessions", "session_metadata")
+        }
+        self.applied_upgrade = []
+        for path in self.migrations:
+            if int(path.name[:4]) > 15:
+                self.db.executescript(path.read_text())
+                self.applied_upgrade.append(int(path.name[:4]))
         self.dump = "\n".join(self.db.iterdump())
     def tearDown(self):
         self.db.close()
@@ -38,6 +49,18 @@ class RestoreTests(unittest.TestCase):
         self.assertEqual(self.expected["totals"]["worker_share"], 60000)
         self.assertEqual(self.expected["totals"]["owner_share"], 40000)
         self.assertEqual(restore.verify(self.dump,self.expected)["orders"],1)
+    def test_upgrade_preserves_existing_schema15_records(self):
+        # This test is on the financial candidate: schema 16 must really run.
+        self.assertIn(16, self.applied_upgrade)
+        self.assertEqual(restore.snapshot(self.db), self.expected)
+        for table, rows in self.legacy_rows.items():
+            self.assertEqual(self.db.execute(f"SELECT * FROM {table}").fetchall(), rows)
+        self.assertEqual(self.db.execute("SELECT COUNT(*) FROM verified_receipts").fetchone()[0], 0)
+        self.assertEqual(self.db.execute("SELECT COUNT(*) FROM receipt_adjustments").fetchone()[0], 0)
+        if 17 in self.applied_upgrade:
+            self.assertEqual(self.db.execute("SELECT COUNT(*) FROM order_policy_snapshots").fetchone()[0], 0)
+            self.assertEqual(self.db.execute("SELECT COUNT(*) FROM account_suspensions").fetchone()[0], 0)
+        self.assertEqual(self.db.execute("PRAGMA foreign_key_check").fetchall(), [])
     def test_source_mismatch(self):
         self.expected["totals"]["verified_invoice_amount"] += 1
         with self.assertRaisesRegex(ValueError,"Source snapshot mismatch"):
