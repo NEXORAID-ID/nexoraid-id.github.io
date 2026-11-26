@@ -6,7 +6,7 @@ Status: candidate development, not stable. Source: owner-approved 26 Nov 2026 au
 | A01 | P0 | Live Discord membership before checkout | O |
 | A02 | P0 | Transactional ticket outbox | C |
 | A03 | P0 | Automatic bot delivery vs manual command | C |
-| A04 | P0 | OAuth PKCE | O |
+| A04 | P0 | OAuth PKCE | TEST PASSED |
 | A05 | P0 | Machine credential separate from actor | C |
 | A06 | P1 | Actual schema health probe | C |
 | A07 | P1 | Redacted structured errors | C |
@@ -91,6 +91,11 @@ Status: candidate development, not stable. Source: owner-approved 26 Nov 2026 au
 
 ## Candidate evidence
 Website PR #4: initial commit 070f7f00, migration 0012 and ticket-queue tests; subsequent candidate changes add portal draft persistence, sync states and schema probe. Bot PR #6: initial commit 48bb583a, subsequent 31c8023b adds gated consumer. New commits require fresh CI. All open items must have specific code/test evidence or explicit external blocker; do not mark stable from this table alone. No data import, no real money transfers, no restructuring.
+
+## Verified evidence register
+| ID | Priority | Description | Root cause | Implementation file | Regression test | Implementation SHA | CI evidence | Deployment evidence | Final status |
+|---|---|---|---|---|---|---|---|---|---|
+| A04 | P0 | OAuth authorization uses S256 PKCE, with the verifier held in a secure HTTP-only cookie and checked at callback. | The authorization-code exchange previously lacked a proof-key verifier; the implementation was added in the merged PKCE change. | `v4/worker.mjs` | `tests/v4.test.mjs` — RFC S256 vector, secure verifier cookie, token exchange verifier, and missing-verifier rejection. | `4cef248bc0537c064a1829581aaf45ea851569f8` | Current `main` SHA `21dc487bf9dc4b762e7cec80972ee065e5b26db2`: build passed in [run 45846230465](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45846230465). | [V4 deploy run 45846230511](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45846230511) succeeded; production `/api/health` reports release `21dc487bf9dc4b762e7cec80972ee065e5b26db2`, database ready, login configured. No real Discord OAuth sign-in was performed. | TEST PASSED |
 
 ## 26 Nov execution update
 - Website 7cdea591: membership verification and required request ID; processing refund; Cherax rate changes. Website 12630983: cash opening + consolidated view, CI 45823990589 passed. Website ec73b585: 22 exact heist SKUs, two rental SKUs, Joki Coding and VPN, seller browser fixture coverage. Latest CI required. Bot 5f2bd811: fixed log destinations, customer recovery marker and exact role allowlist; CI 45824055546 passed. Candidate only, no production claims. The membership token and independent machine credential must be configured securely before enabling checkout/ticket sync. A01/A26/A31/A36/A37/A52/A54 are candidate implementations or partial implementations, not final closure. Full finance, atomic reservation, warranties, dated promos, top-up actual prices, live integration and security evidence remain open.
