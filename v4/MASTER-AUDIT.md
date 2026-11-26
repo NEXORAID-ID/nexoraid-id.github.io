@@ -79,15 +79,15 @@ Status: candidate development, not stable. Source: owner-approved 26 Nov 2026 au
 | A74 | P0 | IDOR/RBAC tests | O |
 | A75 | P0 | Concurrency and replay tests | O |
 | A76 | P1 | Maintenance mode | O |
-| A77 | P1 | Pin Wrangler patch | O |
-| A78 | P0 | Migration deployment compatibility | O |
+| A77 | P1 | Pin Wrangler patch | DEPLOYMENT GATE PASSED |
+| A78 | P0 | Migration deployment compatibility | DEPLOYMENT GATE PASSED |
 | A79 | P0 | Real backend browser E2E | ISOLATED E2E PASSED |
-| A80 | P1 | Native dependencies CI | O |
-| A81 | P0 | Mandatory security gate | O |
-| A82 | P1 | Isolated staging | O |
-| A83 | P1 | Release drift monitor | O |
+| A80 | P1 | Native dependencies CI | NATIVE CI PASSED |
+| A81 | P0 | Mandatory security gate | DEPLOYMENT GATE PASSED; CONTROL GAP |
+| A82 | P1 | Isolated staging | LOCAL PASSED; CLOUD CANDIDATE |
+| A83 | P1 | Release drift monitor | MERGED; LIVE MONITOR PENDING |
 | A84 | P0 | Restore drill | ISOLATED RESTORE PASSED |
-| A85 | P0 | Complete release evidence | O |
+| A85 | P0 | Complete release evidence | IN PROGRESS |
 
 ## Candidate evidence
 Website PR #4: initial commit 070f7f00, migration 0012 and ticket-queue tests; subsequent candidate changes add portal draft persistence, sync states and schema probe. Bot PR #6: initial commit 48bb583a, subsequent 31c8023b adds gated consumer. New commits require fresh CI. All open items must have specific code/test evidence or explicit external blocker; do not mark stable from this table alone. No data import, no real money transfers, no restructuring.
@@ -115,3 +115,6 @@ Website PR #4: initial commit 070f7f00, migration 0012 and ticket-queue tests; s
 The labels RUNTIME PROBE PASSED, ISOLATED E2E PASSED and ISOLATED RESTORE PASSED describe only the named evidence. None is full production acceptance. Earlier evidence rows are historical records, not current release clearance. No change to production data or Discord channels.
 
 - A36–A38 candidate PR #33: 79 explicit package SKUs, official Rockstar Support assistance price, canonical variant amounts, parent disable guard and rental capacity required. Preserves merged A17–A19 atomic checkout. Current CI and deployment evidence required. HyperBoostX free distribution, final top-up prices and owner attestation of complete catalog remain outstanding. A41 bot PR #32 merged; production registration and end-to-end parity not yet verified.
+
+## 27 Nov — release gate evidence update
+See [FINAL-STABLE-EVIDENCE.md](FINAL-STABLE-EVIDENCE.md). These scoped labels reflect historical run evidence, not blanket release certification. Native CI and Cloudflare gates passed; Railway pre-deploy audit/native gate is configured but source checkSuites remains false. Cloud staging requires independent provisioning; bot drift requires scoped credentials and a successful live check. Production acceptance of the final combined SHA remains open.
