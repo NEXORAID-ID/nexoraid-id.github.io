@@ -89,6 +89,7 @@ class OwnerBackupTests(unittest.TestCase):
             if sql.startswith("SELECT length(bytes)"): return len(data)
             return 1 if "order_attachments" in sql else 0
         def query(sql):
+            if sql.startswith("SELECT name FROM sqlite_master"): return [{"name":"order_receipts"}]
             if sql.startswith("SELECT id"): return [{"id":"fixture"}]
             if "substr(bytes,1,65536)" in sql: return [{"data":data[:65536].hex()}]
             if "substr(bytes,65537,65536)" in sql: return [{"data":data[65536:].hex()}]
