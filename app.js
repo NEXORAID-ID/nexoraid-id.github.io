@@ -350,6 +350,7 @@ if (detail) {
       detail.innerHTML=`<h1>${esc(service.name)}</h1><p class="lead">${esc(service.desc)}</p><strong>${esc(service.price)}</strong><section class="detail-spec"><h2>Informasi</h2><dl class="spec-list">${service.details.map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl></section>${service.download_url?`<a class="btn btn-primary" href="${esc(service.download_url)}" target="_blank" rel="noopener noreferrer">Lihat rilis resmi ↗</a>`:''}<p><a href="layanan.html">Kembali ke katalog</a></p>`;
     } else {
     const serviceURL = new URL(serviceHref(service.id), location.href).href;
+    const policy=service.policy,promo=policy?.promo;
     const linkedVariants=services.filter(s=>s.parent_id===service.id);
     const options=linkedVariants.length?linkedVariants.flatMap(s=>{const amount=fixedPriceValue(s.price);return amount===null?[]:[{id:s.id,serviceId:s.id,label:s.details[0][0]==='Harga portal saat ini'?s.name:s.details[0][0],amount}];}):packageOptions(service);
     const pricing=pricingInfo(service.price);
@@ -359,7 +360,7 @@ if (detail) {
     const suggestions = related.length ? related : services.filter(item => item.id !== service.id).slice(0, 3);
     detail.innerHTML = `<nav class="breadcrumbs" aria-label="Breadcrumb"><a href="index.html">Beranda</a><span>/</span><a href="layanan.html?category=${service.category}">${esc(categories[service.category])}</a><span>/</span><span aria-current="page">${esc(service.name)}</span></nav>
       <div class="detail-layout"><div class="detail-main"><span class="category-label">${esc(categories[service.category])}</span><h1>${esc(service.name)}</h1><p class="lead">${esc(service.desc)}</p>
-      <section class="detail-spec"><h2>Detail layanan</h2><dl class="spec-list">${service.details.map(([key, value]) => `<div><dt>${esc(key)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl></section></div>
+      <section class="detail-spec"><h2>Detail layanan</h2><dl class="spec-list">${service.details.map(([key, value]) => `<div><dt>${esc(key)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl></section>${policy?`<section class="detail-spec"><h2>Garansi dan promo</h2><p>${esc(policy.warranty_days===null?'Garansi belum ditetapkan.':('Garansi '+policy.warranty_days+' hari — '+policy.warranty_terms))}</p>${promo?`<p>${esc(promo.legacy?'Diskon lama: periode belum dikonfirmasi.':('Promo '+promo.percent+'% · minimum '+promo.min_quantity+' paket · '+new Date(promo.start*1000).toLocaleString('id-ID',{timeZone:'Asia/Jakarta'})+' – '+new Date(promo.end*1000).toLocaleString('id-ID',{timeZone:'Asia/Jakarta'})+' WIB · '+promo.terms))}</p>`:''}</section>`:''}</div>
       <aside class="order-panel" id="pesan"><span class="kicker">RINGKASAN PEMESANAN</span><h2>Pesan layanan</h2><span class="muted">Harga katalog</span><strong class="order-price">${esc(service.price)}</strong><p>Kirim pilihanmu lewat Discord. Admin akan mengonfirmasi detail dan harga sebelum pembayaran.</p>
       <div class="order-draft">${variantSelect}${estimateUI}<label for="orderPlatform">Platform / perangkat</label><input id="orderPlatform" maxlength="100" placeholder="Contoh: PC"><label for="orderRequest">Paket / kebutuhan</label><textarea id="orderRequest" rows="3" maxlength="500" placeholder="Jangan masukkan kata sandi atau OTP"></textarea><button type="button" class="btn btn-primary btn-block" id="copyOrder">Salin ringkasan pesanan</button><button type="button" class="btn btn-ghost btn-block" data-basket="${esc(service.id)}">Tambahkan ke keranjang</button><button type="button" class="btn btn-ghost btn-block" data-favorite="${esc(service.id)}" aria-pressed="false">Favorit</button></div><a class="btn btn-ghost btn-block" href="kontak.html">Lanjut ke kontak &amp; tiket ↗</a><button type="button" class="text-link share-link" id="copyServiceLink">Salin tautan layanan ↗</button>
       <div class="order-note">Harga, ketersediaan, kompatibilitas, risiko dan estimasi dikonfirmasi tim melalui tiket. Gunakan layanan hanya untuk akun atau perangkat milikmu atau yang kamu berwenang kelola. <a href="kebijakan.html">Ketentuan dan privasi</a>.</div><a class="text-link" href="cara-order.html">Lihat cara pemesanan →</a></aside></div>
@@ -369,7 +370,9 @@ if (detail) {
       const input=$('#orderQuantity');
       const raw=Number(input?.value||1);
       const quantity=Number.isInteger(raw)?Math.max(1,Math.min(99,raw)):1;
-      const amount=selected?.amount??(pricing.type==='fixed'?pricing.min:null);
+      const actual=selected?.serviceId?services.find(s=>s.id===selected.serviceId):service;
+      const p=actual?.policy?.promo,at=Math.floor(Date.now()/1000),base=actual?.base_unit_amount;
+      const amount=Number.isSafeInteger(base)?Math.max(1,Math.floor(base*(100-(p&&(p.legacy||p.start<=at&&at<p.end&&quantity>=p.min_quantity)?p.percent:0))/100)):(selected?.amount??(pricing.type==='fixed'?pricing.min:null));
       return {selected,quantity,total:amount===null?null:amount*quantity};
     }
     function updateEstimate(){const order=currentOrder();const add=detail.querySelector('[data-basket]');if(add){add.dataset.basket=order.selected?.serviceId||service.id;add.dataset.quantity=String(order.quantity);}const target=$('#orderEstimate');if(!target)return;target.textContent=order.total===null?'Pilih paket untuk melihat estimasi.':'Subtotal indikatif: '+money(order.total)+' (harga final dikonfirmasi tim)';}

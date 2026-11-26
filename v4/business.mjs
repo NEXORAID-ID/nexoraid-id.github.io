@@ -6,18 +6,32 @@ const str=(s,min,max)=>typeof s==='string'&&s.trim().length>=min&&s.trim().lengt
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer'}});
 const err=(error,status=400)=>json({error},status);
 const now=()=>Math.floor(Date.now()/1000);
-export function applyOverride(s,row){
- if(s.orderable===false)return {...s,unit_amount:null,enabled:true,promo_percent:0};
- const n=row?.amount??fixedPriceValue(s.price),pct=row?.promo_percent??0;
+export function applyOverride(s,row,at=now(),quantity=1){
+ if(s.orderable===false)return {...s,unit_amount:null,base_unit_amount:null,enabled:true,promo_percent:0};
+ const n=row?.amount??fixedPriceValue(s.price),scheduled=row?.policy_exists===1,legacy=!scheduled&&(row?.promo_percent??0)>0;
+ const promo=scheduled&&row.policy_percent>0?{percent:row.policy_percent,start:row.promo_start,end:row.promo_end,min_quantity:row.promo_min_quantity,terms:row.promo_terms,legacy:false}:legacy?{percent:row.promo_percent,start:null,end:null,min_quantity:1,terms:'Diskon lama; periode belum dikonfirmasi.',legacy:true}:null;
+ const pct=n!==null&&promo&&(promo.legacy||promo.start<=at&&at<promo.end&&quantity>=promo.min_quantity)?promo.percent:0;
  const price=n===null?null:Math.max(1,Math.floor(n*(100-pct)/100));
- return {...s,price:price===null?s.price:'Rp'+price.toLocaleString('id-ID'),unit_amount:price,enabled:row?.enabled!==0,promo_percent:pct};
+ return {...s,price:price===null?s.price:'Rp'+price.toLocaleString('id-ID'),unit_amount:price,base_unit_amount:n,enabled:row?.enabled!==0,promo_percent:pct,policy:{configured:scheduled,warranty_days:row?.warranty_days??null,warranty_terms:row?.warranty_terms??null,promo}};
 }
 export async function memberCatalog(db,includeDisabled=false){
- const rows=(await db.prepare('SELECT service_id,amount,enabled,promo_percent FROM catalog_overrides').all()).results;
- const overrides=new Map(rows.map(x=>[x.service_id,x]));
- const effective=services.map(s=>{const live=applyOverride(s,overrides.get(s.id));if(s.parent_id&&overrides.get(s.parent_id)?.enabled===0)live.enabled=false;return live;});
+ const rows=(await db.prepare('SELECT s.service_id,o.amount,o.enabled,o.promo_percent,CASE WHEN p.service_id IS NOT NULL THEN 1 ELSE 0 END AS policy_exists,p.warranty_days,p.warranty_terms,p.promo_percent AS policy_percent,p.promo_start,p.promo_end,p.promo_terms,p.promo_min_quantity FROM (SELECT service_id FROM catalog_overrides UNION SELECT service_id FROM service_policies) s LEFT JOIN catalog_overrides o ON o.service_id=s.service_id LEFT JOIN service_policies p ON p.service_id=s.service_id').all()).results;
+ const overrides=new Map(rows.map(x=>[x.service_id,x])),at=now();
+ const effective=services.map(s=>{const live=applyOverride(s,overrides.get(s.id),at);if(s.parent_id&&overrides.get(s.parent_id)?.enabled===0)live.enabled=false;return live;});
  for(const s of effective){const children=effective.filter(v=>v.parent_id===s.id);if(children.length&&s.unit_amount===null){const amounts=children.filter(v=>v.enabled&&v.unit_amount!==null).map(v=>v.unit_amount);s.price=amounts.length?'Mulai Rp'+Math.min(...amounts).toLocaleString('id-ID'):'Sesuai Request';}}
- return effective.filter(s=>includeDisabled||s.enabled).map(({id,name,category,desc,price,unit_amount,enabled,promo_percent,parent_id,orderable,download_url})=>({id,name,category,desc,price,unit_amount,enabled,promo_percent,...(parent_id?{parent_id}:{}),...(orderable===false?{orderable:false}:{}),...(download_url?{download_url}:{})}));
+ return effective.filter(s=>includeDisabled||s.enabled).map(({id,name,category,desc,price,unit_amount,base_unit_amount,enabled,promo_percent,parent_id,orderable,download_url,policy})=>({id,name,category,desc,price,unit_amount,base_unit_amount,enabled,promo_percent,...(policy?{policy}:{}),...(parent_id?{parent_id}:{}),...(orderable===false?{orderable:false}:{}),...(download_url?{download_url}:{})}));
+}
+export function validatePolicy(b){
+ if(!b||!services.some(s=>s.id===b.service_id&&s.orderable!==false))return null;
+ const inRange=(x,min,max)=>Number.isSafeInteger(x)&&x>=min&&x<=max;
+ const warranty=b.warranty_days===null?null:b.warranty_days;
+ if(warranty!==null&&!inRange(warranty,0,3650))return null;
+ const terms=warranty===null?null:str(b.warranty_terms,4,1000);
+ if(warranty!==null&&!terms)return null;
+ if(!inRange(b.promo_percent,0,90))return null;
+ const pct=b.promo_percent,qty=pct?b.promo_min_quantity:1,start=pct?b.promo_start:null,end=pct?b.promo_end:null,promo=pct?str(b.promo_terms,4,500):null;
+ if(pct&&(!inRange(qty,1,99)||!inRange(start,1,4102444800)||!inRange(end,1,4102444800)||start>=end||!promo||b.eligibility_confirmed!==true))return null;
+ return {service_id:b.service_id,warranty_days:warranty,warranty_terms:terms,promo_percent:pct,promo_start:start,promo_end:end,promo_terms:promo,promo_min_quantity:qty};
 }
 export function splitInvestor(profit,remaining){
  if(!integer(profit)||!Number.isSafeInteger(remaining)||remaining<1)return null;
@@ -54,8 +68,14 @@ export async function business({p,m,url,user,env,readBody,r}){
  }
  if(!p.startsWith('/api/business/'))return null;
  if(!owner)return err('Khusus owner.',403);
+ if(p==='/api/business/policies'&&post){
+  const b=validatePolicy(await readBody(r));if(!b)return err('Garansi, periode, minimum jumlah atau ketentuan promo tidak valid.');
+  const s=services.find(s=>s.id===b.service_id),override=await db.prepare('SELECT amount FROM catalog_overrides WHERE service_id=?').bind(s.id).first();
+  if(b.promo_percent>0&&(override?.amount??fixedPriceValue(s.price))===null)return err('Promo otomatis membutuhkan harga tetap.');
+  return record(db,db.prepare('INSERT INTO service_policies(service_id,warranty_days,warranty_terms,promo_percent,promo_start,promo_end,promo_terms,promo_min_quantity,actor_id,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(service_id) DO UPDATE SET warranty_days=excluded.warranty_days,warranty_terms=excluded.warranty_terms,promo_percent=excluded.promo_percent,promo_start=excluded.promo_start,promo_end=excluded.promo_end,promo_terms=excluded.promo_terms,promo_min_quantity=excluded.promo_min_quantity,actor_id=excluded.actor_id,updated_at=excluded.updated_at').bind(b.service_id,b.warranty_days,b.warranty_terms,b.promo_percent,b.promo_start,b.promo_end,b.promo_terms,b.promo_min_quantity,user.id,t),user,'policy:update',b.service_id,t);
+ }
  if(p==='/api/business/catalog'&&post){
-  const b=await readBody(r);if(!b||!services.some(s=>s.id===b.service_id&&s.orderable!==false)||typeof b.enabled!=='boolean'||!(b.amount===null||integer(b.amount))||!Number.isInteger(b.promo_percent)||b.promo_percent<0||b.promo_percent>90||b.promo_percent&&b.amount===null)return err('Harga, layanan atau promo tidak valid.');
+  const b=await readBody(r);if(!b||!services.some(s=>s.id===b.service_id&&s.orderable!==false)||typeof b.enabled!=='boolean'||!(b.amount===null||integer(b.amount))||b.promo_percent!==0)return err('Harga, layanan atau promo tidak valid.');
   return record(db,db.prepare('INSERT INTO catalog_overrides VALUES(?,?,?,?,?,?) ON CONFLICT(service_id) DO UPDATE SET amount=excluded.amount,enabled=excluded.enabled,promo_percent=excluded.promo_percent,actor_id=excluded.actor_id,updated_at=excluded.updated_at').bind(b.service_id,b.amount,Number(b.enabled),b.promo_percent,user.id,t),user,'catalog:update',b.service_id,t);
  }
  if(p==='/api/business/suppliers'&&get){
