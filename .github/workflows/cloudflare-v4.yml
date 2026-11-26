@@ -4,7 +4,9 @@ on:
     branches: [main]
     paths:
       - 'v4/**'
-      - 'tests/v4.test.mjs'
+      - 'tests/**'
+      - 'package.json'
+      - 'package-lock.json'
       - 'index.html'
       - 'styles.css'
       - 'premium.css'
@@ -39,6 +41,8 @@ jobs:
       NEXORAID_BOT_API_KEY: ${{ secrets.NEXORAID_BOT_API_KEY }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -73,12 +77,13 @@ jobs:
         run: node v4/scripts/financial-migration-gate.mjs
       - name: Apply D1 migrations and deploy
         run: |
-          # Manual deployment creates a private export; CI uses Cloudflare-managed recovery.
-          npx --yes wrangler@4.168.0 d1 migrations apply nexoraid-v4 --remote --config v4/.generated/wrangler.json
+          # Preflight exact Worker build and credentials before altering schema.
           umask 077
           secret_file="$(mktemp)"
           trap 'rm -f -- "$secret_file"' EXIT
           node --input-type=module -e 'process.stdout.write(JSON.stringify({DISCORD_CLIENT_SECRET:process.env.DISCORD_CLIENT_SECRET,DISCORD_MEMBERSHIP_BOT_TOKEN:process.env.DISCORD_MEMBERSHIP_BOT_TOKEN,NEXORAID_TICKET_MACHINE_KEY:process.env.NEXORAID_TICKET_MACHINE_KEY,NEXORAID_BOT_API_KEY:process.env.NEXORAID_BOT_API_KEY}))' > "$secret_file"
+          npx --yes wrangler@4.168.0 deploy --dry-run --config v4/.generated/wrangler.json --secrets-file "$secret_file"
+          npx --yes wrangler@4.168.0 d1 migrations apply nexoraid-v4 --remote --config v4/.generated/wrangler.json
           npx --yes wrangler@4.168.0 deploy --config v4/.generated/wrangler.json --secrets-file "$secret_file"
       - name: Verify deployment
         run: node v4/scripts/verify.mjs
