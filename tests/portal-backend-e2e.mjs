@@ -78,10 +78,10 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  const open=async role=>{const p=pages[role];await p.reload();await p.waitForFunction(()=>document.querySelector('#status')?.textContent==='Terhubung.');await p.getByRole('button',{name:'Detail & tindakan'}).first().click();await p.locator('#orderDialog[open]').waitFor();return p;};
  const submit=async(p,locator,endpoint)=>{const done=p.waitForResponse(r=>new URL(r.url()).pathname===endpoint&&r.request().method()==='POST');await locator.click();const response=await done;assert.equal(response.status(),200,endpoint+' '+await response.text());};
  const endpoint='/api/orders/'+order.id;
- let p=await open('worker');await submit(p,p.getByRole('button',{name:'Ambil order',exact:true}),endpoint+'/claim');
+ let p=await open('worker');await submit(p,p.getByRole('button',{name:'Ambil pesanan',exact:true}),endpoint+'/claim');
  assert.equal(db.prepare('SELECT assigned_to FROM orders WHERE id=?').get(order.id).assigned_to,ids.worker);
- p=await open('management');let form=p.locator('form').filter({has:p.getByRole('heading',{name:'Tetapkan invoice',exact:true})});await form.getByLabel('Nominal rupiah').fill('150000');await submit(p,form.getByRole('button',{name:'Simpan'}),endpoint+'/quote');
- p=await open('management');await submit(p,p.getByRole('button',{name:'Konfirmasi order',exact:true}),endpoint+'/status');
+ p=await open('management');let form=p.locator('form').filter({has:p.getByRole('heading',{name:'Tetapkan tagihan',exact:true})});await form.getByLabel('Nominal rupiah').fill('150000');await submit(p,form.getByRole('button',{name:'Simpan'}),endpoint+'/quote');
+ p=await open('management');await submit(p,p.getByRole('button',{name:'Konfirmasi pesanan',exact:true}),endpoint+'/status');
  p=await open('customer');assert.ok(await p.locator('.qris-payment').isVisible());
  form=p.locator('form').filter({has:p.getByRole('heading',{name:'Laporkan pembayaran',exact:true})});await form.getByLabel('Referensi pembayaran (bukan PIN/OTP)').fill('fixture-ui-receipt');await submit(p,form.getByRole('button',{name:'Simpan'}),'/api/workspace/orders/'+order.id+'/receipt');
  p=await open('management');assert.equal(await p.getByRole('heading',{name:'Verifikasi pembayaran manual',exact:true}).count(),0);
@@ -100,13 +100,14 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  assert.equal((await (await api('customer','/api/orders')).json()).orders.length,1);
  assert.deepEqual(errors,[]);
  // Actual browser/API backed D1 fence: preserve the completed order and its settlement.
+ const previousGroups=db.prepare('SELECT COUNT(*) n FROM checkout_groups WHERE customer_id=?').get(id).n;
  const closing={closure_id:'00000000-0000-4000-8000-000000000099',customer_id:id,channel_id:'666666666666666666',ticket_id:'0001'};
  assert.equal((await queue({...closing,action:'closure-begin'})).status,200);
  const request={service_id:'optiwindows',quantity:1,request_id:'fixture-closure-request-001'};
  const blocked=await api('customer','/api/orders',request);assert.equal(blocked.status,409);assert.match((await blocked.json()).error,/sedang ditutup/);
  const cart={request_id:'fixture-closure-checkout-001',items:[{service_id:'optiwindows',quantity:1}]};
  const blockedCart=await api('customer','/api/customer/checkout',cart);assert.equal(blockedCart.status,409);assert.match((await blockedCart.json()).error,/sedang ditutup/);
- assert.equal(db.prepare('SELECT COUNT(*) n FROM checkout_groups WHERE customer_id=?').get(id).n,0);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM checkout_groups WHERE customer_id=?').get(id).n,previousGroups);
  assert.equal(db.prepare('SELECT COUNT(*) n FROM orders WHERE customer_id=?').get(id).n,1);
  const finish={...closing,action:'closure-finish',transcript_channel_id:'999999999999999999',transcript_message_id:'999999999999999998'};
  assert.equal((await queue(finish)).status,200);assert.equal((await queue(finish)).status,200);

@@ -31,6 +31,8 @@ echo 'Tidak mengaktifkan paket berbayar. Periksa kuota dan akun tujuan sendiri.'
 echo 'Validasi source terlebih dahulu...'
 STEP='Unit tests'
 npm test
+STEP='Mandatory security gate'
+bash v4/scripts/release-security.sh
 STEP='Wrangler CLI'
 wr --version
 STEP='Cloudflare authorization'

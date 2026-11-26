@@ -6,6 +6,17 @@ export function mergeLiveCatalog(baseline,response){
   const live=byId.get(s.id);
   if(!live||live.enabled!==true)return [];
   if(typeof live.price!=='string'||live.price.length>100)throw Error('Invalid live price');
+  const children=baseline.filter(v=>v.parent_id===s.id);
+  if(children.length){
+   const byLabel=new Map(children.map(v=>[v.details[0][0],v]));
+   const details=s.details.flatMap(([label,value])=>{
+    const child=byLabel.get(label);if(!child)return [[label,value]];
+    const active=byId.get(child.id);if(!active||active.enabled!==true)return [];
+    if(typeof active.price!=='string'||active.price.length>100)throw Error('Invalid variant price');
+    return [[label,active.price+value.replace(/^Rp\s*[\d.]+/i,'')]];
+   });
+   return [{...s,price:live.price,details}];
+  }
   if(live.price===s.price)return [s];
   return [{...s,price:live.price,details:[['Harga portal saat ini',live.price],...s.details.filter(([k,v])=>!/Rp\s*[\d.]/i.test(String(k)+' '+String(v)))]}];
  });

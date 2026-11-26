@@ -15,7 +15,7 @@ on:
       - 'live-catalog.js'
       - 'services-data.js'
       - 'scripts/**'
-      - '.github/workflows/cloudflare-v4.yml'
+      - '.github/workflows/**'
   workflow_dispatch:
 permissions:
   contents: read
@@ -23,7 +23,12 @@ concurrency:
   group: cloudflare-v4-production
   cancel-in-progress: false
 jobs:
+  security:
+    uses: ./.github/workflows/release-security.yml
+  staging:
+    uses: ./.github/workflows/d1-local-gate.yml
   deploy:
+    needs: [security, staging]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     environment: cloudflare-v4

@@ -1,0 +1,27 @@
+name: Production release drift
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  drift:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node v4/scripts/release-drift.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: production-release-drift
+          path: release-drift-evidence.json
+          if-no-files-found: error
+          retention-days: 30

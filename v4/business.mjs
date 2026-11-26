@@ -14,7 +14,9 @@ export function applyOverride(s,row){
 export async function memberCatalog(db,includeDisabled=false){
  const rows=(await db.prepare('SELECT service_id,amount,enabled,promo_percent FROM catalog_overrides').all()).results;
  const overrides=new Map(rows.map(x=>[x.service_id,x]));
- return services.map(s=>applyOverride(s,overrides.get(s.id))).filter(s=>includeDisabled||s.enabled).map(({id,name,category,desc,price,unit_amount,enabled,promo_percent})=>({id,name,category,desc,price,unit_amount,enabled,promo_percent}));
+ const effective=services.map(s=>{const live=applyOverride(s,overrides.get(s.id));if(s.parent_id&&overrides.get(s.parent_id)?.enabled===0)live.enabled=false;return live;});
+ for(const s of effective){const children=effective.filter(v=>v.parent_id===s.id);if(children.length&&s.unit_amount===null){const amounts=children.filter(v=>v.enabled&&v.unit_amount!==null).map(v=>v.unit_amount);s.price=amounts.length?'Mulai Rp'+Math.min(...amounts).toLocaleString('id-ID'):'Sesuai Request';}}
+ return effective.filter(s=>includeDisabled||s.enabled).map(({id,name,category,desc,price,unit_amount,enabled,promo_percent,parent_id})=>({id,name,category,desc,price,unit_amount,enabled,promo_percent,...(parent_id?{parent_id}:{})}));
 }
 export function splitInvestor(profit,remaining){
  if(!integer(profit)||!Number.isSafeInteger(remaining)||remaining<1)return null;
