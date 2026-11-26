@@ -7,8 +7,8 @@ const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:
 const err=(error,status)=>json({error},status);
 export function financeKind(serviceId){return serviceId==='seller'?'seller':serviceId.startsWith('gta-')?'joki':'other';}
 export function scopeFor(user){return staff(user.role)?{where:'1=1',args:[]}:user.role==='worker'?{where:"(o.customer_id=? OR o.assigned_to=? OR o.status='requested')",args:[user.id,user.id]}:{where:'o.customer_id=?',args:[user.id]};}
-const orderFields="o.*,p.priority,p.due_at,f.amount AS invoice_amount,f.kind AS invoice_kind,f.state AS payment_state,f.paid_at,w.submitted_at AS evidence_at,EXISTS(SELECT 1 FROM payment_claims c WHERE c.order_id=o.id) AS payment_claimed,(COALESCE((SELECT amount FROM order_refunds r WHERE r.order_id=o.id),0)+COALESCE((SELECT SUM(amount) FROM completed_refunds r WHERE r.order_id=o.id),0)) AS refunded_amount";
-const joins=" FROM orders o LEFT JOIN order_finance f ON f.order_id=o.id LEFT JOIN order_work w ON w.order_id=o.id LEFT JOIN order_plans p ON p.order_id=o.id";
+const orderFields="o.*,p.priority,p.due_at,f.amount AS invoice_amount,f.kind AS invoice_kind,f.state AS payment_state,f.paid_at,COALESCE(pt.received,0) AS received_amount,MAX(0,COALESCE(f.amount,0)-COALESCE(pt.received,0)) AS outstanding_amount,MAX(0,COALESCE(pt.received,0)-COALESCE(f.amount,0)-COALESCE(pt.excess_returned,0)) AS overpayment_due,w.submitted_at AS evidence_at,EXISTS(SELECT 1 FROM payment_claims c WHERE c.order_id=o.id) AS payment_claimed,(COALESCE((SELECT amount FROM order_refunds r WHERE r.order_id=o.id),0)+COALESCE((SELECT SUM(amount) FROM completed_refunds r WHERE r.order_id=o.id),0)) AS refunded_amount";
+const joins=" FROM orders o LEFT JOIN order_finance f ON f.order_id=o.id LEFT JOIN order_payment_totals pt ON pt.order_id=o.id LEFT JOIN order_work w ON w.order_id=o.id LEFT JOIN order_plans p ON p.order_id=o.id";
 function redact(o,user){if(user.role==='worker'&&o.status==='requested'&&o.customer_id!==user.id)return {...o,customer_id:null};return o;}
 export async function listOrders(db,user,url){
  const {where,args}=scopeFor(user);
@@ -83,14 +83,16 @@ export async function operations({p,m,url,user,env,readBody,r}){
   const kind=financeKind(order.service_id),amount=b.amount;
   if(!Number.isSafeInteger(amount)||amount<1||amount>999999999||kind==='other'&&amount<10000)return err('Nominal tidak valid; fee layanan lain minimal Rp10.000.',400);
   if(!['claimed','confirmed','processing'].includes(order.status))return err('Order harus sudah diambil penjoki.',409);
+  if(order.received_amount>0)return err('Invoice terkunci setelah dana diterima.',409);
   if(order.payment_claimed)return err('Invoice dikunci karena ada laporan pembayaran. Owner harus meninjau laporan dahulu.',409);
-  return mutate(db,db.prepare("INSERT INTO order_finance(order_id,amount,kind,quoted_by,quoted_at) SELECT id,?,?,?,? FROM orders WHERE id=? AND status IN ('claimed','confirmed','processing') ON CONFLICT(order_id) DO UPDATE SET amount=excluded.amount,quoted_by=excluded.quoted_by,quoted_at=excluded.quoted_at WHERE order_finance.state='quoted' AND NOT EXISTS(SELECT 1 FROM payment_claims WHERE order_id=order_finance.order_id)").bind(amount,kind,user.id,t,id),user.id,'invoice:quote',id,t);
+  return mutate(db,db.prepare("INSERT INTO order_finance(order_id,amount,kind,quoted_by,quoted_at) SELECT id,?,?,?,? FROM orders WHERE id=? AND status IN ('claimed','confirmed','processing') ON CONFLICT(order_id) DO UPDATE SET amount=excluded.amount,quoted_by=excluded.quoted_by,quoted_at=excluded.quoted_at WHERE order_finance.state='quoted' AND NOT EXISTS(SELECT 1 FROM payment_claims WHERE order_id=order_finance.order_id) AND NOT EXISTS(SELECT 1 FROM order_receipts WHERE order_id=order_finance.order_id)").bind(amount,kind,user.id,t,id),user.id,'invoice:quote',id,t);
  }
  if(action==='payment'){
   if(user.role!=='owner')return err('Hanya owner dapat memverifikasi pembayaran.',403);
   const ref=typeof b.reference==='string'?b.reference.trim():'';
-  if(ref.length<4||ref.length>80||!Number.isSafeInteger(b.amount)||b.amount!==order.invoice_amount)return err('Nominal harus sesuai invoice dan referensi transaksi wajib.',400);
-  return mutate(db,db.prepare("UPDATE order_finance SET state='paid',paid_by=?,paid_at=?,payment_ref=? WHERE order_id=? AND state='quoted' AND amount=? AND NOT EXISTS(SELECT 1 FROM order_finance f WHERE f.state='paid' AND f.payment_ref=? AND f.order_id<>?) AND EXISTS(SELECT 1 FROM orders WHERE id=? AND status IN ('claimed','confirmed','processing'))").bind(user.id,t,ref,id,b.amount,ref,id,id),user.id,'payment:verified',id,t);
+  if(ref.length<4||ref.length>80||!Number.isSafeInteger(b.amount)||b.amount<1||b.amount>999999999)return err('Nominal positif dan referensi transaksi wajib.',400);
+  try{return await mutate(db,db.prepare("INSERT INTO order_receipts SELECT ?,f.order_id,?,?,?,? FROM order_finance f JOIN orders o ON o.id=f.order_id WHERE f.order_id=? AND f.state='quoted' AND o.status IN ('claimed','confirmed','processing') AND NOT EXISTS(SELECT 1 FROM cash_movements WHERE trim(reference)=?)").bind(crypto.randomUUID(),b.amount,ref,user.id,t,id,ref),user.id,'payment:verified',id,t);}
+  catch(e){if(/receipt_not_allowed|receipt_limit|cash_reference_conflict|cash_period_closed|UNIQUE constraint/.test(String(e.message)))return err('Penerimaan tidak dapat dicatat atau referensi sudah digunakan.',409);throw e;}
  }
  if(action==='evidence'){
   if(user.role!=='worker'||!assigned)return err('Hanya penjoki yang ditugaskan.',403);

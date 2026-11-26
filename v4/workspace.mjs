@@ -60,8 +60,8 @@ export async function workspace({p,m,url,user,env,readBody,r}){
   if(owner(user)){
    const completed=await db.prepare('SELECT COALESCE(SUM(gross),0) AS gross,COALESCE(SUM(worker_share),0) AS worker_share,COALESCE(SUM(owner_share),0) AS owner_share FROM order_settlements WHERE created_at>=? AND created_at<?').bind(start,end).first();
    const cost=await db.prepare('SELECT COALESCE(SUM(amount),0) AS expenses FROM operating_expenses WHERE created_at>=? AND created_at<?').bind(start,end).first();
-   const cash=await db.prepare("SELECT COALESCE(SUM(amount),0) AS received FROM order_finance WHERE state='paid' AND paid_at>=? AND paid_at<?").bind(start,end).first();
-   const refunds=await db.prepare('SELECT COALESCE(SUM(amount),0) AS refunded FROM (SELECT amount,created_at FROM order_refunds UNION ALL SELECT amount,created_at FROM completed_refunds) WHERE created_at>=? AND created_at<?').bind(start,end).first();
+   const cash=await db.prepare("SELECT COALESCE(SUM(delta),0) AS received FROM cash_order_movements WHERE kind='payment' AND event_at>=? AND event_at<?").bind(start,end).first();
+   const refunds=await db.prepare('SELECT COALESCE(SUM(-delta),0) AS refunded FROM cash_order_movements WHERE kind='refund' AND event_at>=? AND event_at<?').bind(start,end).first();
    const completedRefunds=await db.prepare('SELECT COALESCE(SUM(amount),0) AS completed_refund_cost FROM completed_refunds WHERE created_at>=? AND created_at<?').bind(start,end).first();
    const payouts=await db.prepare("SELECT COALESCE(SUM(amount),0) AS paid_out FROM payout_requests WHERE state='paid' AND reviewed_at>=? AND reviewed_at<?").bind(start,end).first();
    const daily=(await db.prepare("SELECT date(created_at,'unixepoch','+7 hours') AS day,SUM(gross) AS gross,SUM(owner_share) AS owner_share FROM order_settlements WHERE created_at>=? AND created_at<? GROUP BY day ORDER BY day").bind(start,end).all()).results;
@@ -83,7 +83,7 @@ export async function workspace({p,m,url,user,env,readBody,r}){
   if(!staff(user))return deny();const b=await readBody(r),note=str(b?.resolution,10,500),id=support[1];if(!note)return err('Resolusi 10–500 karakter.');
   return write(db,db.prepare("UPDATE support_cases SET state='resolved',resolution=?,resolved_by=?,resolved_at=? WHERE id=? AND state='open'").bind(note,user.id,t,id),user,'support:resolve',id,t);
  }
- const orderRoute=p.match(/^\/api\/workspace\/orders\/([a-f0-9-]{36})\/(receipt|support|review|refund|timeline|reject-receipt|completed-refund)$/);
+ const orderRoute=p.match(/^\/api\/workspace\/orders\/([a-f0-9-]{36})\/(receipt|support|review|refund|timeline|reject-receipt|completed-refund|receipt-refund)$/);
  if(!orderRoute||!idRe.test(orderRoute[1]))return null;
  const [,id,action]=orderRoute;
  const order=await db.prepare('SELECT o.id,o.customer_id,o.assigned_to,o.status,f.amount,f.state AS payment_state FROM orders o LEFT JOIN order_finance f ON f.order_id=o.id WHERE o.id=?').bind(id).first();
@@ -95,7 +95,9 @@ export async function workspace({p,m,url,user,env,readBody,r}){
   const receipt=owns||owner(user)?await db.prepare('SELECT amount,reference,submitted_at FROM payment_claims WHERE order_id=?').bind(id).first():null;
   const review=owns||staff(user)||assigned?await db.prepare('SELECT rating,note,created_at FROM order_reviews WHERE order_id=?').bind(id).first():null;
   const refund=await db.prepare('SELECT SUM(amount) AS amount,MAX(created_at) AS created_at FROM (SELECT amount,created_at FROM order_refunds WHERE order_id=? UNION ALL SELECT amount,created_at FROM completed_refunds WHERE order_id=?) HAVING COUNT(*)>0').bind(id,id).first();
-  return json({events,receipt,review,refund});
+  const verified_receipts=owns||owner(user)?(await db.prepare('SELECT amount,reference,created_at FROM order_receipts WHERE order_id=? ORDER BY created_at,id LIMIT 100').bind(id).all()).results:[];
+  const receipt_refunds=owns||owner(user)?(await db.prepare('SELECT kind,amount,reference,created_at FROM receipt_refunds WHERE order_id=? ORDER BY created_at,id LIMIT 100').bind(id).all()).results:[];
+  return json({events,receipt,review,refund,verified_receipts,receipt_refunds});
  }
  if(!post)return err('Metode tidak diizinkan.',405);
  const b=await readBody(r);
@@ -107,8 +109,8 @@ export async function workspace({p,m,url,user,env,readBody,r}){
  }
  if(action==='receipt'){
   if(!owns)return deny();const ref=str(b?.reference,4,80);
-  if(!ref||!amount(b?.amount)||b.amount!==order.amount)return err('Nominal dan referensi harus sesuai invoice.');
-  return write(db,db.prepare("INSERT INTO payment_claims(order_id,customer_id,reference,amount,submitted_at) SELECT o.id,?,?,?,? FROM orders o JOIN order_finance f ON f.order_id=o.id WHERE o.id=? AND o.customer_id=? AND o.status IN ('claimed','confirmed','processing') AND f.state='quoted' AND f.amount=? ON CONFLICT(order_id) DO UPDATE SET reference=excluded.reference,amount=excluded.amount,submitted_at=excluded.submitted_at").bind(user.id,ref,b.amount,t,id,user.id,b.amount),user,'payment:claim',id,t);
+  if(!ref||!amount(b?.amount))return err('Nominal aktual dan referensi wajib.');
+  return write(db,db.prepare("INSERT INTO payment_claims(order_id,customer_id,reference,amount,submitted_at) SELECT o.id,?,?,?,? FROM orders o JOIN order_finance f ON f.order_id=o.id WHERE o.id=? AND o.customer_id=? AND o.status IN ('claimed','confirmed','processing') AND f.state='quoted' AND NOT EXISTS(SELECT 1 FROM cash_movements WHERE trim(reference)=?) ON CONFLICT(order_id) DO NOTHING").bind(user.id,ref,b.amount,t,id,user.id,ref),user,'payment:claim',id,t);
  }
  if(action==='support'){
   if(!owns)return deny();const note=str(b?.message,10,500);if(!note||!['question','complaint','refund'].includes(b?.kind))return err('Jenis dan pesan 10–500 karakter wajib.');
@@ -125,6 +127,12 @@ export async function workspace({p,m,url,user,env,readBody,r}){
   if(!ref||!reason||!amount(b?.amount)||b.owner_bears_cost!==true)return err('Nominal, referensi, alasan dan persetujuan beban owner wajib.');
   const rid=crypto.randomUUID();
   try{return await write(db,db.prepare("INSERT INTO completed_refunds SELECT ?,o.id,?,?,?,?,? FROM orders o JOIN order_finance f ON f.order_id=o.id WHERE o.id=? AND o.status='completed' AND f.state='paid' AND ?<=f.amount-(SELECT COALESCE(SUM(amount),0) FROM completed_refunds WHERE order_id=o.id) AND NOT EXISTS(SELECT 1 FROM completed_refunds WHERE reference=?) AND NOT EXISTS(SELECT 1 FROM order_refunds WHERE reference=? OR order_id=o.id)").bind(rid,b.amount,ref,reason,user.id,t,id,b.amount,ref,ref),user,'refund:completed',id,t);}catch(e){if(String(e.message).includes('refund_limit'))return err('Refund melebihi pembayaran atau sudah tercatat.',409);throw e;}
+ }
+ if(action==='receipt-refund'){
+  if(!owner(user))return deny();const ref=str(b?.reference,4,80);
+  if(!ref||!amount(b?.amount)||!['partial_cancel','overpayment'].includes(b?.kind)||b.confirmed!==true)return err('Jenis, nominal aktual, referensi transfer dan konfirmasi wajib.');
+  try{return await write(db,db.prepare('INSERT INTO receipt_refunds VALUES(?,?,?,?,?,?,?)').bind(crypto.randomUUID(),id,b.kind,b.amount,ref,user.id,t),user,'refund:'+b.kind,id,t);}
+  catch(e){if(/refund_limit|cash_reference_conflict|cash_period_closed|UNIQUE constraint/.test(String(e.message)))return err('Refund melebihi saldo atau referensi sudah digunakan.',409);throw e;}
  }
  if(action==='refund'){
   if(!owner(user))return deny();const ref=str(b?.reference,4,80);

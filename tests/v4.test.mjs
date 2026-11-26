@@ -45,7 +45,7 @@ test('Operations scope and seller settlement policy are explicit',async()=>{cons
 test('Four-role API lifecycle with SQLite D1 adapter and real persisted records',async()=>{
  const {DatabaseSync}=await import('node:sqlite');const {readFile}=await import('node:fs/promises');
  const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON');
- for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_workspace.sql','0006_business.sql','0007_ticket_links.sql','0008_integrity.sql','0009_order_collaboration.sql','0010_checkout.sql','0011_refund_ledger.sql','0012_web_ticket_outbox.sql','0013_processing_refund.sql','0014_cash_ledger.sql','0015_rental_investor_guard.sql','0016_cash_period_controls.sql','0017_payout_approval.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
+ for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_workspace.sql','0006_business.sql','0007_ticket_links.sql','0008_integrity.sql','0009_order_collaboration.sql','0010_checkout.sql','0011_refund_ledger.sql','0012_web_ticket_outbox.sql','0013_processing_refund.sql','0014_cash_ledger.sql','0015_rental_investor_guard.sql','0016_cash_period_controls.sql','0017_payout_approval.sql','0018_order_receipts.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
  const ids={owner:'111111111111111111',management:'222222222222222222',worker:'333333333333333333',customer:'444444444444444444',other:'555555555555555555'};
  const cookies={};
  for(const [role,id] of Object.entries(ids)){
@@ -90,7 +90,7 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await call('management','orders/'+id+'/status',{status:'confirmed'})).status,200);
   assert.equal((await call('worker','orders/'+id+'/status',{status:'processing'})).status,409);
   assert.equal((await call('management','orders/'+id+'/payment',{amount:15000,reference:'transfer-001'})).status,403);
-  assert.equal((await call('owner','orders/'+id+'/payment',{amount:14000,reference:'transfer-001'})).status,400);
+  assert.equal((await call('owner','orders/'+id+'/payment',{amount:0,reference:'transfer-001'})).status,400);
   assert.equal((await call('other','workspace/orders/'+id+'/receipt',{amount:15000,reference:'claim-001'})).status,404);
   assert.equal((await call('customer','workspace/orders/'+id+'/receipt',{amount:15000,reference:'claim-001'})).status,200);
   assert.equal((await (await call('customer','workspace/orders/'+id+'/timeline')).json()).receipt.reference,'claim-001');
@@ -103,7 +103,17 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await upload('other')).status,404);assert.equal((await upload('customer')).status,200);
   const attached=(await (await call('customer','collaboration/orders/'+id+'/overview')).json()).attachments[0];
   const download=await call('owner','collaboration/orders/'+id+'/attachment/'+attached.id);assert.equal(download.status,200);assert.equal(download.headers.get('content-type'),'application/octet-stream');assert.equal((await call('worker','collaboration/orders/'+id+'/attachment/'+attached.id)).status,404);
-  assert.equal((await call('owner','orders/'+id+'/payment',{amount:15000,reference:'transfer-001'})).status,200);
+  assert.equal((await call('owner','orders/'+id+'/payment',{amount:5000,reference:'transfer-part-001'})).status,200);
+  assert.equal((await call('owner','orders/'+id+'/payment',{amount:5000,reference:'transfer-part-001'})).status,409);
+  assert.equal((await call('worker','orders/'+id+'/status',{status:'processing'})).status,409);
+  assert.equal((await call('owner','orders/'+id+'/status',{status:'cancelled'})).status,409);
+  assert.equal((await call('owner','orders/'+id+'/quote',{amount:20000})).status,409);
+  assert.equal((await call('customer','orders/'+id)).status,200);
+  assert.equal((await call('owner','orders/'+id+'/payment',{amount:11000,reference:'transfer-001'})).status,200);
+  const paidOrder=(await (await call('customer','orders/'+id)).json()).order;
+  assert.equal(paidOrder.received_amount,16000);assert.equal(paidOrder.overpayment_due,1000);assert.equal(paidOrder.payment_state,'paid');
+  assert.equal((await call('owner','workspace/orders/'+id+'/receipt-refund',{kind:'overpayment',amount:1001,reference:'over-ref-001',confirmed:true})).status,409);
+  assert.equal((await call('owner','workspace/orders/'+id+'/receipt-refund',{kind:'overpayment',amount:1000,reference:'over-ref-001',confirmed:true})).status,200);
   assert.equal((await call('worker','orders/'+id+'/status',{status:'processing'})).status,200);
   assert.equal((await call('management','orders/'+id+'/status',{status:'completed'})).status,409);
   const bridge=await worker.fetch(req('/api/bot/orders/'+id+'/evidence',{method:'POST',headers:{authorization:'Bearer '+env.NEXORAID_BOT_API_KEY,'x-discord-user-id':ids.worker,'x-discord-guild-id':'1487728359482851348','content-type':'application/json'},body:JSON.stringify({evidence:'Work completed; reference #1'})}),env);assert.equal(bridge.status,200);
@@ -142,7 +152,7 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await call('owner','workspace/orders/'+second+'/refund',{amount:20000,reference:'refund-001'})).status,200);
   const refunded=(await (await call('other','orders/'+second)).json()).order;assert.equal(refunded.status,'cancelled');assert.equal(refunded.refunded_amount,20000);
   assert.equal((await call('owner','workspace/orders/'+second+'/refund',{amount:20000,reference:'refund-002'})).status,409);
-  const report=await (await call('owner','workspace/report')).json();assert.equal(report.finance.refunded,20000);assert.equal(report.finance.recorded_margin,5500);
+  const report=await (await call('owner','workspace/report')).json();assert.equal(report.finance.refunded,21000);assert.equal(report.finance.recorded_margin,5500);
   assert.equal((await (await call('management','workspace/report')).json()).finance,undefined);
   assert.equal((await call('customer','business/catalog',{service_id:'gta-heist',amount:20000,enabled:true,promo_percent:10})).status,403);
   assert.equal((await call('owner','business/catalog',{service_id:'gta-heist',amount:20000,enabled:true,promo_percent:10})).status,200);
