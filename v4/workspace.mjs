@@ -19,10 +19,10 @@ async function page(db,url,table,fields,where,args){
 export async function workspace({p,m,url,user,env,readBody,r}){
  const db=env.DB,t=epoch(),get=m==='GET',post=m==='POST';
  if(p==='/api/workspace/payouts'&&(get||post)){
-  const entitled=user.role==='worker'||Boolean(await db.prepare('SELECT order_id FROM order_settlements WHERE worker_id=? LIMIT 1').bind(user.id).first());if(!owner(user)&&!entitled)return deny();
+  const entitled=user.role==='worker'||Boolean(await db.prepare('SELECT order_id FROM all_order_settlements WHERE worker_id=? LIMIT 1').bind(user.id).first());if(!owner(user)&&!entitled)return deny();
   if(get){
    const w=!owner(user),where=w?'worker_id=?':'1=1',args=w?[user.id]:[];
-   const earned=await db.prepare('SELECT COALESCE(SUM(worker_share),0) AS earned FROM order_settlements WHERE '+where).bind(...args).first();
+   const earned=await db.prepare('SELECT COALESCE(SUM(worker_share),0) AS earned FROM all_order_settlements WHERE '+where).bind(...args).first();
    const spent=await db.prepare("SELECT COALESCE(SUM(CASE WHEN state='paid' THEN amount ELSE 0 END),0) AS paid,COALESCE(SUM(CASE WHEN state='pending' THEN amount ELSE 0 END),0) AS pending FROM payout_requests WHERE "+where).bind(...args).first();
    const res=await page(db,url,'payout_requests','id,worker_id,amount,state,created_at,reviewed_at,(SELECT approved_at FROM payout_approvals WHERE payout_id=payout_requests.id) AS approved_at',where,args);if(!res.ok)return res;
    return json({...await res.json(),balance:{...earned,...spent,available:earned.earned-spent.paid-spent.pending}});
@@ -30,7 +30,7 @@ export async function workspace({p,m,url,user,env,readBody,r}){
   if(owner(user)||!entitled)return deny();
   const b=await readBody(r);if(!amount(b?.amount))return err('Nominal pencairan tidak valid.');
   const id=crypto.randomUUID();
-  return write(db,db.prepare("INSERT INTO payout_requests(id,worker_id,amount,created_at) SELECT ?,?,?,? WHERE ? <= (SELECT COALESCE(SUM(worker_share),0) FROM order_settlements WHERE worker_id=?) - (SELECT COALESCE(SUM(amount),0) FROM payout_requests WHERE worker_id=? AND state IN ('pending','paid'))").bind(id,user.id,b.amount,t,b.amount,user.id,user.id),user,'payout:request',id,t);
+  return write(db,db.prepare("INSERT INTO payout_requests(id,worker_id,amount,created_at) SELECT ?,?,?,? WHERE ? <= (SELECT COALESCE(SUM(worker_share),0) FROM all_order_settlements WHERE worker_id=?) - (SELECT COALESCE(SUM(amount),0) FROM payout_requests WHERE worker_id=? AND state IN ('pending','paid'))").bind(id,user.id,b.amount,t,b.amount,user.id,user.id),user,'payout:request',id,t);
  }
  const payout=p.match(/^\/api\/workspace\/payouts\/([a-f0-9-]{36})$/);
  if(payout&&post&&idRe.test(payout[1])){
@@ -58,14 +58,15 @@ export async function workspace({p,m,url,user,env,readBody,r}){
   const workers=(await db.prepare("SELECT u.id,u.display_name,COALESCE(p.available,1) AS available,COUNT(o.id) AS completed FROM users u LEFT JOIN worker_presence p ON p.worker_id=u.id LEFT JOIN orders o ON o.assigned_to=u.id AND o.status='completed' AND o.updated_at>=? AND o.updated_at<? WHERE u.role='worker' AND NOT EXISTS(SELECT 1 FROM management_grants g WHERE g.user_id=u.id) GROUP BY u.id ORDER BY completed DESC,u.id LIMIT 100").bind(start,end).all()).results;
   const result={month,counts,workers};
   if(owner(user)){
-   const completed=await db.prepare('SELECT COALESCE(SUM(gross),0) AS gross,COALESCE(SUM(worker_share),0) AS worker_share,COALESCE(SUM(owner_share),0) AS owner_share FROM order_settlements WHERE created_at>=? AND created_at<?').bind(start,end).first();
+   const completed=await db.prepare('SELECT COALESCE(SUM(gross),0) AS gross,COALESCE(SUM(worker_share),0) AS worker_share,COALESCE(SUM(owner_share),0) AS owner_share FROM all_order_settlements WHERE created_at>=? AND created_at<?').bind(start,end).first();
    const cost=await db.prepare('SELECT COALESCE(SUM(amount),0) AS expenses FROM operating_expenses WHERE created_at>=? AND created_at<?').bind(start,end).first();
    const cash=await db.prepare("SELECT COALESCE(SUM(delta),0) AS received FROM cash_order_movements WHERE kind='payment' AND event_at>=? AND event_at<?").bind(start,end).first();
    const refunds=await db.prepare("SELECT COALESCE(SUM(-delta),0) AS refunded FROM cash_order_movements WHERE kind='refund' AND event_at>=? AND event_at<?").bind(start,end).first();
    const completedRefunds=await db.prepare('SELECT COALESCE(SUM(amount),0) AS completed_refund_cost FROM completed_refunds WHERE created_at>=? AND created_at<?').bind(start,end).first();
    const payouts=await db.prepare("SELECT COALESCE(SUM(amount),0) AS paid_out FROM payout_requests WHERE state='paid' AND reviewed_at>=? AND reviewed_at<?").bind(start,end).first();
-   const daily=(await db.prepare("SELECT date(created_at,'unixepoch','+7 hours') AS day,SUM(gross) AS gross,SUM(owner_share) AS owner_share FROM order_settlements WHERE created_at>=? AND created_at<? GROUP BY day ORDER BY day").bind(start,end).all()).results;
-   result.finance={...completed,...cost,...cash,...refunds,...payouts,...completedRefunds,recorded_margin:completed.owner_share-cost.expenses-completedRefunds.completed_refund_cost,daily};
+   const daily=(await db.prepare("SELECT date(created_at,'unixepoch','+7 hours') AS day,SUM(gross) AS gross,SUM(owner_share) AS owner_share FROM all_order_settlements WHERE created_at>=? AND created_at<? GROUP BY day ORDER BY day").bind(start,end).all()).results;
+   const attribution=await db.prepare("SELECT COALESCE(SUM(c.amount),0) AS cost_basis_total,COUNT(CASE WHEN c.order_id IS NULL THEN 1 END) AS cost_basis_missing,COALESCE(SUM(CASE WHEN c.order_id IS NOT NULL THEN s.owner_share-c.amount ELSE 0 END),0) AS known_contribution_margin FROM all_order_settlements s LEFT JOIN order_cost_basis c ON c.order_id=s.order_id WHERE s.created_at>=? AND s.created_at<?").bind(start,end).first();
+   result.finance={...attribution,...completed,...cost,...cash,...refunds,...payouts,...completedRefunds,recorded_margin:completed.owner_share-cost.expenses-completedRefunds.completed_refund_cost,daily};
   }
   return json(result);
  }

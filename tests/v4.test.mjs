@@ -45,7 +45,7 @@ test('Operations scope and seller settlement policy are explicit',async()=>{cons
 test('Four-role API lifecycle with SQLite D1 adapter and real persisted records',async()=>{
  const {DatabaseSync}=await import('node:sqlite');const {readFile}=await import('node:fs/promises');
  const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON');
- for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_workspace.sql','0006_business.sql','0007_ticket_links.sql','0008_integrity.sql','0009_order_collaboration.sql','0010_checkout.sql','0011_refund_ledger.sql','0012_web_ticket_outbox.sql','0013_processing_refund.sql','0014_cash_ledger.sql','0015_rental_investor_guard.sql','0016_cash_period_controls.sql','0017_payout_approval.sql','0018_order_receipts.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
+ for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_workspace.sql','0006_business.sql','0007_ticket_links.sql','0008_integrity.sql','0009_order_collaboration.sql','0010_checkout.sql','0011_refund_ledger.sql','0012_web_ticket_outbox.sql','0013_processing_refund.sql','0014_cash_ledger.sql','0015_rental_investor_guard.sql','0016_cash_period_controls.sql','0017_payout_approval.sql','0018_order_receipts.sql','0019_business_accounting.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
  const ids={owner:'111111111111111111',management:'222222222222222222',worker:'333333333333333333',customer:'444444444444444444',other:'555555555555555555'};
  const cookies={};
  for(const [role,id] of Object.entries(ids)){
@@ -167,6 +167,12 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await call('owner','business/distributions',{capital_id:cap,period:'2026-11',profit:1000000,reference:'distribution-01'})).status,200);
   const inv=await (await call('owner','business/investors')).json();assert.equal(inv.capital[0].returned,50000);assert.equal(inv.distributions[0].investor_share,250000);
   assert.equal((await call('customer','business/investors')).status,403);
+  assert.equal((await call('owner','business/investors/post-policy',{capital_id:cap,investor_percent:0,agreement_reference:'signed-after-repayment',confirmed:true})).status,409);
+  assert.equal((await call('customer','business/investors/bonus',{capital_id:cap,item:'Streaming gear',quantity:1,value_amount:800000,reference:'bonus-001',confirmed:true})).status,403);
+  assert.equal((await call('owner','business/investors/bonus',{capital_id:cap,item:'Streaming gear',quantity:1,value_amount:800000,reference:'bonus-001',confirmed:true})).status,200);
+  assert.equal((await call('owner','business/investors/bonus',{capital_id:cap,item:'Streaming gear',quantity:1,value_amount:800000,reference:'bonus-001',confirmed:true})).status,409);
+  assert.equal((await call('owner','orders/'+id+'/cost-basis',{amount:2000,reference:'cost-001',note:'Actual supplier cost'})).status,200);
+  assert.equal((await call('owner','orders/'+id+'/cost-basis',{amount:1,reference:'cost-002',note:'Duplicate cost'})).status,409);
   const notices=await (await call('customer','business/notifications')).json();assert.ok(notices.items.every(x=>x.target_id!==second));
   assert.equal((await call('customer','business/notifications/read',{last_id:notices.latest})).status,200);
   assert.equal((await (await call('customer','business/notifications')).json()).unread,0);
