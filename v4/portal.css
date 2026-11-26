@@ -67,3 +67,5 @@ body.session-expired>:not(#sessionExpired){display:none!important}
 .loading-skeleton{min-height:76px}
 #calendarBody article:has(.overdue){border-color:#ef7474}
 @media print{.print-invoice tr{break-inside:avoid}.print-invoice{overflow-wrap:anywhere}}
+
+#toastRegion .toast-error{border-left-color:#ef7474}.dash-view [aria-busy=true]{min-height:76px}
