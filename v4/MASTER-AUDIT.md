@@ -3,7 +3,7 @@ Status: candidate development, not stable. Source: owner-approved 26 Nov 2026 au
 
 | ID | Priority | Finding / required evidence | State |
 |---|---|---|---|
-| A01 | P0 | Live Discord membership before checkout | O |
+| A01 | P0 | Live Discord membership before checkout | IMPLEMENTED |
 | A02 | P0 | Transactional ticket outbox | C |
 | A03 | P0 | Automatic bot delivery vs manual command | C |
 | A04 | P0 | OAuth PKCE | TEST PASSED |
@@ -95,6 +95,7 @@ Website PR #4: initial commit 070f7f00, migration 0012 and ticket-queue tests; s
 ## Verified evidence register
 | ID | Priority | Description | Root cause | Implementation file | Regression test | Implementation SHA | CI evidence | Deployment evidence | Final status |
 |---|---|---|---|---|---|---|---|---|---|
+| A01 | P0 | Membership in the configured Discord guild is checked before order insertion; missing credentials or an unavailable API fail closed. | The audit state did not reflect the existing membership gate. | `v4/worker.mjs`, `v4/membership.mjs` | `tests/membership.test.mjs` — credential/transport/rate-limit failures, exact guild member, non-member, mismatched identity, and bot account. | `0e75b0b` | `npm test` passed 50/50 locally; current-main build also passed in [run 45846230465](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45846230465). | No production membership-credential probe is available; `/api/health` reports login configuration only. | IMPLEMENTED |
 | A04 | P0 | OAuth authorization uses S256 PKCE, with the verifier held in a secure HTTP-only cookie and checked at callback. | The authorization-code exchange previously lacked a proof-key verifier; the implementation was added in the merged PKCE change. | `v4/worker.mjs` | `tests/v4.test.mjs` — RFC S256 vector, secure verifier cookie, token exchange verifier, and missing-verifier rejection. | `4cef248bc0537c064a1829581aaf45ea851569f8` | Current `main` SHA `21dc487bf9dc4b762e7cec80972ee065e5b26db2`: build passed in [run 45846230465](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45846230465). | [V4 deploy run 45846230511](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45846230511) succeeded; production `/api/health` reports release `21dc487bf9dc4b762e7cec80972ee065e5b26db2`, database ready, login configured. No real Discord OAuth sign-in was performed. | TEST PASSED |
 
 ## 26 Nov execution update
