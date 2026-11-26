@@ -7,6 +7,7 @@ async function parseMember(r,id,{oauth=false}={}){
   const b=await r.json().catch(()=>null);
   return result(b?.code===10007?403:503,b?.code===10007?'NOT_MEMBER':'GUILD_LOOKUP_FAILED',404);
  }
+ if(r.status>=300&&r.status<400)return result(503,'UNEXPECTED_REDIRECT',r.status);
  if(!r.ok)return result(503,r.status===401?'UNAUTHORIZED':r.status===403?'FORBIDDEN':r.status===429?'RATE_LIMITED':'UPSTREAM_ERROR',r.status);
  const b=await r.json();
  if((!oauth||b?.user!==undefined)&&(!b?.user||b.user.id!==id||b.user.bot))return result(403,'IDENTITY_MISMATCH',r.status);
@@ -16,7 +17,7 @@ async function parseMember(r,id,{oauth=false}={}){
 export async function guildMembership(env,id,request=fetch){
  if(!validId(id)||typeof env.DISCORD_MEMBERSHIP_BOT_TOKEN!=='string'||!env.DISCORD_MEMBERSHIP_BOT_TOKEN.trim())return result(503,'NOT_CONFIGURED');
  try{
-  const r=await request('https://discord.com/api/v10/guilds/'+GUILD+'/members/'+id,{headers:{authorization:'Bot '+env.DISCORD_MEMBERSHIP_BOT_TOKEN.trim(),accept:'application/json','user-agent':'DiscordBot (https://nexoraid-v4.nexoraid.workers.dev, 4.0)'},redirect:'error',signal:AbortSignal.timeout(8000)});
+  const r=await request('https://discord.com/api/v10/guilds/'+GUILD+'/members/'+id,{headers:{authorization:'Bot '+env.DISCORD_MEMBERSHIP_BOT_TOKEN.trim(),accept:'application/json','user-agent':'DiscordBot (https://nexoraid-v4.nexoraid.workers.dev, 4.0)'},redirect:'manual',signal:AbortSignal.timeout(8000)});
   return await parseMember(r,id);
  }catch{return result(503,'TRANSPORT');}
 }
@@ -28,7 +29,7 @@ export async function membershipStatus(env,id,request=fetch){
 export async function oauthGuildMember(id,token,request=fetch){
  if(!validId(id)||typeof token!=='string'||!token)return result(503,'NOT_CONFIGURED');
  try{
-  const r=await request('https://discord.com/api/v10/users/@me/guilds/'+GUILD+'/member',{headers:{authorization:'Bearer '+token,accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(8000)});
+  const r=await request('https://discord.com/api/v10/users/@me/guilds/'+GUILD+'/member',{headers:{authorization:'Bearer '+token,accept:'application/json'},redirect:'manual',signal:AbortSignal.timeout(8000)});
   return await parseMember(r,id,{oauth:true});
  }catch{return result(503,'TRANSPORT');}
 }
