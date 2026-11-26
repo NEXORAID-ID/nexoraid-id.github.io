@@ -41,8 +41,8 @@ Status: candidate development, not stable. Source: owner-approved 26 Nov 2026 au
 | A36 | P1 | Catalog price freshness | C |
 | A37 | P0 | Server-side variants | C |
 | A38 | P0 | Atomic rental inventory | C |
-| A39 | P1 | Warranty snapshots | O |
-| A40 | P1 | Promotion dates and eligibility | O |
+| A39 | P1 | Warranty snapshots | C |
+| A40 | P1 | Promotion dates and eligibility | C |
 | A41 | P1 | Bot catalog sync | O |
 | A42 | P2 | Global search | O |
 | A43 | P2 | Skeleton and empty states | O |
@@ -115,3 +115,5 @@ Website PR #4: initial commit 070f7f00, migration 0012 and ticket-queue tests; s
 The labels RUNTIME PROBE PASSED, ISOLATED E2E PASSED and ISOLATED RESTORE PASSED describe only the named evidence. None is full production acceptance. Earlier evidence rows are historical records, not current release clearance. No change to production data or Discord channels.
 
 - A36–A38 candidate PR #33: 79 explicit package SKUs, official Rockstar Support assistance price, canonical variant amounts, parent disable guard and rental capacity required. Preserves merged A17–A19 atomic checkout. Current CI and deployment evidence required. HyperBoostX free distribution, final top-up prices and owner attestation of complete catalog remain outstanding. A41 bot PR #32 merged; production registration and end-to-end parity not yet verified.
+
+- A39/A40 focused policy branch: order snapshots immutable, dates and minimum quantity evaluated inside shared atomic checkout, no historical claims or invented owner values. Earlier stacked PR #10 overlaps service_policies and order_policy_snapshots; reconcile its migration and pricing code before any merge. Legacy discounts preserved until explicit owner change, no new undated discounts. Production requires backup/restore evidence, owner-entered policies and real parity test.

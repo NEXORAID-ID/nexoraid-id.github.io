@@ -1,6 +1,6 @@
 import { CONFIG, services as baselineServices } from './services-data.js';
 import { getLiveCatalog } from './live-catalog.js';
-import { categories, escapeHTML as esc, queryCatalog, orderText, fixedPriceValue, comparisonTotals, PAGE_SIZE, safeSelection, safeBasket, basketTotals, basketText, packageOptions, pricingInfo, priceCSV } from './catalog.js';
+import { categories, escapeHTML as esc, queryCatalog, orderText, fixedPriceValue, comparisonTotals, PAGE_SIZE, safeSelection, safeBasket, basketTotals, basketText, packageOptions, pricingInfo, priceCSV, effectiveCatalogUnit } from './catalog.js';
 
 const catalogue=await getLiveCatalog(baselineServices,location);
 const services=catalogue.services;
@@ -371,8 +371,7 @@ if (detail) {
       const raw=Number(input?.value||1);
       const quantity=Number.isInteger(raw)?Math.max(1,Math.min(99,raw)):1;
       const actual=selected?.serviceId?services.find(s=>s.id===selected.serviceId):service;
-      const p=actual?.policy?.promo,at=Math.floor(Date.now()/1000),base=actual?.base_unit_amount;
-      const amount=Number.isSafeInteger(base)?Math.max(1,Math.floor(base*(100-(p&&(p.legacy||p.start<=at&&at<p.end&&quantity>=p.min_quantity)?p.percent:0))/100)):(selected?.amount??(pricing.type==='fixed'?pricing.min:null));
+      const amount=selected&&!selected.serviceId?selected.amount:effectiveCatalogUnit(actual,quantity);
       return {selected,quantity,total:amount===null?null:amount*quantity};
     }
     function updateEstimate(){const order=currentOrder();const add=detail.querySelector('[data-basket]');if(add){add.dataset.basket=order.selected?.serviceId||service.id;add.dataset.quantity=String(order.quantity);}const target=$('#orderEstimate');if(!target)return;target.textContent=order.total===null?'Pilih paket untuk melihat estimasi.':'Subtotal indikatif: '+money(order.total)+' (harga final dikonfirmasi tim)';}

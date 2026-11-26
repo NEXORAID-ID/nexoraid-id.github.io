@@ -17,3 +17,5 @@ test('warranty and applied promo are immutable snapshots, not retroactive claims
  assert.equal(get('unknown').warranty_days,null);assert.equal(get('active').warranty_days,7);assert.equal(get('active').promo_percent,10);assert.equal(get('active').promo_min_quantity,2);assert.equal(get('active').promo_start,100);assert.equal(get('minimum').promo_percent,0);assert.equal(get('expired').promo_percent,0);
  assert.throws(()=>db.exec("UPDATE order_policy_snapshots SET warranty_days=90 WHERE order_id='active'"),/policy_snapshot_immutable/);assert.throws(()=>db.exec("DELETE FROM order_policy_snapshots WHERE order_id='active'"),/policy_snapshot_immutable/);db.close();
 });
+
+test('public quantity estimate follows the same scheduled boundaries as the server',async()=>{const {effectiveCatalogUnit}=await import('../catalog.js');const item={...base,base_unit_amount:150000,policy:{promo:{percent:10,start:100,end:200,min_quantity:2,legacy:false}}};assert.equal(effectiveCatalogUnit(item,1,100),150000);assert.equal(effectiveCatalogUnit(item,2,100),135000);assert.equal(effectiveCatalogUnit(item,2,200),150000);});
