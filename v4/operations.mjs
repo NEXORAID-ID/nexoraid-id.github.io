@@ -106,7 +106,7 @@ export async function operations({p,m,url,user,env,readBody,r}){
  }
  if(action==='cancel'){
   if(!owns||order.status!=='requested')return err('Hanya permintaan sendiri yang belum diambil dapat dibatalkan.',403);
-  return mutate(db,db.prepare("UPDATE orders SET status='cancelled',updated_at=? WHERE id=? AND customer_id=? AND status='requested'").bind(t,id,user.id),user.id,'order:customer_cancel',id,t);
+  return mutate(db,db.prepare("UPDATE orders SET status='cancelled',updated_at=? WHERE id=? AND customer_id=? AND status='requested' AND NOT EXISTS(SELECT 1 FROM payment_claims WHERE order_id=orders.id) AND NOT EXISTS(SELECT 1 FROM order_finance WHERE order_id=orders.id AND state='paid')").bind(t,id,user.id),user.id,'order:customer_cancel',id,t);
  }
  return err('Endpoint tidak ditemukan.',404);
 }
