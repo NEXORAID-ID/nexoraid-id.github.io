@@ -54,6 +54,11 @@ jobs:
           npm test
           SITE_URL="$PUBLIC_ORIGIN" npm run build
           node v4/scripts/prepare.mjs
+      - name: Browser regression gate before production changes
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node tests/browser.mjs
       - name: Apply D1 migrations and deploy
         run: |
           # Manual deployment creates a private export; CI uses Cloudflare-managed recovery.
