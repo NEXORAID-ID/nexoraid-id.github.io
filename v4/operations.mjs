@@ -74,7 +74,8 @@ export async function operations({p,m,url,user,env,readBody,r}){
   const visible=redact(order,user);
   // Payment references and evidence are deliberately excluded from general customer responses.
   const evidence=over||assigned&&user.role==='worker'?await db.prepare('SELECT evidence,submitted_at FROM order_work WHERE order_id=?').bind(id).first():null;
-  return json({order:visible,evidence});
+  const policy=await db.prepare('SELECT warranty_days,warranty_terms,promo_percent,promo_terms FROM order_policy_snapshots WHERE order_id=?').bind(id).first();
+  return json({order:visible,evidence,policy});
  }
  if(m!=='POST')return err('Metode tidak diizinkan.',405);
  const b=await readBody(r),t=now();if(!b)return err('Data tidak valid.',400);
