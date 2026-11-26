@@ -17,5 +17,5 @@ test('all authorized deployment routes pin Wrangler and gate migrations before r
 });
 test('manual redeploy copies every portal PWA asset',async()=>{
  const s=await read('v4/scripts/redeploy.sh');
- for(const p of ['portal.html','portal.css','portal.mjs','portal.webmanifest','portal-sw.js','portal-offline.html'])assert.ok(s.includes(p),p);
+ for(const p of ['portal.html','portal.css','portal.mjs','portal-ui.mjs','portal.webmanifest','portal-sw.js','portal-offline.html'])assert.ok(s.includes(p),p);
 });
