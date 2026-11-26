@@ -1,4 +1,5 @@
 import {closureStatus} from './ticket-closure-status.mjs';
+import {closureFence} from './ticket-closure-fence.mjs';
 import {services} from '../services-data.js';
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'}});
 const err=(error,status)=>json({error},status);
@@ -25,6 +26,10 @@ export async function ticketQueue({db,r,m,readBody,clock=()=>Math.floor(Date.now
   return json({ok:true,read_only:true,maintenance:Boolean(maintenance),...counts});
  }
  if(maintenance)return err('Antrean dalam pemeliharaan.',503);
+ if(['closure-begin','closure-finish'].includes(b?.action)){
+  const result=await closureFence(db,b,guild,t);
+  return json(result.body,result.status);
+ }
  if(b?.action==='closure-status'){
   if(!snow(b.customer_id)||!snow(b.channel_id)||typeof b.ticket_id!=='string'||!/^[a-zA-Z0-9_-]{1,80}$/.test(b.ticket_id))return err('Identitas tiket tidak valid.',400);
   return json(await closureStatus(db,b,guild));

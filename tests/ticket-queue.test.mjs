@@ -71,6 +71,23 @@ test('outbox no backfill; rollback, lease expiry, retry and canonical ack',async
  assert.equal((await checkClose()).eligible,false);assert.equal((await checkClose()).uncertain,1);
  assert.equal(sql.prepare('SELECT count(*) n FROM order_ticket_links').get().n,beforeCounts);
  assert.equal((await call({...close,ticket_id:'invalid / id'})).status,400);
+ // Durable closure requires exact mapping, terminal orders and confirmed delivery.
+ const closure_id='00000000-0000-4000-8000-000000000099';
+ const begin={...close,action:'closure-begin',closure_id};
+ assert.equal((await call(begin)).status,409); // uncertain delivery
+ sql.prepare('UPDATE web_ticket_outbox SET delivered_at=?,channel_id=?,message_id=? WHERE order_id=?').run(time,ack.channel_id,sameAck.message_id,id3);
+ assert.equal((await call({...begin,customer_id:other})).status,409);
+ assert.equal((await(await call(begin)).json()).state,'closing');
+ assert.equal((await(await call(begin)).json()).state,'closing');
+ assert.throws(()=>add('00000000-0000-4000-8000-000000000008'),/ticket_closure_pending/);
+ assert.equal((await call({...begin,closure_id:'00000000-0000-4000-8000-000000000098'})).status,409);
+ const finish={...begin,action:'closure-finish',transcript_channel_id:'1524898826903752880',transcript_message_id:'1524898826903752881'};
+ assert.equal((await call({...finish,closure_id:'00000000-0000-4000-8000-000000000098'})).status,409);
+ assert.equal((await(await call(finish)).json()).state,'closed');
+ assert.equal((await(await call(finish)).json()).state,'closed');
+ assert.equal((await call({...finish,transcript_message_id:'1524898826903752882'})).status,409);
+ add('00000000-0000-4000-8000-000000000008');
+ assert.equal(sql.prepare('SELECT count(*) n FROM order_ticket_links').get().n,beforeCounts);
  sql.close();
 });
 test('machine route rejects missing, reused, wrong key and actor impersonation',async()=>{
