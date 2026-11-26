@@ -29,3 +29,28 @@ body.light-theme{color-scheme:light;--bg:#f4f7fb;--panel:#fff;--line:#d1dce8;--t
 .order-messages{max-height:360px;overflow:auto;display:grid;gap:8px}.order-messages article{padding:12px;margin:0;overflow-wrap:anywhere}.timeline>a{display:block;margin:8px 0}.timeline input[type=file]{width:100%}.timeline input[type=datetime-local]{width:100%}
 
 .view-controls{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 0}.view-controls span{font-size:12px;color:var(--muted)}#orders.kanban{display:grid;grid-template-columns:repeat(6,minmax(235px,1fr));overflow-x:auto;gap:12px;max-width:100%;padding:4px 0 12px;scroll-snap-type:x proximity}.kanban-column{min-width:0;border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--panel);scroll-snap-align:start}.kanban-column h3{font-size:13px;margin:4px 0 12px}.kanban-column article{margin:0 0 10px;overflow-wrap:anywhere}.kanban-column .deadline{font-size:12px}.overdue{color:#ef7474;font-weight:700}body.light-theme .overdue{color:#a82525}
+
+/* Constrain intrinsic grid widths rather than hiding clipped controls. */
+.dashboard-mode #account{grid-template-columns:minmax(0,210px) minmax(0,1fr)}
+.dashboard-mode #account>*,.layout>*,form,form>*,label,.dash-view,article,.mini-kpis>*{min-width:0;max-width:100%;overflow-wrap:anywhere}
+form,label{grid-template-columns:minmax(0,1fr)}
+label>input,label>select,label>textarea,form>button{width:100%;min-width:0;max-width:100%}
+.dashboard-mode .layout{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}
+.mini-kpis{grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr))}
+.header-actions,.view-controls{flex-wrap:wrap}
+.dashboard-nav button{white-space:normal}
+#globalSearchPanel{display:grid;gap:8px;border:1px solid var(--line);border-radius:14px;padding:14px;background:var(--panel)}
+#globalResults{display:grid;gap:6px;max-height:280px;overflow:auto}
+#globalResults button{text-align:left}
+#connectionNotice{padding:10px 14px;border:1px solid #cc963b;border-radius:10px;color:var(--text);background:var(--panel)}
+#toastRegion{position:fixed;z-index:10;right:16px;bottom:16px;width:min(360px,calc(100% - 32px));pointer-events:none;display:grid;gap:8px}
+.toast{margin:0;border:1px solid var(--line);border-left:4px solid var(--accent);background:var(--panel);color:var(--text);padding:12px 14px;border-radius:10px;box-shadow:0 10px 28px #0004}
+.toast-error{border-left-color:#ef7474}
+.loading-skeleton{height:76px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(100deg,var(--panel),var(--bg),var(--panel));background-size:200% 100%}
+.calendar-day{margin:16px 0 0;border-bottom:1px solid var(--line);padding:8px 0}
+@media(min-width:1000px){.dashboard-mode #account>.dashboard-nav{grid-row:1/span 12;max-height:calc(100dvh - 36px);overflow:auto}}
+@media(max-width:999px){.dashboard-mode #account{display:block}.dashboard-mode #account>*{margin-bottom:14px}.dashboard-mode .dashboard-nav button{white-space:nowrap}}
+@media(max-width:760px){.dashboard-mode .layout{grid-template-columns:minmax(0,1fr)}}
+@media(prefers-reduced-motion:no-preference){.loading-skeleton{animation:nexo-load 1.3s ease-in-out infinite}@keyframes nexo-load{to{background-position:-200% 0}}}
+
+@media print{.print-invoice table{width:100%;border-collapse:collapse}.print-invoice td{border:1px solid #888;padding:6px;vertical-align:top;overflow-wrap:anywhere}}

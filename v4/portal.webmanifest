@@ -1,0 +1,18 @@
+{
+  "id": "/portal.html",
+  "name": "NEXORAID Portal Anggota",
+  "short_name": "NEXORAID",
+  "start_url": "/portal.html",
+  "scope": "/portal.html",
+  "display": "standalone",
+  "background_color": "#080d1a",
+  "theme_color": "#080d1a",
+  "icons": [
+    {
+      "src": "/assets/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
