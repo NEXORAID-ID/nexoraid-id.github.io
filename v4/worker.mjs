@@ -179,23 +179,12 @@ async function handle(r,env){
   if(key){const old=await replay();if(old)return old;}
   const membership=await membershipStatus(env,user.id,env.DISCORD_MEMBERSHIP_FETCH||fetch);
   if(membership!==200)return err(membershipMessage(membership),membership);
-    const t=now(),baseAmount=fixedPriceValue(order.catalog_price);
+  const live=(await memberCatalog(env.DB)).find(s=>s.id===order.service_id);if(!live)return err('Layanan sedang tidak tersedia.',409);order.catalog_price=live.price;order.estimate=live.unit_amount===null?null:live.unit_amount*order.quantity;
+  const t=now();
   // Atomic conditional insert: no more than 5 requests per user in any rolling hour.
-    let result;try{[result]=await env.DB.batch([env.DB.prepare(`WITH catalog_state AS (
- SELECT o.amount,o.enabled,CASE WHEN p.service_id IS NOT NULL THEN CASE WHEN p.promo_start<=? AND ?<p.promo_end THEN p.promo_percent ELSE 0 END ELSE COALESCE(o.promo_percent,0) END AS promo_percent
- FROM (SELECT ? AS service_id) requested
- LEFT JOIN catalog_overrides o ON o.service_id=requested.service_id
- LEFT JOIN service_policies p ON p.service_id=requested.service_id
-), unit_price AS (
- SELECT CASE WHEN COALESCE(amount,?) IS NULL THEN NULL ELSE MAX(1,CAST(COALESCE(amount,?)*(100-promo_percent)/100 AS INTEGER)) END AS amount,COALESCE(enabled,1) AS enabled FROM catalog_state
-)
-INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,estimate,created_at,updated_at)
-SELECT ?,?,?,?,CASE WHEN amount IS NULL THEN ? ELSE 'Rp'||REPLACE(PRINTF('%,d',amount),',','.') END,amount*?,?,?
-FROM unit_price WHERE enabled=1 AND (SELECT COUNT(*) FROM orders WHERE customer_id=? AND created_at>=?)<5
-ON CONFLICT(id) DO NOTHING`).bind(t,t,order.service_id,baseAmount,baseAmount,id,user.id,order.service_id,order.quantity,order.catalog_price,order.quantity,t,t,user.id,t-3600),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'order:create',?,? WHERE changes()=1").bind(user.id,id,t)]);}catch(e){const old=await replay();if(old)return old;if(String(e.message).includes('rental_stock_unavailable'))return err('Stok sewa tidak tersedia.',409);throw e;}
-    if(!result.meta.changes){if(key){const old=await replay();if(old)return old;}if(!(await memberCatalog(env.DB)).some(s=>s.id===order.service_id))return err('Layanan sedang tidak tersedia.',409);return err('Batas permintaan per jam tercapai.',429);}
-    const saved=await env.DB.prepare('SELECT catalog_price,estimate,status FROM orders WHERE id=? AND customer_id=?').bind(id,user.id).first();
-    return json({order:{id,...order,catalog_price:saved.catalog_price,estimate:saved.estimate,status:saved.status}},201);
+  let result;try{[result]=await env.DB.batch([env.DB.prepare("INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,estimate,created_at,updated_at) SELECT ?,?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM orders WHERE customer_id=? AND created_at>=?)<5 ON CONFLICT(id) DO NOTHING").bind(id,user.id,order.service_id,order.quantity,order.catalog_price,order.estimate,t,t,user.id,t-3600),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'order:create',?,? WHERE changes()=1").bind(user.id,id,t)]);}catch(e){const old=await replay();if(old)return old;if(String(e.message).includes('rental_stock_unavailable'))return err('Stok sewa tidak tersedia.',409);throw e;}
+  if(!result.meta.changes){if(key){const old=await replay();if(old)return old;}return err('Batas permintaan per jam tercapai.',429);}
+  return json({order:{id,...order,status:'requested'}},201);
  }
  const match=p.match(/^\/api\/orders\/([a-f0-9-]{36})\/(claim|status)$/);
  if(match&&m==='POST'){

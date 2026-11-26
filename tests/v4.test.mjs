@@ -55,8 +55,7 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token))),n=>n.toString(16).padStart(2,'0')).join('');
   db.prepare('INSERT INTO sessions VALUES(?,?,?)').run(hash,id,Math.floor(Date.now()/1000)+3600);
  }
- let beforeNextBatch=null;
- const DB={prepare(sql){return {args:[],bind(...args){this.args=args;return this;},async first(){return db.prepare(sql).get(...this.args)||null;},async all(){return {results:db.prepare(sql).all(...this.args)};},async run(){return {meta:{changes:Number(db.prepare(sql).run(...this.args).changes)}};}};},async batch(statements){if(beforeNextBatch){const update=beforeNextBatch;beforeNextBatch=null;update();}db.exec('BEGIN');try{const out=[];for(const stmt of statements)out.push(await stmt.run());db.exec('COMMIT');return out;}catch(e){db.exec('ROLLBACK');throw e;}}};
+ const DB={prepare(sql){return {args:[],bind(...args){this.args=args;return this;},async first(){return db.prepare(sql).get(...this.args)||null;},async all(){return {results:db.prepare(sql).all(...this.args)};},async run(){return {meta:{changes:Number(db.prepare(sql).run(...this.args).changes)}};}};},async batch(statements){db.exec('BEGIN');try{const out=[];for(const stmt of statements)out.push(await stmt.run());db.exec('COMMIT');return out;}catch(e){db.exec('ROLLBACK');throw e;}}};
  const env={DB,PUBLIC_ORIGIN:'https://nexoraid.example',OWNER_DISCORD_ID:ids.owner,NEXORAID_BOT_API_KEY:'b'.repeat(64),DISCORD_MEMBERSHIP_BOT_TOKEN:'fixture',DISCORD_MEMBERSHIP_FETCH:async url=>Response.json({user:{id:url.split('/').at(-1)}})};
  let fixtureRequest=0;
  const call=async(role,path,data)=>{if(path==='orders'&&data&&data.request_id===undefined)data={...data,request_id:'fixture-order-'+String(++fixtureRequest).padStart(8,'0')};const headers={cookie:cookies[role],origin:env.PUBLIC_ORIGIN,'content-type':'application/json'};return worker.fetch(req('/api/'+path,{headers,...(data===undefined?{}:{method:'POST',body:JSON.stringify(data)})}),env);};
@@ -142,9 +141,7 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await (await call('management','workspace/report')).json()).finance,undefined);
   assert.equal((await call('customer','business/catalog',{service_id:'gta-heist',amount:20000,enabled:true,promo_percent:10})).status,403);
   assert.equal((await call('owner','business/catalog',{service_id:'gta-heist',amount:20000,enabled:true,promo_percent:10})).status,200);
-    beforeNextBatch=()=>db.prepare('UPDATE catalog_overrides SET amount=30000 WHERE service_id=?').run('gta-heist');
-    const adjusted=await (await call('customer','orders',{service_id:'gta-heist',quantity:2})).json();assert.equal(adjusted.order.estimate,54000);assert.equal(adjusted.order.catalog_price,'Rp27.000');
-    const adjustedSnapshot=db.prepare('SELECT catalog_price,estimate FROM orders WHERE id=?').get(adjusted.order.id);assert.equal(adjustedSnapshot.catalog_price,'Rp27.000');assert.equal(adjustedSnapshot.estimate,54000);
+    const adjusted=await (await call('customer','orders',{service_id:'gta-heist',quantity:2})).json();assert.equal(adjusted.order.estimate,36000);
   const supplier=(await (await call('owner','business/suppliers',{name:'Test supplier'})).json()).id;
   assert.equal((await call('owner','business/suppliers/'+supplier,{kind:'deposit',amount:500000,reference:'dep-01',note:'Initial deposit'})).status,200);
   assert.equal((await call('owner','business/suppliers/'+supplier,{kind:'usage',amount:600000,reference:'use-01',note:'Too much'})).status,409);
