@@ -32,3 +32,5 @@ Relevant pushes to main trigger the dedicated Cloudflare workflow. It validates 
 
 ### Branded login entry
 Both storefronts now expose login.html, a static branded entry that sends users to the official Worker OAuth endpoint, never collecting credentials. The authenticated Worker portal shares the design. GitHub Pages can publish the login landing independently, but OAuth and role dashboards require the Worker to be deployed and configured. Mobile and desktop smoke tests cover the static login entry and OAuth destination.
+
+OAuth diagnostics now distinguish token and identity transport failures. Token exchange uses the documented unversioned Discord OAuth endpoint and an explicit form-encoded string body, a product User-Agent, a bounded timeout and no automatic redirects. Runtime logs include only the fixed stage, reason, HTTP status, format or exception class; no raw exception text, tokens or codes. A transport failure may still require resolving the upstream network issue. Do not retry a spent authorization code.

@@ -41,6 +41,37 @@ export function oauthFailure(status,value){
  const known=['invalid_client','invalid_grant','invalid_request','unauthorized_client','unsupported_grant_type','invalid_scope'];
  return status===429?'rate_limited':known.includes(value?.error)?value.error:status===401?'invalid_client':'provider_error';
 }
+// Never log the request, response body, authorization code, token or secret.
+export async function discordIdentity(env,code,request=fetch,report=(details)=>console.warn('Discord OAuth diagnostic',details)){
+ let stage='token_request';
+ const fail=(reason,details={})=>{report({stage,reason,...details});return {error:reason};};
+ const kind=e=>['AbortError','TimeoutError','TypeError','NetworkError'].includes(e?.name)?e.name:'Error';
+ async function send(url,options){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),15000);
+  try{return await request(url,{...options,redirect:'manual',signal:controller.signal});}finally{clearTimeout(timer);}
+ }
+ const headers={'accept':'application/json','user-agent':'NEXORAID/4.0 (https://nexoraid-v4.nexoraid.workers.dev)'};
+ try{
+  const form=new URLSearchParams({client_id:env.DISCORD_CLIENT_ID.trim(),client_secret:env.DISCORD_CLIENT_SECRET.trim(),grant_type:'authorization_code',code,redirect_uri:env.PUBLIC_ORIGIN+'/api/auth/callback'}).toString();
+  const response=await send('https://discord.com/api/oauth2/token',{method:'POST',headers:{...headers,'content-type':'application/x-www-form-urlencoded'},body:form});
+  stage='token_response';
+  if(!response.ok){
+   const value=await response.json().catch(()=>null);
+   const reason=oauthFailure(response.status,value);
+   return fail(reason,{status:response.status,format:value?'json':'non-json'});
+  }
+  const token=await response.json();
+  if(typeof token.access_token!=='string'||!token.access_token)return fail('provider_error');
+  stage='identity_request';
+  const identity=await send('https://discord.com/api/v10/users/@me',{headers:{...headers,authorization:'Bearer '+token.access_token}});
+  stage='identity_response';
+  if(!identity.ok)return fail('identity_error',{status:identity.status});
+  const user=await identity.json();
+  if(!validId(user.id))return fail('identity_error');
+  return {user};
+ }catch(e){return fail(stage.startsWith('token')?'token_transport':'identity_transport',{exception:kind(e)});}
+}
 const loginFailure=(code)=>redirect('/portal.html?login_error='+encodeURIComponent(code),[cookie('nexo_state','',0)]);
 function oauthReady(env){return Boolean(env.PUBLIC_ORIGIN&&env.DISCORD_CLIENT_ID&&env.DISCORD_CLIENT_SECRET&&env.DB);}
 async function handle(r,env){
@@ -83,15 +114,9 @@ async function handle(r,env){
   if(!state||state!==getCookie(r,'nexo_state')||!/^[a-f0-9-]{72}$/.test(state))return loginFailure('invalid_state');
   if(url.searchParams.get('error')==='access_denied')return loginFailure('access_denied');
   if(!code||code.length>2048)return loginFailure('invalid_grant');
-  let token,user;
-  try{
-   const tokenResponse=await fetch('https://discord.com/api/v10/oauth2/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded','accept':'application/json'},redirect:'error',signal:AbortSignal.timeout(15000),body:new URLSearchParams({client_id:env.DISCORD_CLIENT_ID.trim(),client_secret:env.DISCORD_CLIENT_SECRET.trim(),grant_type:'authorization_code',code,redirect_uri:env.PUBLIC_ORIGIN+'/api/auth/callback'})});
-   if(!tokenResponse.ok){const reason=oauthFailure(tokenResponse.status,await tokenResponse.json().catch(()=>null));console.warn('Discord OAuth token exchange rejected',{status:tokenResponse.status,reason});return loginFailure(reason);}
-   token=await tokenResponse.json();if(typeof token.access_token!=='string'||!token.access_token)return loginFailure('provider_error');
-   const userResponse=await fetch('https://discord.com/api/v10/users/@me',{headers:{authorization:'Bearer '+token.access_token,accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(15000)});
-   if(!userResponse.ok){console.warn('Discord OAuth identity rejected',{status:userResponse.status});return loginFailure('identity_error');}
-   user=await userResponse.json();if(!validId(user.id))return loginFailure('identity_error');
-  }catch{console.warn('Discord OAuth request failed');return loginFailure('provider_error');}
+  const result=await discordIdentity(env,code);
+  if(result.error)return loginFailure(result.error);
+  const user=result.user;
   const t=now(),s=random();
   await env.DB.batch([
    env.DB.prepare('INSERT INTO users(id,display_name,created_at) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET display_name=excluded.display_name').bind(user.id,String(user.global_name||user.username||'Pelanggan').slice(0,100),t),
