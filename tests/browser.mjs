@@ -47,7 +47,13 @@ try{
    assert.equal(await p.locator('[data-view="finance"]').isVisible(),['owner','worker'].includes(role));assert.equal(await p.locator('[data-view="team"]').isVisible(),role==='owner');
    assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
    await p.getByRole('button',{name:'Detail & tindakan'}).click();await p.locator('#orderDialog[open]').waitFor();
-   assert.equal(await p.getByRole('button',{name:'Ambil order',exact:true}).isVisible(),role==='worker');assert.equal(await p.getByRole('button',{name:'Batalkan permintaan',exact:true}).isVisible(),role==='customer');assert.equal(await p.getByRole('heading',{name:'Tugaskan penjoki'}).isVisible(),['owner','management'].includes(role));await ctx.close();
+   assert.equal(await p.getByRole('button',{name:'Ambil order',exact:true}).isVisible(),role==='worker');assert.equal(await p.getByRole('button',{name:'Batalkan permintaan',exact:true}).isVisible(),role==='customer');assert.equal(await p.getByRole('heading',{name:'Tugaskan penjoki'}).isVisible(),['owner','management'].includes(role));
+   assert.equal(await p.locator('.qris-payment').count(),0);
+   await p.locator('#closeDetail').click();order.status='confirmed';order.payment_state='quoted';order.invoice_amount=15000;
+   await p.getByRole('button',{name:'Detail & tindakan'}).click();await p.locator('#orderDialog[open]').waitFor();
+   assert.equal(await p.locator('.qris-payment').isVisible(),role==='customer');
+   if(role==='customer'){const img=p.locator('.qris-payment img');await img.waitFor();assert.ok(await img.evaluate(e=>e.complete&&e.naturalWidth>0)||await img.evaluate(e=>new Promise(resolve=>{e.onload=()=>resolve(true);e.onerror=()=>resolve(false);})));assert.match(await p.locator('.qris-amount').innerText(),/15\.000/);}
+   await ctx.close();
   }
   await desktopPage.goto(url+'harga.html');assert.equal(await desktopPage.locator('.price-table tbody tr').count(),32);const csv=await desktopPage.request.get(url+'pricelist.csv');assert.ok(csv.ok());assert.match(await csv.text(),/OptiWindows/);
   const {services}=await import('../services-data.js');for(const s of services){const response=await desktopPage.goto(url+'layanan-'+s.id+'.html');assert.ok(response.ok(),s.id);assert.equal(await desktopPage.locator('h1').innerText(),s.name);}
