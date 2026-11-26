@@ -1,5 +1,6 @@
 import {services} from '../services-data.js';
-import {memberCatalog} from './business.mjs';
+import {applyOverride} from './business.mjs';
+import {guardedCatalogPrice,catalogPriceBindings,catalogChangedError} from './catalog-snapshot.mjs';
 import {membershipStatus,membershipMessage} from './membership.mjs';
 const json=(d,s=200)=>new Response(JSON.stringify(d),{status:s,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'}});
 const err=(error,s=400)=>json({error},s);
@@ -20,14 +21,15 @@ export async function customer({p,m,user,env,r,readBody,sessionHash}){
  const b=await readBody(r),items=normalizeCart(b?.items);
  if(!items||typeof b?.request_id!=='string'||!/^[a-zA-Z0-9_-]{16,80}$/.test(b.request_id))return err('Keranjang 1–5 layanan unik dan ID permintaan wajib.');
  const signature=JSON.stringify(items);
- const replay=async()=>{const g=await db.prepare('SELECT id,signature FROM checkout_groups WHERE customer_id=? AND request_id=?').bind(user.id,b.request_id).first();if(!g)return null;if(g.signature!==signature)return err('ID checkout sudah digunakan.',409);const rows=(await db.prepare('SELECT o.id,o.service_id,o.quantity,o.estimate,o.status FROM orders o JOIN checkout_items i ON i.order_id=o.id WHERE i.checkout_id=? ORDER BY o.service_id').bind(g.id).all()).results;return json({checkout_id:g.id,orders:rows,replayed:true});};
+ const replay=async()=>{const g=await db.prepare('SELECT id,signature FROM checkout_groups WHERE customer_id=? AND request_id=?').bind(user.id,b.request_id).first();if(!g)return null;if(g.signature!==signature)return err('ID checkout sudah digunakan.',409);const rows=(await db.prepare('SELECT o.id,o.service_id,o.quantity,o.catalog_price,o.estimate,o.status FROM orders o JOIN checkout_items i ON i.order_id=o.id WHERE i.checkout_id=? ORDER BY o.service_id').bind(g.id).all()).results;return json({checkout_id:g.id,orders:rows,replayed:true});};
  const old=await replay();if(old)return old;
  const membership=await membershipStatus(env,user.id,env.DISCORD_MEMBERSHIP_FETCH||fetch);
  if(membership!==200)return err(membershipMessage(membership),membership);
- const catalog=new Map((await memberCatalog(db)).map(s=>[s.id,s]));if(items.some(i=>!catalog.has(i.service_id)))return err('Layanan tidak tersedia.',409);
+ const overrides=new Map((await db.prepare('SELECT service_id,amount,enabled,promo_percent FROM catalog_overrides').all()).results.map(o=>[o.service_id,o]));
+ const catalog=new Map(services.map(s=>[s.id,applyOverride(s,overrides.get(s.id))]));if(items.some(i=>!catalog.get(i.service_id)?.enabled))return err('Layanan tidak tersedia.',409);
  const id=crypto.randomUUID(),rows=items.map(i=>{const s=catalog.get(i.service_id);return {...i,id:crypto.randomUUID(),catalog_price:s.price,estimate:s.unit_amount===null?null:s.unit_amount*i.quantity,status:'requested'};});
  const statements=[db.prepare('INSERT INTO checkout_groups VALUES(?,?,?,?,?,?)').bind(id,user.id,b.request_id,signature,items.length,t)];
- for(const o of rows)statements.push(db.prepare('INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,estimate,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)').bind(o.id,user.id,o.service_id,o.quantity,o.catalog_price,o.estimate,t,t),db.prepare('INSERT INTO checkout_items VALUES(?,?)').bind(id,o.id),db.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) VALUES(?,'order:create',?,?)").bind(user.id,o.id,t));
- try{await db.batch(statements);}catch(e){const existing=await replay();if(existing)return existing;if(String(e.message).includes('checkout_quota'))return err('Maksimal lima permintaan per jam.',429);if(String(e.message).includes('rental_stock_unavailable'))return err('Stok sewa tidak tersedia.',409);if(String(e.message).includes('catalog_disabled'))return err('Ketersediaan berubah.',409);throw e;}
+ for(const o of rows)statements.push(db.prepare('INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,estimate,created_at,updated_at) VALUES(?,?,?,?,'+guardedCatalogPrice+',?,?,?)').bind(o.id,user.id,o.service_id,o.quantity,...catalogPriceBindings(o.service_id,overrides.get(o.service_id),o.catalog_price),o.estimate,t,t),db.prepare('INSERT INTO checkout_items VALUES(?,?)').bind(id,o.id),db.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) VALUES(?,'order:create',?,?)").bind(user.id,o.id,t));
+ try{await db.batch(statements);}catch(e){const existing=await replay();if(existing)return existing;if(String(e.message).includes('checkout_quota'))return err('Maksimal lima permintaan per jam.',429);if(String(e.message).includes('rental_stock_unavailable'))return err('Stok sewa tidak tersedia.',409);if(catalogChangedError(e))return err('Harga atau ketersediaan layanan berubah. Muat ulang katalog dan coba lagi.',409);throw e;}
  return json({checkout_id:id,orders:rows},201);
 }
