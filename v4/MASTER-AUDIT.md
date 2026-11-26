@@ -44,16 +44,16 @@ Status: candidate development, not stable. Source: owner-approved 26 Nov 2026 au
 | A39 | P1 | Warranty snapshots | C |
 | A40 | P1 | Promotion dates and eligibility | C |
 | A41 | P1 | Bot catalog sync | O |
-| A42 | P2 | Global search | O |
-| A43 | P2 | Skeleton and empty states | O |
-| A44 | P2 | Central toast | O |
-| A45 | P2 | Calendar | O |
-| A46 | P1 | Excel/PDF export | O |
-| A47 | P2 | PWA offline | O |
+| A42 | P2 | Global search | TEST PASSED |
+| A43 | P2 | Skeleton and empty states | IN PROGRESS |
+| A44 | P2 | Central toast | IN PROGRESS |
+| A45 | P2 | Calendar | TEST PASSED |
+| A46 | P1 | Excel/PDF export | TEST PASSED |
+| A47 | P2 | PWA offline | TEST PASSED |
 | A48 | P1 | Persistent cart | C |
-| A49 | P1 | Portal modularization | O |
+| A49 | P1 | Portal modularization | IN PROGRESS |
 | A50 | P1 | Real responsive E2E | IN PROGRESS |
-| A51 | P2 | Language consistency | O |
+| A51 | P2 | Language consistency | IN PROGRESS |
 | A52 | P0 | Logging channel ID mapping | O |
 | A53 | P1 | Legacy role names | O |
 | A54 | P0 | Role permissions mapping | O |
@@ -116,4 +116,22 @@ The labels RUNTIME PROBE PASSED, ISOLATED E2E PASSED and ISOLATED RESTORE PASSED
 
 - A36–A38 candidate PR #33: 79 explicit package SKUs, official Rockstar Support assistance price, canonical variant amounts, parent disable guard and rental capacity required. Preserves merged A17–A19 atomic checkout. Current CI and deployment evidence required. HyperBoostX free distribution, final top-up prices and owner attestation of complete catalog remain outstanding. A41 bot PR #32 merged; production registration and end-to-end parity not yet verified.
 
-- A39/A40 focused policy branch: order snapshots immutable, dates and minimum quantity evaluated inside shared atomic checkout, no historical claims or invented owner values. Earlier stacked PR #10 overlaps service_policies and order_policy_snapshots; reconcile its migration and pricing code before any merge. Legacy discounts preserved until explicit owner change, no new undated discounts. Production requires backup/restore evidence, owner-entered policies and real parity test.
+
+## Section D — portal UX evidence (PR #34, 27 Nov 2026 WIB)
+
+Merged implementation: [9729838](https://github.com/NEXORAID-ID/nexoraid-id.github.io/commit/972983884ed31437eff6ece4d876be9255bb221c), PR head fdb6759d462df76f634e4db05e8709a41e73a1f8. [Pages/Chromium 45878215672](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45878215672) passed 73/73 unit tests and browser suite; [isolated D1 45878215648](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45878215648) passed. Evidence applies to that PR head and its tested merge context, not automatically to later main or production. No real Discord side effects occurred.
+
+| ID | Implemented / evidence | Remaining verification |
+|---|---|---|
+| A42 | Role-visible menu/catalog search, Ctrl+K, server-scoped order query; browser and unit coverage. | Production account search and negative role scenarios. |
+| A43 | Shared skeleton, empty and retry states across main portal data views. | Exhaustive error/empty/loading scenarios and visual review across all screens. |
+| A44 | Shared deduplicated toast, session guard and notification request coalescing. | Explicit browser coverage of error/success/deduplication and expiration. |
+| A45 | WIB deadline agenda, localized priority, overdue classification, calendar fixture and unit tests. | Real staging deadline creation/update and populated calendar for each role. |
+| A46 | Native XLSX ZIP/CRC and inert strings; browser download and PDF generation; CSV path retained. | Visual PDF and spreadsheet review with representative real data. |
+| A47 | Static-only cache, offline navigation/recovery on isolated Chromium server, install prompt and manifest. | Actual installation on target desktop/mobile devices; production cache isolation. |
+| A49 | Shared UI/export module extracted, included in worker assets and browser fixture. | Remaining dashboard modules and architecture review. |
+| A51 | Indonesian portal action labels and related browser selectors updated. | Complete public/storefront/dashboard copy and backend error localization review. |
+
+Do not mark VERIFIED or Final Stable without current main CI, deployment evidence and remaining acceptance tests.
+
+- A39/A40 focused PR #45: immutable snapshots and scheduled minimum-quantity promo in shared atomic checkout. Reconcile older PR #10 overlapping migration before merge. No invented owner terms; current CI, backup/restore and production parity still required.
