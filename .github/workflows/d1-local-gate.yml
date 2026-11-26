@@ -50,3 +50,25 @@ jobs:
           node --input-type=module -e 'import fs from "node:fs";import assert from "node:assert/strict";const h=JSON.parse(fs.readFileSync(process.argv[1]));assert.equal(h.status,"ok");assert.equal(h.database_ready,true);assert.equal(h.release,process.env.GITHUB_SHA);assert.ok(h.schema>=15);' "$localdb/health.json"
           curl --fail --silent --max-time 10 http://127.0.0.1:8787/api/catalog > "$localdb/catalog.json"
           node -e 'const c=require(process.argv[1]);if(!Array.isArray(c.services)||!c.services.length)process.exit(1)' "$localdb/catalog.json"
+      - name: Exercise actual local D1 checkout transactions
+        run: |
+          set -eu
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$D1_DATABASE_ID" = 00000000-0000-4000-8000-000000000001
+          scratch="$(mktemp -d)"
+          config=v4/.generated/checkout-fixture.json
+          trap 'rm -rf "$scratch"; rm -f "$config"' EXIT
+          node --input-type=module -e 'import fs from "node:fs";const c=JSON.parse(fs.readFileSync("v4/.generated/wrangler.json"));c.name="nexoraid-checkout-fixture";c.main="../../tests/d1-checkout-runtime.mjs";delete c.assets;delete c.secrets;fs.writeFileSync(process.argv[1],JSON.stringify(c));' "$config"
+          npx --yes wrangler@4.168.0 d1 migrations apply nexoraid-v4 --local --persist-to "$scratch/state" --config "$config"
+          npx --yes wrangler@4.168.0 dev --local --persist-to "$scratch/state" --config "$config" --ip 127.0.0.1 --port 8791 > "$scratch/worker.log" 2>&1 &
+          worker_pid=$!
+          trap 'kill "$worker_pid" 2>/dev/null || true; rm -rf "$scratch"; rm -f "$config"' EXIT
+          ready=0
+          for i in $(seq 1 40); do
+            if curl --fail --silent --max-time 2 http://127.0.0.1:8791/ready >/dev/null; then ready=1; break; fi
+            sleep 2
+          done
+          if [ "$ready" != 1 ]; then cat "$scratch/worker.log"; exit 1; fi
+          curl --silent --show-error --max-time 90 http://127.0.0.1:8791/run > "$scratch/result.json"
+          cat "$scratch/result.json"
+          node -e 'const r=require(process.argv[1]);if(r.ok!==true||r.checks!==12)process.exit(1)' "$scratch/result.json"

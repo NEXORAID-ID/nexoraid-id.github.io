@@ -19,9 +19,9 @@ Status: candidate development, not stable. Source: owner-approved 26 Nov 2026 au
 | A14 | P1 | Order claim button to D1 | C |
 | A15 | P1 | Portal ticket sync state | C |
 | A16 | P0 | Persistent retry key across reload | C |
-| A17 | P0 | Shared D1 web/bot/cart request namespace; legacy single replay; manual Discord ticket path still separate | IN PROGRESS |
-| A18 | P1 | Common D1 checkout quota, membership, catalog and configured inventory guards; production verification pending | C |
-| A19 | P0 | Effective override and integer price calculated within order batch; CI and production evidence pending | C |
+| A17 | P0 | Shared D1 web/bot/cart namespace deployed (website PR #32, bot PR #36); new manual entry fence candidate bot PR #39; authenticated live transaction pending | IN PROGRESS |
+| A18 | P1 | Common quota, membership, catalog and configured inventory guards deployed; Worker membership probe passed; isolated real D1 checkout and live transaction evidence pending | IN PROGRESS |
+| A19 | P0 | Atomic override snapshot deployed; SQLite/browser regressions passed; isolated real D1 checkout and live transaction evidence pending | IN PROGRESS |
 | A20 | P1 | Order message ID | C |
 | A21 | P0 | Category capacity recovery | C |
 | A22 | P1 | Canonical closure after all orders terminal | IN PROGRESS |
