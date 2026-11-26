@@ -19,9 +19,9 @@ Status: candidate development, not stable. Source: owner-approved 26 Nov 2026 au
 | A14 | P1 | Order claim button to D1 | C |
 | A15 | P1 | Portal ticket sync state | C |
 | A16 | P0 | Persistent retry key across reload | C |
-| A17 | P0 | Shared D1 web/bot/cart namespace deployed (website PR #32, bot PR #36); new manual entry fence candidate bot PR #39; authenticated live transaction pending | IN PROGRESS |
-| A18 | P1 | Common quota, membership, catalog and configured inventory guards deployed; Worker membership probe passed; isolated real D1 checkout and live transaction evidence pending | IN PROGRESS |
-| A19 | P0 | Atomic override snapshot deployed; SQLite/browser regressions passed; isolated real D1 checkout and live transaction evidence pending | IN PROGRESS |
+| A17 | P0 | Shared D1 namespace deployed (website #32, bot #36); manual entry fence deployed (bot #39); browser lost-response recovery merged (#40), tested; latest production and live order verification pending | IN PROGRESS |
+| A18 | P1 | Common quota and membership guards deployed; actual isolated D1 12/12 passed (#37/#40); latest catalog/inventory migrations blocked by backup gate; live transaction pending | IN PROGRESS |
+| A19 | P0 | Atomic override snapshot deployed; SQLite/browser and actual isolated D1 12/12 passed (#37/#40); latest release and live transaction pending | IN PROGRESS |
 | A20 | P1 | Order message ID | C |
 | A21 | P0 | Category capacity recovery | C |
 | A22 | P1 | Canonical closure after all orders terminal | IN PROGRESS |
@@ -133,3 +133,9 @@ Merged implementation: [9729838](https://github.com/NEXORAID-ID/nexoraid-id.gith
 | A51 | Indonesian portal action labels and related browser selectors updated. | Complete public/storefront/dashboard copy and backend error localization review. |
 
 Do not mark VERIFIED or Final Stable without current main CI, deployment evidence and remaining acceptance tests.
+
+## Section A — checkout evidence (27 Nov 2026 WIB)
+
+- Website PR #40 merged as `460c0aab20282ea13acb0c1b896a462353dd3203`. [Latest PR CI](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45879106288) passed 82/82 unit tests, Chromium and lost-response replay after reload and edited quantity; [real isolated D1](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45879106292) passed 12 assertions. These use synthetic customer data, not actual live transactions.
+- Bot PR #39 passed 136/136 tests and security gate; Railway deployed `ad5bae677ed736bb4dbb56450e6f10b377d72e5f` with ready and authenticated bridge logs. Existing historical tickets were preserved; new catalog orders route to canonical checkout.
+- Production website PR #32 deploy passed including authenticated read-only bridge and membership. The later production run [45878587510](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45878587510) blocked migrations 0019/0020 at the owner backup gate. Do not fabricate attestation, skip gate, or create fake production payments. Latest merged release needs successful deployment and controlled live order verification. Auto-ticket remains separately blocked by historical reconciliation. A17–A19 implementation and isolated testing complete for the tested head; retain IN PROGRESS until remaining acceptance evidence is available.
