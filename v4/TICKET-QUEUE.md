@@ -1,0 +1,2 @@
+# P0 ticket queue candidate
+Migration 0012 is additive, no historical backfill. Machine endpoint POST /api/bot/ticket-queue accepts lease/retry/ack with a distinct NEXORAID_TICKET_MACHINE_KEY (64 hex characters), not the actor key. 180s leases, bounded exponential retry, canonical ticket links and message IDs. Bot consumer, crash recovery, membership gating, portal sync display and live E2E remain open. Do not activate or declare stable before these gates. Replaces the conflicting 0007 migration design in old PR #2; do not merge that old migration.

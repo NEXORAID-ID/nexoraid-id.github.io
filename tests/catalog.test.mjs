@@ -4,7 +4,7 @@ import { services, CONFIG } from '../services-data.js';
 import { categories, queryCatalog, priceValue, fixedPriceValue, comparisonTotals, escapeHTML, orderText } from '../catalog.js';
 
 test('catalog records have unique stable routes and complete order information', () => {
-  assert.equal(services.length, 32);
+  assert.equal(services.length, 58);
   assert.equal(new Set(services.map(s => s.id)).size, services.length);
   for (const service of services) {
     assert.match(service.id, /^[a-z0-9-]+$/);
@@ -57,8 +57,8 @@ test('comparison totals exclude every non-fixed price and count quotes to confir
 test('pagination clamps malformed and out-of-range pages without dropping records', () => {
   assert.equal(queryCatalog(services, {page:-2}).currentPage, 1);
   assert.equal(queryCatalog(services, {page:'x'}).currentPage, 1);
-  assert.equal(queryCatalog(services, {page:999}).currentPage, 4);
-  const ids = [1,2,3,4].flatMap(page=>queryCatalog(services,{page}).rows.map(s=>s.id));
+  assert.equal(queryCatalog(services, {page:999}).currentPage, queryCatalog(services).totalPages);
+  const ids = Array.from({length:queryCatalog(services).totalPages},(_,i)=>i+1).flatMap(page=>queryCatalog(services,{page}).rows.map(s=>s.id));
   assert.equal(ids.length, services.length);
   assert.equal(new Set(ids).size, services.length);
   assert.equal(queryCatalog(services,{category:'accounts',page:4}).currentPage,1);
@@ -75,8 +75,8 @@ test('catalog values are escaped before HTML insertion', () => {
 });
 test('Windows and Office prices and GTA login-only terms remain intact', () => {
   for (const [id,price] of [['windows-license','Rp75.000'],['office-license','Rp75.000'],['windows-office-bundle','Rp100.000']]) assert.equal(services.find(s=>s.id===id).price,price);
-  const gta = services.filter(s=>s.id.startsWith('gta-'));
-  assert.equal(gta.length,19);
+  const gta = services.filter(s=>s.id.startsWith('gta-')&&!s.id.startsWith('gta-heist'));
+  assert.equal(gta.length,18);
   assert.ok(!/mabar|non-login/i.test(JSON.stringify(gta)));
   assert.ok(gta.every(s=>JSON.stringify(s.details).includes('via login akun')));
 });
@@ -115,3 +115,5 @@ test('Live catalogue merges authoritative prices, excludes disabled items and re
  const merged=mergeLiveCatalog(base,{catalog_revision:1,services:[{id:'a',enabled:true,price:'Rp9.000'}]});
  assert.equal(merged.length,1);assert.equal(merged[0].price,'Rp9.000');assert.deepEqual(merged[0].details,[['Harga portal saat ini','Rp9.000'],['Contents','5 items']]);assert.throws(()=>mergeLiveCatalog(base,{services:[]}));
 });
+
+test('approved heist SKUs use exact integer price for all 22 login and mabar variants',async()=>{const {estimateOrder}=await import('../v4/worker.mjs');const counts=[1,5,10,20,30,40,50,80,100,120,150],login=[2500,12500,25000,50000,75000,100000,125000,200000,250000,300000,375000],mabar=[2500,12500,30000,60000,90000,120000,150000,240000,300000,360000,450000];for(const [mode,amounts] of [['login',login],['mabar',mabar]])for(let i=0;i<counts.length;i++){const id='gta-heist-'+mode+'-'+counts[i];assert.equal(estimateOrder(id,1).estimate,amounts[i]);assert.equal(estimateOrder(id,2).estimate,amounts[i]*2);}assert.equal(estimateOrder('cherax-rental-standard',1).estimate,220000);assert.equal(estimateOrder('cherax-rental-premium',1).estimate,420000);});

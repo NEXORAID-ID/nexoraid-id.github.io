@@ -13,7 +13,9 @@ export async function ticketLinks({p,m,user,env,bot,r,readBody}){
  if(!allowed||bot&&!owns)return err('Order tidak ditemukan.',404);
  if(m==='GET'){
   const ticket=await db.prepare('SELECT guild_id,channel_id,ticket_id,linked_at FROM order_ticket_links WHERE order_id=?').bind(id).first();
-  return json({ticket,can_link:owns&&!['completed','cancelled'].includes(order.status)});
+  const delivery=await db.prepare('SELECT delivered_at,channel_id,message_id,attempts FROM web_ticket_outbox WHERE order_id=?').bind(id).first();
+  const sync=delivery?delivery.delivered_at&&ticket?.channel_id===delivery.channel_id?'delivered':delivery.delivered_at?'needs_review':delivery.attempts>0?'retrying':'queued':'legacy';
+  return json({ticket,sync,can_link:owns&&!['completed','cancelled'].includes(order.status)});
  }
  if(m!=='POST'||!bot||!owns)return err('Pengaitan hanya melalui bot resmi oleh customer pemilik order.',403);
  const b=await readBody(r);

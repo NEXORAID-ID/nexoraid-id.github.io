@@ -127,7 +127,7 @@ export async function workspace({p,m,url,user,env,readBody,r}){
  if(action==='refund'){
   if(!owner(user))return deny();const ref=str(b?.reference,4,80);
   if(!ref||!amount(b?.amount)||b.amount!==order.amount)return err('Refund penuh harus sesuai pembayaran dan referensi transfer.');
-  return write(db,db.prepare("INSERT INTO order_refunds(order_id,amount,reference,actor_id,created_at) SELECT o.id,f.amount,?,?,? FROM orders o JOIN order_finance f ON f.order_id=o.id WHERE o.id=? AND o.status IN ('claimed','confirmed') AND f.state='paid' AND f.amount=? AND NOT EXISTS(SELECT 1 FROM order_refunds WHERE order_id=o.id OR reference=?) AND NOT EXISTS(SELECT 1 FROM completed_refunds WHERE reference=?)").bind(ref,user.id,t,id,b.amount,ref,ref),user,'refund:record',id,t);
+  return write(db,db.prepare("INSERT INTO order_refunds(order_id,amount,reference,actor_id,created_at) SELECT o.id,f.amount,?,?,? FROM orders o JOIN order_finance f ON f.order_id=o.id WHERE o.id=? AND o.status IN ('claimed','confirmed','processing') AND f.state='paid' AND f.amount=? AND NOT EXISTS(SELECT 1 FROM order_refunds WHERE order_id=o.id OR reference=?) AND NOT EXISTS(SELECT 1 FROM completed_refunds WHERE reference=?)").bind(ref,user.id,t,id,b.amount,ref,ref),user,'refund:record',id,t);
  }
  return null;
 }

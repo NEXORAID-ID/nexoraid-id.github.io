@@ -666,8 +666,8 @@ export const services = [
     "category": "gaming",
     "icon": "💰",
     "name": "GTA Online — Money Heist",
-    "badge": "VIA LOGIN",
-    "desc": "Money dari hasil run heist, bukan drop money. Estimasi money berbeda setiap run. PC Legacy / Enhanced, via login akun.",
+    "badge": "LOGIN / MABAR",
+    "desc": "Money dari hasil run heist, bukan drop money. Estimasi money berbeda setiap run. PC Legacy / Enhanced, tersedia login atau mabar. Pilih SKU metode yang tepat.",
     "price": "Mulai Rp2.500",
     "accent": "rgba(49,215,255,.18)",
     "details": [
@@ -677,43 +677,47 @@ export const services = [
       ],
       [
         "5X HEIST",
-        "Rp7.999 • Estimasi: 15 JT - 17 JT"
+        "Rp12.500 • Estimasi: 15 JT - 17 JT"
       ],
       [
         "10X HEIST",
-        "Rp14.999 • Estimasi: 30 JT - 34 JT"
+        "Rp25.000 • Estimasi: 30 JT - 34 JT"
       ],
       [
         "20X HEIST",
-        "Rp27.999 • Estimasi: 60 JT - 68 JT"
+        "Rp50.000 • Estimasi: 60 JT - 68 JT"
       ],
       [
         "30X HEIST",
-        "Rp39.999 • Estimasi: 90 JT - 102 JT"
+        "Rp75.000 • Estimasi: 90 JT - 102 JT"
       ],
       [
         "40X HEIST",
-        "Rp54.999 • Estimasi: 120 JT - 136 JT"
+        "Rp100.000 • Estimasi: 120 JT - 136 JT"
       ],
       [
         "50X HEIST",
-        "Rp64.999 • Estimasi: 150 JT - 170 JT"
+        "Rp125.000 • Estimasi: 150 JT - 170 JT"
       ],
       [
         "80X HEIST",
-        "Rp99.999 • Estimasi: 240 JT - 272 JT"
+        "Rp200.000 • Estimasi: 240 JT - 272 JT"
       ],
       [
         "100X HEIST",
-        "Rp119.999 • Estimasi: 300 JT - 340 JT"
+        "Rp250.000 • Estimasi: 300 JT - 340 JT"
       ],
       [
         "120X HEIST",
-        "Rp149.999 • Estimasi: 360 JT - 408 JT"
+        "Rp300.000 • Estimasi: 360 JT - 408 JT"
       ],
       [
         "150X HEIST",
-        "Rp174.999 • Estimasi: 450 JT - 510 JT"
+        "Rp375.000 • Estimasi: 450 JT - 510 JT"
+      ],
+      [
+        "Tarif mabar",
+        "1x Rp2.500 • 5x Rp12.500 • 10x Rp30.000 • 20x Rp60.000 • 30x Rp90.000 • 40x Rp120.000 • 50x Rp150.000 • 80x Rp240.000 • 100x Rp300.000 • 120x Rp360.000 • 150x Rp450.000"
       ],
       [
         "Money",
@@ -725,7 +729,7 @@ export const services = [
       ],
       [
         "Metode",
-        "Semua layanan via login akun"
+        "Pilih layanan via login akun atau mabar; tarif berbeda."
       ],
       [
         "Proses",
@@ -1340,24 +1344,24 @@ export const services = [
     "name": "Cherax — Sell & Rent",
     "badge": "READY",
     "desc": "Jual dan sewa Cherax Basic / Premium. Ketersediaan slot dikonfirmasi sebelum pembayaran.",
-    "price": "Mulai Rp100.000",
+    "price": "Sesuai Request",
     "accent": "rgba(92,129,255,.18)",
     "details": [
       [
-        "Basic / Standard",
-        "Tersedia"
+        "Jual Basic / Standard",
+        "Hubungi tim untuk penawaran"
       ],
       [
-        "Premium",
-        "Tersedia"
+        "Jual Premium",
+        "Hubungi tim untuk penawaran"
       ],
       [
         "Sewa Standard",
-        "Harga promo lama Rp220.000/bulan; konfirmasi tarif saat ini"
+        "Rp220.000 / 30 hari; konfirmasi slot"
       ],
       [
         "Sewa Premium",
-        "Harga promo lama Rp420.000/bulan; konfirmasi tarif saat ini"
+        "Rp420.000 / 30 hari; konfirmasi slot"
       ]
     ]
   },
@@ -1493,9 +1497,9 @@ export const services = [
     "id": "imei",
     "category": "mobile",
     "icon": "📡",
-    "name": "Unblock IMEI",
+    "name": "Bantuan IMEI Resmi",
     "badge": "MOBILE",
-    "desc": "Layanan unblock IMEI. Harga menyesuaikan device, kondisi, dan jenis penanganan.",
+    "desc": "Bantuan koreksi atau pendaftaran IMEI melalui jalur resmi untuk perangkat milik sendiri. Harga menyesuaikan kondisi.",
     "price": "Rp300.000 — Rp550.000",
     "accent": "rgba(83,243,163,.14)",
     "details": [
@@ -1549,7 +1553,7 @@ export const services = [
     "id": "ios",
     "category": "mobile",
     "icon": "",
-    "name": "iOS Service / Bypass",
+    "name": "Pemulihan iOS Resmi",
     "badge": "MOBILE",
     "desc": "Layanan iOS dengan harga menyesuaikan model, kondisi perangkat, dan jenis pengerjaan.",
     "price": "Rp100.000 — Rp1.000.000",
@@ -1738,6 +1742,772 @@ export const services = [
       [
         "Order",
         "Via tiket / admin"
+      ]
+    ]
+  },
+  {
+    "id": "gta-heist-login-1",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "GTA Online — 1x Heist (Login)",
+    "badge": "LOGIN",
+    "desc": "1 run heist melalui login akun. PC Legacy / Enhanced. Estimasi hasil bervariasi.",
+    "price": "Rp2.500",
+    "details": [
+      [
+        "Metode",
+        "via login akun"
+      ],
+      [
+        "Jumlah run",
+        "1"
+      ],
+      [
+        "Harga paket",
+        "Rp2.500"
+      ],
+      [
+        "Platform",
+        "PC Legacy / Enhanced"
+      ],
+      [
+        "Catatan",
+        "Konfirmasi jadwal dan akses yang sah melalui tiket. Jangan kirim password atau OTP pada formulir."
+      ]
+    ]
+  },
+  {
+    "id": "gta-heist-login-5",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "GTA Online — 5x Heist (Login)",
+    "badge": "LOGIN",
+    "desc": "5 run heist melalui login akun. PC Legacy / Enhanced. Estimasi hasil bervariasi.",
+    "price": "Rp12.500",
+    "details": [
+      [
+        "Metode",
+        "via login akun"
+      ],
+      [
+        "Jumlah run",
+        "5"
+      ],
+      [
+        "Harga paket",
+        "Rp12.500"
+      ],
+      [
+        "Platform",
+        "PC Legacy / Enhanced"
+      ],
+      [
+        "Catatan",
+        "Konfirmasi jadwal dan akses yang sah melalui tiket. Jangan kirim password atau OTP pada formulir."
+      ]
+    ]
+  },
+  {
+    "id": "gta-heist-login-10",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "GTA Online — 10x Heist (Login)",
+    "badge": "LOGIN",
+    "desc": "10 run heist melalui login akun. PC Legacy / Enhanced. Estimasi hasil bervariasi.",
+    "price": "Rp25.000",
+    "details": [
+      [
+        "Metode",
+        "via login akun"
+      ],
+      [
+        "Jumlah run",
+        "10"
+      ],
+      [
+        "Harga paket",
+        "Rp25.000"
+      ],
+      [
+        "Platform",
+        "PC Legacy / Enhanced"
+      ],
+      [
+        "Catatan",
+        "Konfirmasi jadwal dan akses yang sah melalui tiket. Jangan kirim password atau OTP pada formulir."
+      ]
+    ]
+  },
+  {
+    "id": "gta-heist-login-20",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "GTA Online — 20x Heist (Login)",
+    "badge": "LOGIN",
+    "desc": "20 run heist melalui login akun. PC Legacy / Enhanced. Estimasi hasil bervariasi.",
+    "price": "Rp50.000",
+    "details": [
+      [
+        "Metode",
+        "via login akun"
+      ],
+      [
+        "Jumlah run",
+        "20"
+      ],
+      [
+        "Harga paket",
+        "Rp50.000"
+      ],
+      [
+        "Platform",
+        "PC Legacy / Enhanced"
+      ],
+      [
+        "Catatan",
+        "Konfirmasi jadwal dan akses yang sah melalui tiket. Jangan kirim password atau OTP pada formulir."
+      ]
+    ]
+  },
+  {
+    "id": "gta-heist-login-30",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "GTA Online — 30x Heist (Login)",
+    "badge": "LOGIN",
+    "desc": "30 run heist melalui login akun. PC Legacy / Enhanced. Estimasi hasil bervariasi.",
+    "price": "Rp75.000",
+    "details": [
+      [
+        "Metode",
+        "via login akun"
+      ],
+      [
+        "Jumlah run",
+        "30"
+      ],
+      [
+        "Harga paket",
+        "Rp75.000"
+      ],
+      [
+        "Platform",
+        "PC Legacy / Enhanced"
+      ],
+      [
+        "Catatan",
+        "Konfirmasi jadwal dan akses yang sah melalui tiket. Jangan kirim password atau OTP pada formulir."
+      ]
+    ]
+  },
+  {
+    "id": "gta-heist-login-40",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "GTA Online — 40x Heist (Login)",
+    "badge": "LOGIN",
+    "desc": "40 run heist melalui login akun. PC Legacy / Enhanced. Estimasi hasil bervariasi.",
+    "price": "Rp100.000",
+    "details": [
+      [
+        "Metode",
+        "via login akun"
+      ],
+      [
+        "Jumlah run",
+        "40"
+      ],
+      [
+        "Harga paket",
+        "Rp100.000"
+      ],
+      [
+        "Platform",
+        "PC Legacy / Enhanced"
+      ],
+      [
+        "Catatan",
+        "Konfirmasi jadwal dan akses yang sah melalui tiket. Jangan kirim password atau OTP pada formulir."
+      ]
+    ]
+  },
+  {
+    "id": "gta-heist-login-50",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "GTA Online — 50x Heist (Login)",
+    "badge": "LOGIN",
+    "desc": "50 run heist melalui login akun. PC Legacy / Enhanced. Estimasi hasil bervariasi.",
+    "price": "Rp125.000",
+    "details": [
+      [
+        "Metode",
+        "via login akun"
+      ],
+      [
+        "Jumlah run",
+        "50"
+      ],
+      [
+        "Harga paket",
+        "Rp125.000"
+      ],
+      [
+        "Platform",
+        "PC Legacy / Enhanced"
+      ],
+      [
+        "Catatan",
+        "Konfirmasi jadwal dan akses yang sah melalui tiket. Jangan kirim password atau OTP pada formulir."
+      ]
+    ]
+  },
+  {
+    "id": "gta-heist-login-80",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "GTA Online — 80x Heist (Login)",
+    "badge": "LOGIN",
+    "desc": "80 run heist melalui login akun. PC Legacy / Enhanced. Estimasi hasil bervariasi.",
+    "price": "Rp200.000",
+    "details": [
+      [
+        "Metode",
+        "via login akun"
+      ],
+      [
+        "Jumlah run",
+        "80"
+      ],
+      [
+        "Harga paket",
+        "Rp200.000"
+      ],
+      [
+        "Platform",
+        "PC Legacy / Enhanced"
+      ],
+      [
+        "Catatan",
+        "Konfirmasi jadwal dan akses yang sah melalui tiket. Jangan kirim password atau OTP pada formulir."
+      ]
+    ]
+  },
+  {
+    "id": "gta-heist-login-100",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "GTA Online — 100x Heist (Login)",
+    "badge": "LOGIN",
+    "desc": "100 run heist melalui login akun. PC Legacy / Enhanced. Estimasi hasil bervariasi.",
+    "price": "Rp250.000",
+    "details": [
+      [
+        "Metode",
+        "via login akun"
+      ],
+      [
+        "Jumlah run",
+        "100"
+      ],
+      [
+        "Harga paket",
+        "Rp250.000"
+      ],
+      [
+        "Platform",
+        "PC Legacy / Enhanced"
+      ],
+      [
+        "Catatan",
+        "Konfirmasi jadwal dan akses yang sah melalui tiket. Jangan kirim password atau OTP pada formulir."
+      ]
+    ]
+  },
+  {
+    "id": "gta-heist-login-120",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "GTA Online — 120x Heist (Login)",
+    "badge": "LOGIN",
+    "desc": "120 run heist melalui login akun. PC Legacy / Enhanced. Estimasi hasil bervariasi.",
+    "price": "Rp300.000",
+    "details": [
+      [
+        "Metode",
+        "via login akun"
+      ],
+      [
+        "Jumlah run",
+        "120"
+      ],
+      [
+        "Harga paket",
+        "Rp300.000"
+      ],
+      [
+        "Platform",
+        "PC Legacy / Enhanced"
+      ],
+      [
+        "Catatan",
+        "Konfirmasi jadwal dan akses yang sah melalui tiket. Jangan kirim password atau OTP pada formulir."
+      ]
+    ]
+  },
+  {
+    "id": "gta-heist-login-150",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "GTA Online — 150x Heist (Login)",
+    "badge": "LOGIN",
+    "desc": "150 run heist melalui login akun. PC Legacy / Enhanced. Estimasi hasil bervariasi.",
+    "price": "Rp375.000",
+    "details": [
+      [
+        "Metode",
+        "via login akun"
+      ],
+      [
+        "Jumlah run",
+        "150"
+      ],
+      [
+        "Harga paket",
+        "Rp375.000"
+      ],
+      [
+        "Platform",
+        "PC Legacy / Enhanced"
+      ],
+      [
+        "Catatan",
+        "Konfirmasi jadwal dan akses yang sah melalui tiket. Jangan kirim password atau OTP pada formulir."
+      ]
+    ]
+  },
+  {
+    "id": "gta-heist-mabar-1",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "GTA Online — 1x Heist (Mabar)",
+    "badge": "MABAR",
+    "desc": "1 run heist melalui mabar dengan customer. PC Legacy / Enhanced. Estimasi hasil bervariasi.",
+    "price": "Rp2.500",
+    "details": [
+      [
+        "Metode",
+        "mabar dengan customer"
+      ],
+      [
+        "Jumlah run",
+        "1"
+      ],
+      [
+        "Harga paket",
+        "Rp2.500"
+      ],
+      [
+        "Platform",
+        "PC Legacy / Enhanced"
+      ],
+      [
+        "Catatan",
+        "Konfirmasi jadwal dan akses yang sah melalui tiket. Jangan kirim password atau OTP pada formulir."
+      ]
+    ]
+  },
+  {
+    "id": "gta-heist-mabar-5",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "GTA Online — 5x Heist (Mabar)",
+    "badge": "MABAR",
+    "desc": "5 run heist melalui mabar dengan customer. PC Legacy / Enhanced. Estimasi hasil bervariasi.",
+    "price": "Rp12.500",
+    "details": [
+      [
+        "Metode",
+        "mabar dengan customer"
+      ],
+      [
+        "Jumlah run",
+        "5"
+      ],
+      [
+        "Harga paket",
+        "Rp12.500"
+      ],
+      [
+        "Platform",
+        "PC Legacy / Enhanced"
+      ],
+      [
+        "Catatan",
+        "Konfirmasi jadwal dan akses yang sah melalui tiket. Jangan kirim password atau OTP pada formulir."
+      ]
+    ]
+  },
+  {
+    "id": "gta-heist-mabar-10",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "GTA Online — 10x Heist (Mabar)",
+    "badge": "MABAR",
+    "desc": "10 run heist melalui mabar dengan customer. PC Legacy / Enhanced. Estimasi hasil bervariasi.",
+    "price": "Rp30.000",
+    "details": [
+      [
+        "Metode",
+        "mabar dengan customer"
+      ],
+      [
+        "Jumlah run",
+        "10"
+      ],
+      [
+        "Harga paket",
+        "Rp30.000"
+      ],
+      [
+        "Platform",
+        "PC Legacy / Enhanced"
+      ],
+      [
+        "Catatan",
+        "Konfirmasi jadwal dan akses yang sah melalui tiket. Jangan kirim password atau OTP pada formulir."
+      ]
+    ]
+  },
+  {
+    "id": "gta-heist-mabar-20",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "GTA Online — 20x Heist (Mabar)",
+    "badge": "MABAR",
+    "desc": "20 run heist melalui mabar dengan customer. PC Legacy / Enhanced. Estimasi hasil bervariasi.",
+    "price": "Rp60.000",
+    "details": [
+      [
+        "Metode",
+        "mabar dengan customer"
+      ],
+      [
+        "Jumlah run",
+        "20"
+      ],
+      [
+        "Harga paket",
+        "Rp60.000"
+      ],
+      [
+        "Platform",
+        "PC Legacy / Enhanced"
+      ],
+      [
+        "Catatan",
+        "Konfirmasi jadwal dan akses yang sah melalui tiket. Jangan kirim password atau OTP pada formulir."
+      ]
+    ]
+  },
+  {
+    "id": "gta-heist-mabar-30",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "GTA Online — 30x Heist (Mabar)",
+    "badge": "MABAR",
+    "desc": "30 run heist melalui mabar dengan customer. PC Legacy / Enhanced. Estimasi hasil bervariasi.",
+    "price": "Rp90.000",
+    "details": [
+      [
+        "Metode",
+        "mabar dengan customer"
+      ],
+      [
+        "Jumlah run",
+        "30"
+      ],
+      [
+        "Harga paket",
+        "Rp90.000"
+      ],
+      [
+        "Platform",
+        "PC Legacy / Enhanced"
+      ],
+      [
+        "Catatan",
+        "Konfirmasi jadwal dan akses yang sah melalui tiket. Jangan kirim password atau OTP pada formulir."
+      ]
+    ]
+  },
+  {
+    "id": "gta-heist-mabar-40",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "GTA Online — 40x Heist (Mabar)",
+    "badge": "MABAR",
+    "desc": "40 run heist melalui mabar dengan customer. PC Legacy / Enhanced. Estimasi hasil bervariasi.",
+    "price": "Rp120.000",
+    "details": [
+      [
+        "Metode",
+        "mabar dengan customer"
+      ],
+      [
+        "Jumlah run",
+        "40"
+      ],
+      [
+        "Harga paket",
+        "Rp120.000"
+      ],
+      [
+        "Platform",
+        "PC Legacy / Enhanced"
+      ],
+      [
+        "Catatan",
+        "Konfirmasi jadwal dan akses yang sah melalui tiket. Jangan kirim password atau OTP pada formulir."
+      ]
+    ]
+  },
+  {
+    "id": "gta-heist-mabar-50",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "GTA Online — 50x Heist (Mabar)",
+    "badge": "MABAR",
+    "desc": "50 run heist melalui mabar dengan customer. PC Legacy / Enhanced. Estimasi hasil bervariasi.",
+    "price": "Rp150.000",
+    "details": [
+      [
+        "Metode",
+        "mabar dengan customer"
+      ],
+      [
+        "Jumlah run",
+        "50"
+      ],
+      [
+        "Harga paket",
+        "Rp150.000"
+      ],
+      [
+        "Platform",
+        "PC Legacy / Enhanced"
+      ],
+      [
+        "Catatan",
+        "Konfirmasi jadwal dan akses yang sah melalui tiket. Jangan kirim password atau OTP pada formulir."
+      ]
+    ]
+  },
+  {
+    "id": "gta-heist-mabar-80",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "GTA Online — 80x Heist (Mabar)",
+    "badge": "MABAR",
+    "desc": "80 run heist melalui mabar dengan customer. PC Legacy / Enhanced. Estimasi hasil bervariasi.",
+    "price": "Rp240.000",
+    "details": [
+      [
+        "Metode",
+        "mabar dengan customer"
+      ],
+      [
+        "Jumlah run",
+        "80"
+      ],
+      [
+        "Harga paket",
+        "Rp240.000"
+      ],
+      [
+        "Platform",
+        "PC Legacy / Enhanced"
+      ],
+      [
+        "Catatan",
+        "Konfirmasi jadwal dan akses yang sah melalui tiket. Jangan kirim password atau OTP pada formulir."
+      ]
+    ]
+  },
+  {
+    "id": "gta-heist-mabar-100",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "GTA Online — 100x Heist (Mabar)",
+    "badge": "MABAR",
+    "desc": "100 run heist melalui mabar dengan customer. PC Legacy / Enhanced. Estimasi hasil bervariasi.",
+    "price": "Rp300.000",
+    "details": [
+      [
+        "Metode",
+        "mabar dengan customer"
+      ],
+      [
+        "Jumlah run",
+        "100"
+      ],
+      [
+        "Harga paket",
+        "Rp300.000"
+      ],
+      [
+        "Platform",
+        "PC Legacy / Enhanced"
+      ],
+      [
+        "Catatan",
+        "Konfirmasi jadwal dan akses yang sah melalui tiket. Jangan kirim password atau OTP pada formulir."
+      ]
+    ]
+  },
+  {
+    "id": "gta-heist-mabar-120",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "GTA Online — 120x Heist (Mabar)",
+    "badge": "MABAR",
+    "desc": "120 run heist melalui mabar dengan customer. PC Legacy / Enhanced. Estimasi hasil bervariasi.",
+    "price": "Rp360.000",
+    "details": [
+      [
+        "Metode",
+        "mabar dengan customer"
+      ],
+      [
+        "Jumlah run",
+        "120"
+      ],
+      [
+        "Harga paket",
+        "Rp360.000"
+      ],
+      [
+        "Platform",
+        "PC Legacy / Enhanced"
+      ],
+      [
+        "Catatan",
+        "Konfirmasi jadwal dan akses yang sah melalui tiket. Jangan kirim password atau OTP pada formulir."
+      ]
+    ]
+  },
+  {
+    "id": "gta-heist-mabar-150",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "GTA Online — 150x Heist (Mabar)",
+    "badge": "MABAR",
+    "desc": "150 run heist melalui mabar dengan customer. PC Legacy / Enhanced. Estimasi hasil bervariasi.",
+    "price": "Rp450.000",
+    "details": [
+      [
+        "Metode",
+        "mabar dengan customer"
+      ],
+      [
+        "Jumlah run",
+        "150"
+      ],
+      [
+        "Harga paket",
+        "Rp450.000"
+      ],
+      [
+        "Platform",
+        "PC Legacy / Enhanced"
+      ],
+      [
+        "Catatan",
+        "Konfirmasi jadwal dan akses yang sah melalui tiket. Jangan kirim password atau OTP pada formulir."
+      ]
+    ]
+  },
+  {
+    "id": "cherax-rental-standard",
+    "category": "gaming",
+    "icon": "🛡",
+    "name": "Cherax Standard — Sewa 30 hari",
+    "badge": "REQUEST SLOT",
+    "desc": "Sewa Standard; slot wajib dikonfirmasi tim sebelum pembayaran.",
+    "price": "Rp220.000",
+    "details": [
+      [
+        "Durasi",
+        "30 hari"
+      ],
+      [
+        "Harga",
+        "Rp220.000"
+      ],
+      [
+        "Ketersediaan",
+        "Konfirmasi slot melalui tiket; bukan reservasi otomatis"
+      ]
+    ]
+  },
+  {
+    "id": "cherax-rental-premium",
+    "category": "gaming",
+    "icon": "🛡",
+    "name": "Cherax Premium — Sewa 30 hari",
+    "badge": "REQUEST SLOT",
+    "desc": "Sewa Premium; slot wajib dikonfirmasi tim sebelum pembayaran.",
+    "price": "Rp420.000",
+    "details": [
+      [
+        "Durasi",
+        "30 hari"
+      ],
+      [
+        "Harga",
+        "Rp420.000"
+      ],
+      [
+        "Ketersediaan",
+        "Konfirmasi slot melalui tiket; bukan reservasi otomatis"
+      ]
+    ]
+  },
+  {
+    "id": "joki-coding",
+    "category": "software",
+    "icon": "💻",
+    "name": "Joki Coding",
+    "badge": "REQUEST",
+    "desc": "Bantuan pengembangan dan debugging program sesuai ruang lingkup yang disetujui.",
+    "price": "Mulai Rp250.000",
+    "details": [
+      [
+        "Harga",
+        "Mulai Rp250.000"
+      ],
+      [
+        "Ruang lingkup",
+        "Penawaran setelah kebutuhan dan batas pekerjaan disepakati"
+      ]
+    ]
+  },
+  {
+    "id": "vpn",
+    "category": "software",
+    "icon": "🔒",
+    "name": "VPN",
+    "badge": "REQUEST",
+    "desc": "Layanan VPN bulanan, penyedia dan ketersediaan lisensi dikonfirmasi tim.",
+    "price": "Rp25.000",
+    "details": [
+      [
+        "Harga",
+        "Rp25.000/bulan"
+      ],
+      [
+        "Ketersediaan",
+        "Konfirmasi penyedia dan lisensi sebelum pembayaran"
       ]
     ]
   }
