@@ -3,7 +3,7 @@ Status: candidate development, not stable. Source: owner-approved 26 Nov 2026 au
 
 | ID | Priority | Finding / required evidence | State |
 |---|---|---|---|
-| A01 | P0 | Live Discord membership before checkout | IMPLEMENTED |
+| A01 | P0 | Live Discord membership before checkout | RUNTIME PROBE PASSED |
 | A02 | P0 | Transactional ticket outbox | C |
 | A03 | P0 | Automatic bot delivery vs manual command | C |
 | A04 | P0 | OAuth PKCE | TEST PASSED |
@@ -24,7 +24,7 @@ Status: candidate development, not stable. Source: owner-approved 26 Nov 2026 au
 | A19 | P0 | Atomic price snapshot | TEST PASSED |
 | A20 | P1 | Order message ID | C |
 | A21 | P0 | Category capacity recovery | C |
-| A22 | P1 | Canonical closure after all orders terminal | O |
+| A22 | P1 | Canonical closure after all orders terminal | IN PROGRESS |
 | A23 | P0 | Partial payment nominal handling | O |
 | A24 | P0 | Multiple partial receipts | O |
 | A25 | P0 | Overpayment liability | O |
@@ -81,12 +81,12 @@ Status: candidate development, not stable. Source: owner-approved 26 Nov 2026 au
 | A76 | P1 | Maintenance mode | O |
 | A77 | P1 | Pin Wrangler patch | O |
 | A78 | P0 | Migration deployment compatibility | O |
-| A79 | P0 | Real backend browser E2E | O |
+| A79 | P0 | Real backend browser E2E | ISOLATED E2E PASSED |
 | A80 | P1 | Native dependencies CI | O |
 | A81 | P0 | Mandatory security gate | O |
 | A82 | P1 | Isolated staging | O |
 | A83 | P1 | Release drift monitor | O |
-| A84 | P0 | Restore drill | O |
+| A84 | P0 | Restore drill | ISOLATED RESTORE PASSED |
 | A85 | P0 | Complete release evidence | O |
 
 ## Candidate evidence
@@ -104,3 +104,14 @@ Website PR #4: initial commit 070f7f00, migration 0012 and ticket-queue tests; s
 
 ## 26 Nov execution update
 - Website 7cdea591: membership verification and required request ID; processing refund; Cherax rate changes. Website 12630983: cash opening + consolidated view, CI 45823990589 passed. Website ec73b585: 22 exact heist SKUs, two rental SKUs, Joki Coding and VPN, seller browser fixture coverage. Latest CI required. Bot 5f2bd811: fixed log destinations, customer recovery marker and exact role allowlist; CI 45824055546 passed. Candidate only, no production claims. The membership token and independent machine credential must be configured securely before enabling checkout/ticket sync. A01/A26/A31/A36/A37/A52/A54 are candidate implementations or partial implementations, not final closure. Full finance, atomic reservation, warranties, dated promos, top-up actual prices, live integration and security evidence remain open.
+
+## 27 Nov 2026 WIB — verified website evidence (supersedes older status text for these rows)
+
+| Audit | Scope and result | Verified commit / CI | Remaining release boundary |
+|---|---|---|---|
+| A01 | Runtime Discord guild membership probe returned VERIFIED / HTTP 200 after manual-redirect hotfix; checkout membership remains fail-closed. | ea4c7fbf, [production 45865650498](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45865650498) | Real member/nonmember UAT still needed. |
+| A22 | Canonical closure read-only preflight implemented and deployed; detects active customer orders, uncertain delivery and mapping conflicts. | a6958ead, [production 45866006693](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45866006693) | Durable closure/checkout fencing, bot integration and live staging remain mandatory. |
+| A79 | Five-role browser runs real Worker with isolated SQLite D1 adapter; synthetic OAuth, request, claim, invoice, receipt, owner verification, work evidence, settlement, closure preflight and seller isolation. 60/60 Node tests and browser E2E passed. | 6533bb07, [PR CI 45868499754](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45868499754) | Discord and payment provider synthetic; actual member UAT, finance candidates and production integration not certified. |
+| A84 | Seeded financial restore, independent reconciliation, rejection of mismatch, invalid SQL and ATTACH, copied session cleanup; isolated D1 migration/export/restore passed. | f66cb96d, [local gate 45866262430](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45866262430) | No evidence of encrypted off-volume production backup or production-derived isolated restore. Do not promote finance migrations on this alone. |
+
+The labels RUNTIME PROBE PASSED, ISOLATED E2E PASSED and ISOLATED RESTORE PASSED describe only the named evidence. None is full production acceptance. Earlier evidence rows are historical records, not current release clearance. No change to production data or Discord channels.
