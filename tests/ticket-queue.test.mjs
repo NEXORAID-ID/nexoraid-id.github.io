@@ -18,6 +18,9 @@ test('outbox no backfill; rollback, lease expiry, retry and canonical ack',async
  let time=1000;
  const call=b=>ticketQueue({db,r:null,m:'POST',readBody:async()=>b,clock:()=>time});
  const before=sql.prepare('SELECT attempts,lease_token FROM web_ticket_outbox WHERE order_id=?').get(id);assert.equal((await call({action:'health'})).status,200);assert.deepEqual(sql.prepare('SELECT attempts,lease_token FROM web_ticket_outbox WHERE order_id=?').get(id),before);
+ const readiness=await (await call({action:'readiness'})).json();
+ assert.deepEqual(readiness,{ok:true,read_only:true,maintenance:false,active:2,historicalUnqueued:1,pending:1,eligible:1,leased:0,delivered:0,inconsistent:0,splitActive:0});
+ assert.deepEqual(sql.prepare('SELECT attempts,lease_token FROM web_ticket_outbox WHERE order_id=?').get(id),before);
  const paused=await ticketQueue({db,r:null,m:'POST',readBody:async()=>({action:'lease'}),maintenance:true});assert.equal(paused.status,503);assert.deepEqual(sql.prepare('SELECT attempts,lease_token FROM web_ticket_outbox WHERE order_id=?').get(id),before);
  const a=await(await call({action:'lease'})).json();assert.equal(a.order.id,id);
  assert.equal((await(await call({action:'lease'})).json()).order,null);
@@ -55,6 +58,8 @@ test('outbox no backfill; rollback, lease expiry, retry and canonical ack',async
  const sameAck={...ack,order_id:id3,lease_token:sameLease.lease_token,message_id:'1524898826903752869'};
  assert.equal((await call({...sameAck,channel_id:'1524898826903752870',ticket_id:'0003'})).status,409);
  assert.equal((await call(sameAck)).status,200);
+ const afterDelivery=await (await call({action:'readiness'})).json();
+ assert.equal(afterDelivery.delivered,3);assert.equal(afterDelivery.historicalUnqueued,1);assert.equal(afterDelivery.inconsistent,0);assert.equal(afterDelivery.splitActive,0);
  const close={action:'closure-status',customer_id:user,channel_id:ack.channel_id,ticket_id:ack.ticket_id};
  const checkClose=async()=>await (await call(close)).json();
  const beforeClose=await checkClose();assert.equal(beforeClose.eligible,false);assert.equal(beforeClose.linked,2);assert.equal(beforeClose.active,3);assert.equal(beforeClose.read_only,true);
