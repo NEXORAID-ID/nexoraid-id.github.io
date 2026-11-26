@@ -12,7 +12,7 @@ Do not declare stable merely because a GitHub Pages deployment succeeds.
 - Confirm completed-refund owner-borne policy, seller policy, and supplier/investor accounting rules.
 
 ## After deployment
-- /api/health must return HTTP 200 with database_ready, schema >= 12 and release matching deployed Git SHA.
+- /api/health must return HTTP 200 with database_ready, schema >= 14 and release matching deployed Git SHA.
 - Test owner, management, worker, seller and customer sessions in controlled accounts, including unauthorized paths.
 - Test quote, payment, claim, evidence, completion, payout, refund, notification, checkout retry and attachment isolation without actual money transfers.
 - Verify bot /weborder health and test bridge with a test order; verify music separately.
@@ -29,3 +29,5 @@ Cloudflare environment configuration, isolated production-like restore and live 
 ## Mandatory membership verification
 - Before promoting, configure DISCORD_MEMBERSHIP_BOT_TOKEN only in Cloudflare Worker secrets (never commit or disclose it); verify API access to the exact guild, member and non-member cases, rate limits and transport failures. Both create paths fail closed if unavailable; already committed idempotent requests remain retrievable. Verify the production Worker secret persists through deployment. Do not deploy this candidate without the credential and controlled staging checks.
 - Migration 0013 permits owner-recorded full refund of a paid in-progress order. No automatic transfer, no settlement on cancelled orders. Test actual review flow with dummy transactions only.
+
+- Cash ledger 0014 is a read-only reconciliation view with owner-attested opening cash and duplicate-reference warnings. Do not report it as a finalized general ledger; verify opening balance cut-off, cash vs noncash, double-entry/reversals, cross-ledger duplicates and real merchant reconciliation.
