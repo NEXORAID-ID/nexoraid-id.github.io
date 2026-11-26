@@ -4,7 +4,7 @@ import { services } from '../services-data.js';
 import { fixedPriceValue } from '../catalog.js';
 import { operations,listOrders } from './operations.mjs';
 import { workspace } from './workspace.mjs';
-import { business,memberCatalog,rateLimit } from './business.mjs';
+import { applyOverride,business,catalogPricingState,memberCatalog,rateLimit } from './business.mjs';
 import { ticketLinks } from './ticket-links.mjs';
 import { collaboration } from './collaboration.mjs';
 import { customer,deviceLabel } from './customer.mjs';
@@ -180,10 +180,10 @@ async function handle(r,env){
   if(key){const old=await replay();if(old)return old;}
   const membership=await membershipStatus(env,user.id,env.DISCORD_MEMBERSHIP_FETCH||fetch);
   if(membership!==200)return err(membershipMessage(membership),membership);
-  const live=(await memberCatalog(env.DB)).find(s=>s.id===order.service_id);if(!live)return err('Layanan sedang tidak tersedia.',409);order.catalog_price=live.price;order.estimate=live.unit_amount===null?null:live.unit_amount*order.quantity;
-  const t=now();
+  const t=now(),pricing=await catalogPricingState(env.DB),state=pricing.get(order.service_id);
+  const live=applyOverride(services.find(s=>s.id===order.service_id),state,t);if(!live.enabled)return err('Layanan sedang tidak tersedia.',409);order.catalog_price=live.price;order.estimate=live.unit_amount===null?null:live.unit_amount*order.quantity;
   // Atomic conditional insert: no more than 5 requests per user in any rolling hour.
-  let result;try{[result]=await env.DB.batch([env.DB.prepare("INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,estimate,created_at,updated_at) SELECT ?,?,?,?,"+guardedCatalogPrice+",?,?,? WHERE (SELECT COUNT(*) FROM orders WHERE customer_id=? AND created_at>=?)<5 ON CONFLICT(id) DO NOTHING").bind(id,user.id,order.service_id,order.quantity,...catalogPriceBindings(order.service_id,override,order.catalog_price),order.estimate,t,t,user.id,t-3600),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'order:create',?,? WHERE changes()=1").bind(user.id,id,t)]);}catch(e){const old=await replay();if(old)return old;if(String(e.message).includes('rental_stock_unavailable'))return err('Stok sewa tidak tersedia.',409);if(catalogChangedError(e))return err('Harga atau ketersediaan layanan berubah. Muat ulang katalog dan coba lagi.',409);throw e;}
+  let result;try{[result]=await env.DB.batch([env.DB.prepare("INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,estimate,created_at,updated_at) SELECT ?,?,?,?,"+guardedCatalogPrice+",?,?,? WHERE (SELECT COUNT(*) FROM orders WHERE customer_id=? AND created_at>=?)<5 ON CONFLICT(id) DO NOTHING").bind(id,user.id,order.service_id,order.quantity,...catalogPriceBindings(order.service_id,state,order.catalog_price),order.estimate,t,t,user.id,t-3600),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'order:create',?,? WHERE changes()=1").bind(user.id,id,t)]);}catch(e){const old=await replay();if(old)return old;if(String(e.message).includes('rental_stock_unavailable'))return err('Stok sewa tidak tersedia.',409);if(catalogChangedError(e))return err('Harga atau ketersediaan layanan berubah. Muat ulang katalog dan coba lagi.',409);throw e;}
   if(!result.meta.changes){if(key){const old=await replay();if(old)return old;}return err('Batas permintaan per jam tercapai.',429);}
   return json({order:{id,...order,status:'requested'}},201);
  }

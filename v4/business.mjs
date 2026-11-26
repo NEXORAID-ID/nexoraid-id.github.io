@@ -6,14 +6,17 @@ const str=(s,min,max)=>typeof s==='string'&&s.trim().length>=min&&s.trim().lengt
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer'}});
 const err=(error,status=400)=>json({error},status);
 const now=()=>Math.floor(Date.now()/1000);
-export function applyOverride(s,row){
- const n=row?.amount??fixedPriceValue(s.price),t=now(),pct=row?.scheduled===1?(row.promo_start<=t&&t<row.promo_end?row.scheduled_percent:0):(row?.promo_percent??0);
+export function applyOverride(s,row,at=now()){
+ const n=row?.amount??fixedPriceValue(s.price),pct=row?.scheduled===1?(row.promo_start<=at&&at<row.promo_end?row.scheduled_percent:0):(row?.promo_percent??0);
  const price=n===null?null:Math.max(1,Math.floor(n*(100-pct)/100));
  return {...s,price:price===null?s.price:'Rp'+price.toLocaleString('id-ID'),unit_amount:price,enabled:row?.enabled!==0,promo_percent:pct};
 }
-export async function memberCatalog(db,includeDisabled=false){
+export async function catalogPricingState(db){
  const rows=(await db.prepare('SELECT s.service_id,o.amount,o.enabled,o.promo_percent,CASE WHEN p.service_id IS NOT NULL THEN 1 ELSE 0 END AS scheduled,p.promo_percent AS scheduled_percent,p.promo_start,p.promo_end FROM (SELECT service_id FROM catalog_overrides UNION SELECT service_id FROM service_policies) s LEFT JOIN catalog_overrides o ON o.service_id=s.service_id LEFT JOIN service_policies p ON p.service_id=s.service_id').all()).results;
- const overrides=new Map(rows.map(x=>[x.service_id,x]));
+ return new Map(rows.map(x=>[x.service_id,x]));
+}
+export async function memberCatalog(db,includeDisabled=false){
+ const overrides=await catalogPricingState(db);
  return services.map(s=>applyOverride(s,overrides.get(s.id))).filter(s=>includeDisabled||s.enabled).map(({id,name,category,desc,price,unit_amount,enabled,promo_percent})=>({id,name,category,desc,price,unit_amount,enabled,promo_percent}));
 }
 export function splitInvestor(profit,remaining){

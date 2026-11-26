@@ -10,6 +10,7 @@ async function fixture(){
  for(const f of ['0001_initial.sql','0006_business.sql','0010_checkout.sql']){
   db.exec(await readFile(new URL('../v4/migrations/'+f,import.meta.url),'utf8'));
  }
+ db.exec('CREATE TABLE service_policies(service_id TEXT PRIMARY KEY,promo_percent INTEGER NOT NULL DEFAULT 0,promo_start INTEGER,promo_end INTEGER)');
  db.exec("INSERT INTO users VALUES('c','Customer','customer',1)");
  return db;
 }
@@ -40,6 +41,15 @@ test('amount, promotion, disable and deletion invalidate stale prices',async()=>
   assert.throws(()=>insert(db,'c','other',{amount:20000,promo_percent:10},'Rp18.000',18000),catalogChangedError);
   db.exec("DELETE FROM catalog_overrides WHERE service_id='other'");
   assert.throws(()=>insert(db,'d','other',{amount:20000,promo_percent:10},'Rp18.000',18000),catalogChangedError);
+  assert.equal(db.prepare('SELECT count(*) n FROM orders').get().n,0);
+ }finally{db.close();}
+});
+test('scheduled promotion changes invalidate stale prices',async()=>{
+ const db=await fixture();try{
+  db.prepare('INSERT INTO service_policies VALUES(?,?,?,?)').run('other',10,100,200);
+  const state={scheduled:1,scheduled_percent:10,promo_start:100,promo_end:200};
+  db.prepare('UPDATE service_policies SET promo_percent=20 WHERE service_id=?').run('other');
+  assert.throws(()=>insert(db,'a','other',state,'Rp18.000',18000),catalogChangedError);
   assert.equal(db.prepare('SELECT count(*) n FROM orders').get().n,0);
  }finally{db.close();}
 });

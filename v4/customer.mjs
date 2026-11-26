@@ -1,5 +1,5 @@
 import {services} from '../services-data.js';
-import {applyOverride} from './business.mjs';
+import {applyOverride,catalogPricingState} from './business.mjs';
 import {guardedCatalogPrice,catalogPriceBindings,catalogChangedError} from './catalog-snapshot.mjs';
 import {membershipStatus,membershipMessage} from './membership.mjs';
 const json=(d,s=200)=>new Response(JSON.stringify(d),{status:s,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'}});
@@ -25,11 +25,10 @@ export async function customer({p,m,user,env,r,readBody,sessionHash}){
  const old=await replay();if(old)return old;
  const membership=await membershipStatus(env,user.id,env.DISCORD_MEMBERSHIP_FETCH||fetch);
  if(membership!==200)return err(membershipMessage(membership),membership);
- const overrides=new Map((await db.prepare('SELECT service_id,amount,enabled,promo_percent FROM catalog_overrides').all()).results.map(o=>[o.service_id,o]));
- const catalog=new Map(services.map(s=>[s.id,applyOverride(s,overrides.get(s.id))]));if(items.some(i=>!catalog.get(i.service_id)?.enabled))return err('Layanan tidak tersedia.',409);
+ const pricing=await catalogPricingState(db),catalog=new Map(services.map(s=>[s.id,applyOverride(s,pricing.get(s.id),t)]));if(items.some(i=>!catalog.get(i.service_id)?.enabled))return err('Layanan tidak tersedia.',409);
  const id=crypto.randomUUID(),rows=items.map(i=>{const s=catalog.get(i.service_id);return {...i,id:crypto.randomUUID(),catalog_price:s.price,estimate:s.unit_amount===null?null:s.unit_amount*i.quantity,status:'requested'};});
  const statements=[db.prepare('INSERT INTO checkout_groups VALUES(?,?,?,?,?,?)').bind(id,user.id,b.request_id,signature,items.length,t)];
- for(const o of rows)statements.push(db.prepare('INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,estimate,created_at,updated_at) VALUES(?,?,?,?,'+guardedCatalogPrice+',?,?,?)').bind(o.id,user.id,o.service_id,o.quantity,...catalogPriceBindings(o.service_id,overrides.get(o.service_id),o.catalog_price),o.estimate,t,t),db.prepare('INSERT INTO checkout_items VALUES(?,?)').bind(id,o.id),db.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) VALUES(?,'order:create',?,?)").bind(user.id,o.id,t));
+ for(const o of rows)statements.push(db.prepare('INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,estimate,created_at,updated_at) VALUES(?,?,?,?,'+guardedCatalogPrice+',?,?,?)').bind(o.id,user.id,o.service_id,o.quantity,...catalogPriceBindings(o.service_id,pricing.get(o.service_id),o.catalog_price),o.estimate,t,t),db.prepare('INSERT INTO checkout_items VALUES(?,?)').bind(id,o.id),db.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) VALUES(?,'order:create',?,?)").bind(user.id,o.id,t));
  try{await db.batch(statements);}catch(e){const existing=await replay();if(existing)return existing;if(String(e.message).includes('checkout_quota'))return err('Maksimal lima permintaan per jam.',429);if(String(e.message).includes('rental_stock_unavailable'))return err('Stok sewa tidak tersedia.',409);if(catalogChangedError(e))return err('Harga atau ketersediaan layanan berubah. Muat ulang katalog dan coba lagi.',409);throw e;}
  return json({checkout_id:id,orders:rows},201);
 }
