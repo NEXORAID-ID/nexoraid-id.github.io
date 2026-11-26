@@ -99,6 +99,21 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  assert.equal((await (await api('seller','/api/orders')).json()).orders.length,1);
  assert.equal((await (await api('customer','/api/orders')).json()).orders.length,1);
  assert.deepEqual(errors,[]);
+ // Actual browser/API backed D1 fence: preserve the completed order and its settlement.
+ const closing={closure_id:'00000000-0000-4000-8000-000000000099',customer_id:id,channel_id:'666666666666666666',ticket_id:'0001'};
+ assert.equal((await queue({...closing,action:'closure-begin'})).status,200);
+ const request={service_id:'optiwindows',quantity:1,request_id:'fixture-closure-request-001'};
+ const blocked=await api('customer','/api/orders',request);assert.equal(blocked.status,409);assert.match((await blocked.json()).error,/sedang ditutup/);
+ const cart={request_id:'fixture-closure-checkout-001',items:[{service_id:'optiwindows',quantity:1}]};
+ const blockedCart=await api('customer','/api/customer/checkout',cart);assert.equal(blockedCart.status,409);assert.match((await blockedCart.json()).error,/sedang ditutup/);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM checkout_groups WHERE customer_id=?').get(id).n,0);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM orders WHERE customer_id=?').get(id).n,1);
+ const finish={...closing,action:'closure-finish',transcript_channel_id:'999999999999999999',transcript_message_id:'999999999999999998'};
+ assert.equal((await queue(finish)).status,200);assert.equal((await queue(finish)).status,200);
+ assert.equal((await api('customer','/api/orders',request)).status,201);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM orders WHERE customer_id=?').get(id).n,2);
+ assert.deepEqual(db.prepare('SELECT worker_share,owner_share,gross FROM order_settlements WHERE order_id=?').get(order.id),settlement);
+ console.log('Closure fence E2E passed: single and cart checkout blocked, receipt replay, new checkout after closure, historical settlement unchanged.');
  // Revoke the actual session in the isolated DB while the owner dashboard is open.
  p=pages.owner;await p.reload();await p.waitForFunction(()=>document.querySelector('#status')?.textContent==='Terhubung.');
  assert.equal(await p.locator('#account').isVisible(),true);
