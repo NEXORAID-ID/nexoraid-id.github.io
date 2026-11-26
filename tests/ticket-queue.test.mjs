@@ -18,6 +18,7 @@ test('outbox no backfill; rollback, lease expiry, retry and canonical ack',async
  let time=1000;
  const call=b=>ticketQueue({db,r:null,m:'POST',readBody:async()=>b,clock:()=>time});
  const before=sql.prepare('SELECT attempts,lease_token FROM web_ticket_outbox WHERE order_id=?').get(id);assert.equal((await call({action:'health'})).status,200);assert.deepEqual(sql.prepare('SELECT attempts,lease_token FROM web_ticket_outbox WHERE order_id=?').get(id),before);
+ const paused=await ticketQueue({db,r:null,m:'POST',readBody:async()=>({action:'lease'}),maintenance:true});assert.equal(paused.status,503);assert.deepEqual(sql.prepare('SELECT attempts,lease_token FROM web_ticket_outbox WHERE order_id=?').get(id),before);
  const a=await(await call({action:'lease'})).json();assert.equal(a.order.id,id);
  assert.equal((await(await call({action:'lease'})).json()).order,null);
  time+=181;const next=await(await call({action:'lease'})).json();assert.notEqual(next.lease_token,a.lease_token);

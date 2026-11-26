@@ -16,6 +16,8 @@ const cookie=(name,value,age)=>name+'='+value+'; Path=/; HttpOnly; Secure; SameS
 const getCookie=(r,name)=>r.headers.get('Cookie')?.split(';').map(s=>s.trim()).find(s=>s.startsWith(name+'='))?.slice(name.length+1)||'';
 const hash=async s=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s))),n=>n.toString(16).padStart(2,'0')).join('');
 const random=()=>crypto.randomUUID()+crypto.randomUUID();
+export const pkceChallenge=async verifier=>btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier))))).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');
+const pkceVerifier=()=>btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32)))).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');
 const now=()=>Math.floor(Date.now()/1000);
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer'}});
 const redirect=(path,cookies=[])=>{const h=new Headers({'location':path,'cache-control':'no-store','referrer-policy':'no-referrer'});for(const c of cookies)h.append('set-cookie',c);return new Response(null,{status:303,headers:h});};
@@ -52,7 +54,7 @@ export function oauthFailure(status,value){
  return status===429?'rate_limited':known.includes(value?.error)?value.error:status===401?'invalid_client':'provider_error';
 }
 // Never log the request, response body, authorization code, token or secret.
-export async function discordIdentity(env,code,request=fetch,report=(details)=>console.warn('Discord OAuth diagnostic',details)){
+export async function discordIdentity(env,code,request=fetch,report=(details)=>console.warn('Discord OAuth diagnostic',details),verifier=null){
  let stage='token_request';
  const fail=(reason,details={})=>{report({stage,reason,...details});return {error:reason};};
  const kind=e=>['AbortError','TimeoutError','TypeError','NetworkError'].includes(e?.name)?e.name:'Error';
@@ -63,7 +65,7 @@ export async function discordIdentity(env,code,request=fetch,report=(details)=>c
  }
  const headers={'accept':'application/json','user-agent':'NEXORAID/4.0 (https://nexoraid-v4.nexoraid.workers.dev)'};
  try{
-  const form=new URLSearchParams({client_id:env.DISCORD_CLIENT_ID.trim(),client_secret:env.DISCORD_CLIENT_SECRET.trim(),grant_type:'authorization_code',code,redirect_uri:env.PUBLIC_ORIGIN+'/api/auth/callback'}).toString();
+  const form=new URLSearchParams({client_id:env.DISCORD_CLIENT_ID.trim(),client_secret:env.DISCORD_CLIENT_SECRET.trim(),grant_type:'authorization_code',code,redirect_uri:env.PUBLIC_ORIGIN+'/api/auth/callback',...(verifier?{code_verifier:verifier}:{})}).toString();
   const response=await send('https://discord.com/api/oauth2/token',{method:'POST',headers:{...headers,'content-type':'application/x-www-form-urlencoded'},body:form});
   stage='token_response';
   if(!response.ok){
@@ -82,7 +84,7 @@ export async function discordIdentity(env,code,request=fetch,report=(details)=>c
   return {user};
  }catch(e){return fail(stage.startsWith('token')?'token_transport':'identity_transport',{exception:kind(e)});}
 }
-const loginFailure=(code)=>redirect('/portal.html?login_error='+encodeURIComponent(code),[cookie('nexo_state','',0)]);
+const loginFailure=(code)=>redirect('/portal.html?login_error='+encodeURIComponent(code),[cookie('nexo_state','',0),cookie('nexo_pkce','',0)]);
 function oauthReady(env){return Boolean(env.PUBLIC_ORIGIN&&env.DISCORD_CLIENT_ID&&env.DISCORD_CLIENT_SECRET&&env.DB);}
 async function handle(r,env){
  const url=new URL(r.url),m=r.method;let p=url.pathname;
@@ -95,7 +97,7 @@ async function handle(r,env){
  }
  if(p==='/api/health'&&m==='GET'){
   let ready=false;try{if(env.DB){const check=await env.DB.prepare('SELECT (SELECT COUNT(*) FROM users WHERE 0)+(SELECT COUNT(*) FROM order_ticket_links WHERE 0)+(SELECT COUNT(*) FROM rejected_payment_claims WHERE 0)+(SELECT COUNT(*) FROM order_attachments WHERE 0)+(SELECT COUNT(*) FROM order_messages WHERE 0)+(SELECT COUNT(*) FROM order_plans WHERE 0)+(SELECT COUNT(*) FROM checkout_groups WHERE 0)+(SELECT COUNT(*) FROM session_metadata WHERE 0)+(SELECT COUNT(*) FROM completed_refunds WHERE 0)+(SELECT COUNT(*) FROM web_ticket_outbox WHERE 0)+(SELECT COUNT(*) FROM cash_opening WHERE 0)+(SELECT COUNT(*) FROM cash_movements WHERE 0)+(SELECT COUNT(*) FROM rental_reservations WHERE 0)+(SELECT COUNT(*) FROM investor_attestations WHERE 0)+(SELECT COUNT(*) FROM verified_receipts WHERE 0)+(SELECT COUNT(*) FROM receipt_adjustments WHERE 0) AS probe').first();const trigger=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name='web_ticket_order_insert'").first();ready=check?.probe===0&&trigger?.name==='web_ticket_order_insert';}}catch{}
-  return json({status:ready&&oauthReady(env)?'ok':'degraded',version:4,release:env.RELEASE_SHA||null,database_configured:Boolean(env.DB),database_ready:ready,login_configured:oauthReady(env),schema:ready?16:null},ready&&oauthReady(env)?200:503);
+  return json({status:ready&&oauthReady(env)?'ok':'degraded',version:4,release:env.RELEASE_SHA||null,database_configured:Boolean(env.DB),database_ready:ready,login_configured:oauthReady(env),schema:ready?16:null,maintenance:env.MAINTENANCE_MODE==='true'},ready&&oauthReady(env)?200:503);
  }
  if(p==='/api/catalog'&&m==='GET'){const response=env.DB?json({services:await memberCatalog(env.DB),catalog_revision:1}):json({services:services.map(({id,name,category,desc,price})=>({id,name,category,desc,price})),baseline:true});response.headers.set('access-control-allow-origin','*');return response;}
  if(!env.DB||!env.PUBLIC_ORIGIN||url.origin!==env.PUBLIC_ORIGIN)return err('Layanan akun belum dikonfigurasi untuk domain ini.',503);
@@ -106,7 +108,7 @@ async function handle(r,env){
  let diff=0;for(let i=0;i<expected.length;i++)diff|=actual.charCodeAt(i)^expected.charCodeAt(i);
  if(diff!==0)return err('Bot tidak terotorisasi.',401);
  if(r.headers.get('x-discord-guild-id')!=='1487728359482851348'||r.headers.has('x-discord-user-id'))return err('Identitas mesin tidak valid.',403);
- return ticketQueue({db:env.DB,r,m,readBody:body});
+ return ticketQueue({db:env.DB,r,m,readBody:body,maintenance:env.MAINTENANCE_MODE==='true'});
  }
  const bot=p.startsWith('/api/bot/');
  let botUser=null;
@@ -128,8 +130,8 @@ async function handle(r,env){
  }else if(m!=='GET'&&r.headers.get('origin')!==env.PUBLIC_ORIGIN)return err('Origin tidak diizinkan.',403);
  if(p==='/api/auth/login'&&m==='GET'){
   if(!oauthReady(env))return err('Login belum dikonfigurasi.',503);
-  const state=random();const q=new URLSearchParams({client_id:env.DISCORD_CLIENT_ID.trim(),response_type:'code',redirect_uri:env.PUBLIC_ORIGIN+'/api/auth/callback',scope:'identify',state,prompt:'consent'});
-  return redirect('https://discord.com/oauth2/authorize?'+q,[cookie('nexo_state',state,600)]);
+  const state=random(),verifier=pkceVerifier(),challenge=await pkceChallenge(verifier);const q=new URLSearchParams({client_id:env.DISCORD_CLIENT_ID.trim(),response_type:'code',redirect_uri:env.PUBLIC_ORIGIN+'/api/auth/callback',scope:'identify',state,prompt:'consent',code_challenge:challenge,code_challenge_method:'S256'});
+  return redirect('https://discord.com/oauth2/authorize?'+q,[cookie('nexo_state',state,600),cookie('nexo_pkce',verifier,600)]);
  }
  if(p==='/api/auth/callback'&&m==='GET'){
   if(!oauthReady(env))return err('Login belum dikonfigurasi.',503);
@@ -137,7 +139,8 @@ async function handle(r,env){
   if(!state||state!==getCookie(r,'nexo_state')||!/^[a-f0-9-]{72}$/.test(state))return loginFailure('invalid_state');
   if(url.searchParams.get('error')==='access_denied')return loginFailure('access_denied');
   if(!code||code.length>2048)return loginFailure('invalid_grant');
-  const result=await discordIdentity(env,code);
+  const verifier=getCookie(r,'nexo_pkce');if(!/^[a-zA-Z0-9_-]{43}$/.test(verifier))return loginFailure('invalid_state');
+  const result=await discordIdentity(env,code,fetch,undefined,verifier);
   if(result.error)return loginFailure(result.error);
   const user=result.user;
   const t=now(),s=random(),sessionHash=await hash(s);
@@ -147,8 +150,9 @@ async function handle(r,env){
    env.DB.prepare('INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)').bind(sessionHash,user.id,t+7*DAY),
    env.DB.prepare('INSERT INTO session_metadata VALUES(?,?,?,?)').bind(sessionHash,crypto.randomUUID(),deviceLabel(r.headers.get('user-agent')||''),t)
   ]);
-  return redirect('/portal.html',[cookie('nexo_state','',0),cookie('nexo_session',s,7*DAY)]);
+  return redirect('/portal.html',[cookie('nexo_state','',0),cookie('nexo_pkce','',0),cookie('nexo_session',s,7*DAY)]);
  }
+ if(env.MAINTENANCE_MODE==='true'&&!['GET','HEAD'].includes(m)&&!['/api/auth/logout','/api/auth/logout-all'].includes(p))return err('Sistem sedang dalam pemeliharaan. Tidak ada perubahan yang disimpan.',503);
  const user=bot?botUser:await session(r,env);
  if(!user)return err('Silakan masuk melalui Discord.',401);
  if(p==='/api/auth/logout'&&m==='POST'){
