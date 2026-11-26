@@ -70,21 +70,38 @@ export async function business({p,m,url,user,env,readBody,r}){
   if(post){const b=await readBody(r),ref=str(b?.reference,4,80),note=str(b?.note,3,200);if(!ref||!note||!integer(b?.amount)||!['deposit','usage','withdrawal'].includes(b?.kind))return err('Data mutasi tidak valid.');
    const movement=crypto.randomUUID();return record(db,db.prepare("INSERT INTO supplier_movements SELECT ?,?,?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM supplier_movements WHERE reference=?) AND (?='deposit' OR ?<=(SELECT COALESCE(SUM(CASE WHEN kind='deposit' THEN amount ELSE -amount END),0) FROM supplier_movements WHERE supplier_id=?))").bind(movement,id,b.kind,b.amount,ref,note,user.id,t,ref,b.kind,b.amount,id),user,'supplier:'+b.kind,movement,t);}
  }
+ if(p==='/api/business/rental-stock'&&get){
+  const items=(await db.prepare("SELECT c.service_id,c.units,c.reference,c.updated_at,COALESCE(SUM(CASE WHEN r.release_at IS NULL OR r.release_at>unixepoch() THEN r.units ELSE 0 END),0) AS reserved FROM rental_capacity c LEFT JOIN rental_reservations r ON r.service_id=c.service_id GROUP BY c.service_id").all()).results;
+  return json({items});
+ }
+ if(p==='/api/business/rental-stock'&&post){
+  const b=await readBody(r),ref=str(b?.reference,4,120);
+  if(!['cherax-rental-standard','cherax-rental-premium'].includes(b?.service_id)||!Number.isSafeInteger(b.units)||b.units<0||b.units>10000||!ref||b.confirmed!==true)return err('Kapasitas paket terpisah, referensi dan konfirmasi owner wajib.');
+  try{return await record(db,db.prepare('INSERT INTO rental_capacity VALUES(?,?,?,?,?) ON CONFLICT(service_id) DO UPDATE SET units=excluded.units,reference=excluded.reference,actor_id=excluded.actor_id,updated_at=excluded.updated_at').bind(b.service_id,b.units,ref,user.id,t),user,'rental:capacity',b.service_id,t);}catch(e){if(String(e.message).includes('rental_capacity_below_reserved'))return err('Kapasitas di bawah paket yang sudah dipesan.',409);throw e;}
+ }
  if(p==='/api/business/investors'&&get){
-  const capital=(await db.prepare('SELECT c.id,c.name,c.amount,COALESCE(SUM(d.principal_return),0) AS returned FROM investor_capital c LEFT JOIN investor_distributions d ON d.capital_id=c.id GROUP BY c.id ORDER BY c.created_at DESC LIMIT 100').all()).results;
+  const capital=(await db.prepare('SELECT c.id,c.name,c.amount,EXISTS(SELECT 1 FROM investor_attestations a WHERE a.capital_id=c.id) AS agreement_verified,COALESCE(SUM(d.principal_return),0) AS returned FROM investor_capital c LEFT JOIN investor_distributions d ON d.capital_id=c.id GROUP BY c.id ORDER BY c.created_at DESC LIMIT 100').all()).results;
   const distributions=(await db.prepare('SELECT capital_id,period,profit,owner_share,investor_share,principal_return,reference FROM investor_distributions ORDER BY period DESC LIMIT 100').all()).results;
   return json({capital,distributions});
  }
  if(p==='/api/business/investors'&&post){
   const b=await readBody(r),name=str(b?.name,2,100),ref=str(b?.reference,4,80);
-  if(!name||!ref||!integer(b?.amount))return err('Modal nyata, nama dan referensi wajib.');
-  const id=crypto.randomUUID();return record(db,db.prepare("INSERT INTO investor_capital SELECT ?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM investor_capital WHERE reference=?) AND NOT EXISTS(SELECT 1 FROM investor_capital c WHERE c.amount>(SELECT COALESCE(SUM(principal_return),0) FROM investor_distributions WHERE capital_id=c.id))").bind(id,name,b.amount,ref,t,user.id,ref),user,'investor:capital',id,t);
+  const agreement=str(b?.agreement_reference,4,120);
+  if(!name||!ref||!integer(b?.amount)||!agreement||b.received_confirmed!==true)return err('Modal nyata, nama, bukti penerimaan dan referensi perjanjian wajib.');
+  const id=crypto.randomUUID();
+  const [result]=await db.batch([db.prepare("INSERT INTO investor_capital SELECT ?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM investor_capital WHERE reference=?) AND NOT EXISTS(SELECT 1 FROM investor_capital c WHERE c.amount>(SELECT COALESCE(SUM(principal_return),0) FROM investor_distributions WHERE capital_id=c.id))").bind(id,name,b.amount,ref,t,user.id,ref),db.prepare("INSERT INTO investor_attestations SELECT id,?,?,? FROM investor_capital WHERE id=?").bind(agreement,user.id,t,id),db.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'investor:capital',id,? FROM investor_capital WHERE id=?").bind(user.id,t,id)]);
+  return result.meta.changes?json({ok:true,id}):err('Modal sudah tercatat atau modal aktif masih ada.',409);
+ }
+ if(p==='/api/business/investors/attest'&&post){
+  const b=await readBody(r),agreement=str(b?.agreement_reference,4,120);
+  if(!uuid.test(b?.capital_id||'')||!agreement||b.received_confirmed!==true)return err('Referensi perjanjian dan konfirmasi penerimaan wajib.');
+  return record(db,db.prepare('INSERT INTO investor_attestations SELECT id,?,?,? FROM investor_capital WHERE id=? ON CONFLICT(capital_id) DO NOTHING').bind(agreement,user.id,t,b.capital_id),user,'investor:attest',b.capital_id,t);
  }
  if(p==='/api/business/distributions'&&post){
   const b=await readBody(r),ref=str(b?.reference,4,80);
   if(!uuid.test(b?.capital_id||'')||!integer(b?.profit)||!ref||!/^\d{4}-(0[1-9]|1[0-2])$/.test(b?.period||''))return err('Data distribusi tidak valid.');
-  const c=await db.prepare('SELECT c.amount-COALESCE(SUM(d.principal_return),0) AS remaining FROM investor_capital c LEFT JOIN investor_distributions d ON d.capital_id=c.id WHERE c.id=? GROUP BY c.id').bind(b.capital_id).first();
-  const split=c&&splitInvestor(b.profit,c.remaining);if(!split)return err('Modal tidak aktif atau sudah lunas.',409);
+  const c=await db.prepare('SELECT c.amount-COALESCE(SUM(d.principal_return),0) AS remaining FROM investor_capital c LEFT JOIN investor_distributions d ON d.capital_id=c.id WHERE c.id=? AND EXISTS(SELECT 1 FROM investor_attestations a WHERE a.capital_id=c.id) GROUP BY c.id').bind(b.capital_id).first();
+  const split=c&&splitInvestor(b.profit,c.remaining);if(!split)return err('Modal tidak aktif, belum diverifikasi perjanjiannya, atau sudah lunas.',409);
   const id=crypto.randomUUID();
   // A manually approved realized distributable profit, not an automatic claim on gross sales.
   return record(db,db.prepare('INSERT INTO investor_distributions SELECT ?,?,?,?,?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM investor_distributions WHERE period=? OR reference=?) AND ?=(SELECT amount FROM investor_capital WHERE id=?)-(SELECT COALESCE(SUM(principal_return),0) FROM investor_distributions WHERE capital_id=?)').bind(id,b.capital_id,b.period,b.profit,split.owner_share,split.investor_share,split.principal_return,ref,t,user.id,b.period,ref,c.remaining,b.capital_id,b.capital_id),user,'investor:distribution',id,t);

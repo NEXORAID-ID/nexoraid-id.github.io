@@ -36,3 +36,6 @@ Cloudflare environment configuration, isolated production-like restore and live 
 
 ## Additional production guard
 The deployment workflow now requires distinct machine and actor credentials and a membership token in the existing cloudflare-v4 environment before migration, without printing any credential. Do not overwrite an existing actor key blindly; use the same authorized key already configured for HYPEBOTX or coordinate a controlled rotation. Ticket lease check rejects terminal orders before Discord side effects; acknowledgement rejects terminal orders. An unavoidable cancellation race after the final check may still leave an unlinked message/channel and requires owner reconciliation; never delete automatically.
+
+## Schema 15 candidate: rental stock and investor agreement
+Capacity is owner-attested independent package pools; existing obligations must be deducted, no legacy backfill. Unconfigured service stays manual. New reservations are enforced atomically, cancelled orders release and completed orders hold for 30 days after completion. Pending holds require manual review; no automatic cancellation. Investor capital requires actual receipt and signed agreement reference; existing capital must be attested before new distributions. No actual stock or agreement inferred. Production gates still apply.
