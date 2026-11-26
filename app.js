@@ -4,7 +4,7 @@ import { categories, escapeHTML as esc, queryCatalog, orderText, fixedPriceValue
 
 const catalogue=await getLiveCatalog(baselineServices,location);
 const services=catalogue.services;
-if(catalogue.production){const notice=document.createElement('p');notice.className='catalog-source-notice';notice.textContent=catalogue.live?'Katalog aktif terhubung ke NEXORAID V4. Harga final mengikuti invoice portal.':'Katalog cadangan: harga dan ketersediaan belum tersinkron. Konfirmasi melalui portal sebelum membayar.';document.querySelector('main')?.prepend(notice);}
+if(catalogue.production){const notice=document.createElement('p');notice.className='catalog-source-notice';notice.textContent=catalogue.live?'Katalog aktif terhubung ke NEXORAID V4. Harga akhir mengikuti tagihan portal.':'Katalog cadangan: harga dan ketersediaan belum tersinkron. Konfirmasi melalui portal sebelum membayar.';document.querySelector('main')?.prepend(notice);}
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const money = amount => 'Rp'+amount.toLocaleString('id-ID');
