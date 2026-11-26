@@ -21,10 +21,27 @@ TOTALS = {
     "owner_share": "SELECT COALESCE(SUM(owner_share),0) FROM order_settlements",
     "cash_movements": "SELECT COALESCE(SUM(delta),0) FROM cash_movements",
 }
+# Optional migration-era records: pre-upgrade production backups remain valid.
+OPTIONAL_TOTALS = {
+    "order_receipts": ("actual_receipts", "SELECT COALESCE(SUM(amount),0) FROM order_receipts"),
+    "receipt_refunds": ("actual_receipt_refunds", "SELECT COALESCE(SUM(amount),0) FROM receipt_refunds"),
+    "seller_settlements": ("seller_gross", "SELECT COALESCE(SUM(gross),0) FROM seller_settlements"),
+    "order_cost_basis": ("order_cost_basis", "SELECT COALESCE(SUM(amount),0) FROM order_cost_basis"),
+    "investor_noncash_bonuses": ("noncash_bonus_value", "SELECT COALESCE(SUM(value_amount),0) FROM investor_noncash_bonuses"),
+}
+OPTIONAL_NAMES = ("cash_period_closes", "payout_approvals", "order_receipts", "receipt_refunds",
+                  "seller_order_fees", "seller_settlements", "order_cost_basis",
+                  "investor_post_policies", "investor_noncash_bonuses")
+def snapshot_plan(existing):
+    return NAMES + tuple(n for n in OPTIONAL_NAMES if n in existing), {
+        **TOTALS, **{label: query for table, (label, query) in OPTIONAL_TOTALS.items() if table in existing}
+    }
 def snapshot(db):
+    existing = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    names, totals = snapshot_plan(existing)
     return {
-        "counts": {name: db.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0] for name in NAMES},
-        "totals": {name: db.execute(query).fetchone()[0] for name, query in TOTALS.items()},
+        "counts": {name: db.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0] for name in names},
+        "totals": {name: db.execute(query).fetchone()[0] for name, query in totals.items()},
         "attachments": {row[0]: hashlib.sha256(row[1]).hexdigest()
                         for row in db.execute("SELECT id,bytes FROM order_attachments ORDER BY id")},
     }

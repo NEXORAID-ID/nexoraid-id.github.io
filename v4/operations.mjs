@@ -7,8 +7,8 @@ const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:
 const err=(error,status)=>json({error},status);
 export function financeKind(serviceId){return serviceId==='seller'?'seller':serviceId.startsWith('gta-')?'joki':'other';}
 export function scopeFor(user){return staff(user.role)?{where:'1=1',args:[]}:user.role==='worker'?{where:"(o.customer_id=? OR o.assigned_to=? OR o.status='requested')",args:[user.id,user.id]}:{where:'o.customer_id=?',args:[user.id]};}
-const orderFields="o.*,p.priority,p.due_at,f.amount AS invoice_amount,f.kind AS invoice_kind,f.state AS payment_state,f.paid_at,w.submitted_at AS evidence_at,EXISTS(SELECT 1 FROM payment_claims c WHERE c.order_id=o.id) AS payment_claimed,(COALESCE((SELECT amount FROM order_refunds r WHERE r.order_id=o.id),0)+COALESCE((SELECT SUM(amount) FROM completed_refunds r WHERE r.order_id=o.id),0)) AS refunded_amount";
-const joins=" FROM orders o LEFT JOIN order_finance f ON f.order_id=o.id LEFT JOIN order_work w ON w.order_id=o.id LEFT JOIN order_plans p ON p.order_id=o.id";
+const orderFields="o.*,p.priority,p.due_at,f.amount AS invoice_amount,f.kind AS invoice_kind,f.state AS payment_state,f.paid_at,COALESCE(pt.received,0) AS received_amount,CASE WHEN o.status='cancelled' THEN 0 ELSE MAX(0,COALESCE(f.amount,0)-COALESCE(pt.received,0)) END AS outstanding_amount,COALESCE(pt.partial_returned,0) AS partial_refunded_amount,MAX(0,COALESCE(pt.received,0)-COALESCE(f.amount,0)-COALESCE(pt.excess_returned,0)) AS overpayment_due,w.submitted_at AS evidence_at,EXISTS(SELECT 1 FROM payment_claims c WHERE c.order_id=o.id) AS payment_claimed,(COALESCE((SELECT amount FROM order_refunds r WHERE r.order_id=o.id),0)+COALESCE((SELECT SUM(amount) FROM completed_refunds r WHERE r.order_id=o.id),0)) AS refunded_amount";
+const joins=" FROM orders o LEFT JOIN order_finance f ON f.order_id=o.id LEFT JOIN order_payment_totals pt ON pt.order_id=o.id LEFT JOIN order_work w ON w.order_id=o.id LEFT JOIN order_plans p ON p.order_id=o.id";
 function redact(o,user){if(user.role==='worker'&&o.status==='requested'&&o.customer_id!==user.id)return {...o,customer_id:null};return o;}
 export async function listOrders(db,user,url){
  const {where,args}=scopeFor(user);
@@ -27,9 +27,9 @@ export async function dashboardSummary(db,user){
  const counts=(await db.prepare('SELECT o.status,COUNT(*) AS count FROM orders o WHERE '+where+' GROUP BY o.status').bind(...args).all()).results;
  const totals=Object.fromEntries(statuses.map(s=>[s,0]));for(const row of counts)totals[row.status]=row.count;
  const result={counts:totals,total:Object.values(totals).reduce((a,b)=>a+b,0)};
- if(user.role==='owner'||user.role==='worker'||await db.prepare('SELECT order_id FROM order_settlements WHERE worker_id=? LIMIT 1').bind(user.id).first()){
+ if(user.role==='owner'||user.role==='worker'||await db.prepare('SELECT order_id FROM all_order_settlements WHERE worker_id=? LIMIT 1').bind(user.id).first()){
   const worker=user.role!=='owner';
-  const row=await db.prepare(worker?'SELECT COUNT(*) AS count,COALESCE(SUM(worker_share),0) AS worker_share FROM order_settlements WHERE worker_id=?':'SELECT COUNT(*) AS count,COALESCE(SUM(gross),0) AS gross,COALESCE(SUM(worker_share),0) AS worker_share,COALESCE(SUM(owner_share),0) AS owner_share FROM order_settlements').bind(...(worker?[user.id]:[])).first();
+  const row=await db.prepare(worker?'SELECT COUNT(*) AS count,COALESCE(SUM(worker_share),0) AS worker_share FROM all_order_settlements WHERE worker_id=?':'SELECT COUNT(*) AS count,COALESCE(SUM(gross),0) AS gross,COALESCE(SUM(worker_share),0) AS worker_share,COALESCE(SUM(owner_share),0) AS owner_share FROM all_order_settlements').bind(...(worker?[user.id]:[])).first();
   result.settlement=row;
  }
  return json(result);
@@ -55,42 +55,58 @@ export async function operations({p,m,url,user,env,readBody,r}){
   const events=rows.slice(0,50);return json({events,next:rows.length>50?events.at(-1).id:null});
  }
  if(p==='/api/settlements'&&m==='GET'){
-  if(!['owner','worker'].includes(user.role)&&!await db.prepare('SELECT order_id FROM order_settlements WHERE worker_id=? LIMIT 1').bind(user.id).first())return err('Akses keuangan tidak diizinkan.',403);
+  if(!['owner','worker'].includes(user.role)&&!await db.prepare('SELECT order_id FROM all_order_settlements WHERE worker_id=? LIMIT 1').bind(user.id).first())return err('Akses keuangan tidak diizinkan.',403);
   const worker=user.role!=='owner',before=url.searchParams.get('before')||'';
   if(before&&!uuid.test(before))return err('Cursor tidak valid.',400);
   const where=worker?'worker_id=? AND order_id>?':'order_id>?';
   const columns=worker?'order_id,kind,worker_share,created_at':'order_id,worker_id,kind,gross,worker_share,owner_share,created_at';
-  const rows=(await db.prepare('SELECT '+columns+' FROM order_settlements WHERE '+where+' ORDER BY order_id LIMIT 51').bind(...(worker?[user.id,before]:[before])).all()).results;
+  const rows=(await db.prepare('SELECT '+columns+' FROM all_order_settlements WHERE '+where+' ORDER BY order_id LIMIT 51').bind(...(worker?[user.id,before]:[before])).all()).results;
   const settlements=rows.slice(0,50);return json({settlements,next:rows.length>50?settlements.at(-1).order_id:null});
  }
- const match=p.match(/^\/api\/orders\/([a-f0-9-]{36})(?:\/(quote|payment|evidence|assign|cancel))?$/);
+ const match=p.match(/^\/api\/orders\/([a-f0-9-]{36})(?:\/(quote|payment|evidence|assign|cancel|seller-fee|cost-basis|finance))?$/);
  if(!match||!uuid.test(match[1]))return null;
  const [,id,action]=match;
  const order=await db.prepare('SELECT '+orderFields+joins+' WHERE o.id=?').bind(id).first();
  if(!order)return err('Order tidak ditemukan.',404);
  const owns=order.customer_id===user.id,assigned=order.assigned_to===user.id,over=staff(user.role);
  if(!over&&!owns&&!(user.role==='worker'&&(assigned||order.status==='requested')))return err('Order tidak ditemukan.',404);
+ if(action==='finance'){
+  if(m!=='GET')return err('Metode tidak diizinkan.',405);
+  if(!over&&!owns&&!(assigned&&user.role==='worker'))return err('Order tidak ditemukan.',404);
+  return json({finance:{order_id:id,status:order.status,invoice_amount:order.invoice_amount,received_amount:order.received_amount,outstanding_amount:order.outstanding_amount,overpayment_due:order.overpayment_due,partial_refunded_amount:order.partial_refunded_amount,payment_state:order.payment_state}});
+ }
  if(!action&&m==='GET'){
   const visible=redact(order,user);
   // Payment references and evidence are deliberately excluded from general customer responses.
   const evidence=over||assigned&&user.role==='worker'?await db.prepare('SELECT evidence,submitted_at FROM order_work WHERE order_id=?').bind(id).first():null;
-  return json({order:visible,evidence});
+  const accounting=user.role==='owner'?{seller_fee:await db.prepare('SELECT amount,reference FROM seller_order_fees WHERE order_id=?').bind(id).first(),cost_basis:await db.prepare('SELECT amount,reference,note FROM order_cost_basis WHERE order_id=?').bind(id).first()}:null;
+  return json({order:visible,evidence,accounting});
  }
  if(m!=='POST')return err('Metode tidak diizinkan.',405);
  const b=await readBody(r),t=now();if(!b)return err('Data tidak valid.',400);
+ if(action==='seller-fee'||action==='cost-basis'){
+  if(user.role!=='owner')return err('Khusus owner.',403);
+  const ref=typeof b.reference==='string'?b.reference.trim():'',note=typeof b.note==='string'?b.note.trim():'';
+  if(!Number.isSafeInteger(b.amount)||b.amount<0||b.amount>999999999||ref.length<4||ref.length>80||action==='cost-basis'&&(note.length<3||note.length>200))return err('Nominal dan referensi aktual wajib.',400);
+  const statement=action==='seller-fee'?db.prepare('INSERT INTO seller_order_fees VALUES(?,?,?,?,?) ON CONFLICT(order_id) DO NOTHING').bind(id,b.amount,ref,user.id,t):db.prepare('INSERT INTO order_cost_basis VALUES(?,?,?,?,?,?) ON CONFLICT(order_id) DO NOTHING').bind(id,b.amount,ref,note,user.id,t);
+  try{return await mutate(db,statement,user.id,'finance:'+action,id,t);}catch(e){if(/seller_fee_invalid|cost_basis_invalid|FOREIGN KEY constraint/.test(String(e.message)))return err('Invoice atau status order tidak memenuhi syarat.',409);throw e;}
+ }
  if(action==='quote'){
   if(!over)return err('Akses management diperlukan.',403);
   const kind=financeKind(order.service_id),amount=b.amount;
   if(!Number.isSafeInteger(amount)||amount<1||amount>999999999||kind==='other'&&amount<10000)return err('Nominal tidak valid; fee layanan lain minimal Rp10.000.',400);
   if(!['claimed','confirmed','processing'].includes(order.status))return err('Order harus sudah diambil penjoki.',409);
+  if(kind==='seller'&&await db.prepare('SELECT 1 FROM seller_order_fees WHERE order_id=? AND amount>?').bind(id,amount).first())return err('Invoice tidak boleh lebih kecil dari fee seller.',409);
+  if(order.received_amount>0)return err('Invoice terkunci setelah dana diterima.',409);
   if(order.payment_claimed)return err('Invoice dikunci karena ada laporan pembayaran. Owner harus meninjau laporan dahulu.',409);
-  return mutate(db,db.prepare("INSERT INTO order_finance(order_id,amount,kind,quoted_by,quoted_at) SELECT id,?,?,?,? FROM orders WHERE id=? AND status IN ('claimed','confirmed','processing') ON CONFLICT(order_id) DO UPDATE SET amount=excluded.amount,quoted_by=excluded.quoted_by,quoted_at=excluded.quoted_at WHERE order_finance.state='quoted' AND NOT EXISTS(SELECT 1 FROM payment_claims WHERE order_id=order_finance.order_id)").bind(amount,kind,user.id,t,id),user.id,'invoice:quote',id,t);
+  return mutate(db,db.prepare("INSERT INTO order_finance(order_id,amount,kind,quoted_by,quoted_at) SELECT id,?,?,?,? FROM orders WHERE id=? AND status IN ('claimed','confirmed','processing') ON CONFLICT(order_id) DO UPDATE SET amount=excluded.amount,quoted_by=excluded.quoted_by,quoted_at=excluded.quoted_at WHERE order_finance.state='quoted' AND NOT EXISTS(SELECT 1 FROM payment_claims WHERE order_id=order_finance.order_id) AND NOT EXISTS(SELECT 1 FROM order_receipts WHERE order_id=order_finance.order_id)").bind(amount,kind,user.id,t,id),user.id,'invoice:quote',id,t);
  }
  if(action==='payment'){
   if(user.role!=='owner')return err('Hanya owner dapat memverifikasi pembayaran.',403);
   const ref=typeof b.reference==='string'?b.reference.trim():'';
-  if(ref.length<4||ref.length>80||!Number.isSafeInteger(b.amount)||b.amount!==order.invoice_amount)return err('Nominal harus sesuai invoice dan referensi transaksi wajib.',400);
-  return mutate(db,db.prepare("UPDATE order_finance SET state='paid',paid_by=?,paid_at=?,payment_ref=? WHERE order_id=? AND state='quoted' AND amount=? AND NOT EXISTS(SELECT 1 FROM order_finance f WHERE f.state='paid' AND f.payment_ref=? AND f.order_id<>?) AND EXISTS(SELECT 1 FROM orders WHERE id=? AND status IN ('claimed','confirmed','processing'))").bind(user.id,t,ref,id,b.amount,ref,id,id),user.id,'payment:verified',id,t);
+  if(ref.length<4||ref.length>80||!Number.isSafeInteger(b.amount)||b.amount<1||b.amount>999999999)return err('Nominal positif dan referensi transaksi wajib.',400);
+  try{return await mutate(db,db.prepare("INSERT INTO order_receipts SELECT ?,f.order_id,?,?,?,? FROM order_finance f JOIN orders o ON o.id=f.order_id WHERE f.order_id=? AND ((f.state='quoted' AND o.status IN ('claimed','confirmed','processing')) OR (f.state='paid' AND o.status IN ('claimed','confirmed','processing','completed'))) AND NOT EXISTS(SELECT 1 FROM cash_movements WHERE trim(reference)=?)").bind(crypto.randomUUID(),b.amount,ref,user.id,t,id,ref),user.id,'payment:verified',id,t);}
+  catch(e){if(/receipt_not_allowed|receipt_limit|cash_reference_conflict|cash_period_closed|UNIQUE constraint/.test(String(e.message)))return err('Penerimaan tidak dapat dicatat atau referensi sudah digunakan.',409);throw e;}
  }
  if(action==='evidence'){
   if(user.role!=='worker'||!assigned)return err('Hanya penjoki yang ditugaskan.',403);
