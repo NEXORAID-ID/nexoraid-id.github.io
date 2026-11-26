@@ -183,4 +183,4 @@ function globalSearch(){
 $('globalSearch').addEventListener('input',globalSearch);
 $('globalSearch').addEventListener('keydown',e=>{if(e.key==='Escape'){$('globalResults').hidden=true;e.currentTarget.setAttribute('aria-expanded','false');}else if(e.key==='Enter'){e.preventDefault();$('globalResults').querySelector('button')?.focus();}});
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'&&user&&!sessionInvalid&&!$('orderDialog').open){e.preventDefault();$('globalSearch').focus();globalSearch();}});
-if(location.origin==='https://nexoraid-v4.nexoraid.workers.dev'&&'serviceWorker' in navigator)navigator.serviceWorker.register('/portal-sw.js',{scope:'/portal.html'}).catch(()=>{});
+if(window.isSecureContext&&'serviceWorker' in navigator)navigator.serviceWorker.register('/portal-sw.js',{scope:'/portal.html'}).catch(()=>{});
