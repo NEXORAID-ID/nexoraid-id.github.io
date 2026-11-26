@@ -1,0 +1,30 @@
+name: Read-only Discord membership credential diagnostic
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'ops/probe-discord-membership.mjs'
+      - '.github/workflows/discord-membership-probe.yml'
+permissions:
+  contents: read
+concurrency:
+  group: discord-membership-probe
+  cancel-in-progress: false
+jobs:
+  probe:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: cloudflare-v4
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/membership-probe.test.mjs
+      - name: Verify configured credential and exact guild access (no identity output)
+        env:
+          DISCORD_MEMBERSHIP_BOT_TOKEN: ${{ secrets.DISCORD_MEMBERSHIP_BOT_TOKEN }}
+        run: node ops/probe-discord-membership.mjs
