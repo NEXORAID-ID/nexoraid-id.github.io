@@ -17,6 +17,7 @@ for file in portal.html portal.css portal.mjs; do cp "v4/$file" "dist/$file"; do
 npx --yes wrangler@4 whoami
 npx --yes wrangler@4 deploy --dry-run --config "$CONFIG"
 bash v4/scripts/backup.sh
+node v4/scripts/financial-migration-gate.mjs
 npx --yes wrangler@4 d1 migrations apply nexoraid-v4 --remote --config "$CONFIG"
 npx --yes wrangler@4 deploy --config "$CONFIG"
 node v4/scripts/verify.mjs
