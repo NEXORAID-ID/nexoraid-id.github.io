@@ -99,7 +99,7 @@ async function handle(r,env){
   const actor=r.headers.get('x-discord-user-id'),guild=r.headers.get('x-discord-guild-id');
   if(!validId(actor)||guild!=='1487728359482851348')return err('Identitas bot tidak valid.',403);
   p=p.replace('/api/bot/','/api/');
-  if(!((p==='/api/orders'&&['GET','POST'].includes(m))||(m==='POST'&&/^\/api\/orders\/[a-f0-9-]{36}\/(claim|status)$/.test(p))))return err('Endpoint bot tidak diizinkan.',404);
+  if(!((p==='/api/orders'&&['GET','POST'].includes(m))||(m==='POST'&&/^\/api\/orders\/[a-f0-9-]{36}\/(claim|status|evidence)$/.test(p))))return err('Endpoint bot tidak diizinkan.',404);
   await env.DB.prepare("INSERT INTO users(id,display_name,created_at) VALUES(?,?,?) ON CONFLICT(id) DO NOTHING").bind(actor,'Discord '+actor,now()).run();
   const u=await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+' FROM users u WHERE u.id=?').bind(actor).first();
   botUser=u?{...u,role:roleFor(u,env)}:null;
@@ -153,12 +153,12 @@ async function handle(r,env){
   const b=await body(r);const order=await env.DB.prepare('SELECT o.status,o.assigned_to,f.state AS payment_state,w.worker_id AS evidence_worker FROM orders o LEFT JOIN order_finance f ON f.order_id=o.id LEFT JOIN order_work w ON w.order_id=o.id WHERE o.id=?').bind(id).first();
   if(!order||!b||!mayTransition(user.role,order.assigned_to,user.id,order.status,b.status))return err('Perubahan status tidak diizinkan.',403);
   if(['processing','completed'].includes(b.status)&&order.payment_state!=='paid')return err('Pembayaran belum diverifikasi owner.',409);
-  if(b.status==='completed'&&order.evidence_worker!==order.assigned_to)return err('Bukti pengerjaan belum dikirim penjoki.',409);
+  if(b.status==='completed'&&(!order.assigned_to||order.evidence_worker!==order.assigned_to))return err('Bukti pengerjaan belum dikirim penjoki.',409);
   if(b.status==='cancelled'&&order.payment_state==='paid')return err('Order sudah dibayar. Memerlukan proses refund manual.',409);
   const results=await env.DB.batch([env.DB.prepare('UPDATE orders SET status=?,updated_at=? WHERE id=? AND status=? AND assigned_to IS ?').bind(b.status,t,id,order.status,order.assigned_to),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,?,?,? WHERE changes()=1").bind(user.id,'status:'+b.status,id,t)]);
   return results[0].meta.changes?json({ok:true}):err('Status sudah berubah.',409);
  }
- if(!bot){const extra=await operations({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
+ if(!bot||p.endsWith('/evidence')){const extra=await operations({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
  if(p==='/api/team'&&m==='GET'){
   if(user.role!=='owner')return err('Akses owner diperlukan.',403);
   const after=url.searchParams.get('after')||'';
@@ -172,6 +172,7 @@ async function handle(r,env){
   const b=await body(r);if(!b||!validId(b.user_id)||!['customer','worker','seller','management'].includes(b.role)||b.user_id===env.OWNER_DISCORD_ID)return err('Peran atau pengguna tidak valid.',400);
   const target=await env.DB.prepare('SELECT id FROM users WHERE id=?').bind(b.user_id).first();
   if(!target)return err('Pengguna belum terdaftar.',404);
+  if(b.role!=='worker'&&await env.DB.prepare("SELECT id FROM orders WHERE assigned_to=? AND status IN ('claimed','confirmed','processing') LIMIT 1").bind(b.user_id).first())return err('Selesaikan atau alihkan pekerjaan aktif sebelum mencabut role penjoki.',409);
   const grant=b.role==='management'?env.DB.prepare('INSERT INTO management_grants(user_id,granted_at) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET granted_at=excluded.granted_at').bind(b.user_id,now()):env.DB.prepare('DELETE FROM management_grants WHERE user_id=?').bind(b.user_id);
   await env.DB.batch([env.DB.prepare('UPDATE users SET role=? WHERE id=?').bind(b.role==='management'?'customer':b.role,b.user_id),grant,env.DB.prepare('INSERT INTO audit_events(actor_id,action,target_id,created_at) VALUES(?,?,?,?)').bind(user.id,'role:'+b.role,b.user_id,now())]);
   return json({ok:true});

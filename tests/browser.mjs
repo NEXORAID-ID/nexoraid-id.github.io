@@ -30,6 +30,25 @@ try{
   const desktop=await browser.newContext({viewport:{width:1440,height:900},reducedMotion:'reduce'});const desktopPage=await desktop.newPage();desktopPage.on('pageerror',e=>errors.push(e.message));
   await desktopPage.goto(url+'index.html');await desktopPage.locator('#homeSearchInput').waitFor();assert.ok(await desktopPage.locator('#navMenu').isVisible());assert.ok(await desktopPage.locator('#accountNav').isVisible());assert.equal(await desktopPage.locator('#accountNav').getAttribute('href'),'login.html');
   await desktopPage.goto(url+'login.html');assert.ok(await desktopPage.locator('#login').isVisible());assert.ok(await desktopPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  // Exercise the authenticated portal with controlled API fixtures, never production user data.
+  const {readFile}=await import('node:fs/promises');
+  const portalFiles=Object.fromEntries(await Promise.all(['portal.html','portal.css','portal.mjs'].map(async name=>[name,await readFile(new URL('../v4/'+name,import.meta.url),'utf8')])));
+  for(const role of ['owner','management','worker','customer']){
+   const ctx=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce'});
+   const p=await ctx.newPage();p.on('pageerror',e=>errors.push(e.message));
+   await p.route('**/portal.html',r=>r.fulfill({contentType:'text/html',body:portalFiles['portal.html']}));
+   await p.route('**/portal.css',r=>r.fulfill({contentType:'text/css',body:portalFiles['portal.css']}));
+   await p.route('**/portal.mjs',r=>r.fulfill({contentType:'text/javascript',body:portalFiles['portal.mjs']}));
+   const order={id:'11111111-1111-4111-8111-111111111111',service_id:'gta-heist',quantity:1,status:'requested',customer_id:'customer-id',created_at:1,estimate:15000,invoice_amount:null,payment_state:null};
+   await p.route('**/api/**',r=>{const path=new URL(r.request().url()).pathname;let data;
+    if(path==='/api/health')data={login_configured:true};else if(path==='/api/me')data={user:{id:role+'-id',role,display_name:'Test '+role}};else if(path==='/api/catalog')data={services:[{id:'gta-heist',name:'Heist',price:'Rp15.000'}]};else if(path==='/api/orders')data={orders:[order],next:null};else if(path==='/api/dashboard')data={counts:{requested:1},total:1};else if(path==='/api/orders/'+order.id)data={order,evidence:null};else return r.fulfill({status:404,json:{error:'Missing fixture'}});return r.fulfill({json:data});});
+   await p.goto(url+'portal.html');await p.locator('#orders article').waitFor();
+   assert.equal(await p.locator('#roleBadge').innerText(),{owner:'Owner',management:'Management',worker:'Penjoki',customer:'Customer'}[role]);
+   assert.equal(await p.locator('[data-view="finance"]').isVisible(),['owner','worker'].includes(role));assert.equal(await p.locator('[data-view="team"]').isVisible(),role==='owner');
+   assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+   await p.getByRole('button',{name:'Detail & tindakan'}).click();await p.locator('#orderDialog[open]').waitFor();
+   assert.equal(await p.getByRole('button',{name:'Ambil order',exact:true}).isVisible(),role==='worker');assert.equal(await p.getByRole('button',{name:'Batalkan permintaan',exact:true}).isVisible(),role==='customer');assert.equal(await p.getByRole('heading',{name:'Tugaskan penjoki'}).isVisible(),['owner','management'].includes(role));await ctx.close();
+  }
   await desktopPage.goto(url+'harga.html');assert.equal(await desktopPage.locator('.price-table tbody tr').count(),32);const csv=await desktopPage.request.get(url+'pricelist.csv');assert.ok(csv.ok());assert.match(await csv.text(),/OptiWindows/);
   const {services}=await import('../services-data.js');for(const s of services){const response=await desktopPage.goto(url+'layanan-'+s.id+'.html');assert.ok(response.ok(),s.id);assert.equal(await desktopPage.locator('h1').innerText(),s.name);}
   assert.deepEqual(errors,[]);await desktop.close();

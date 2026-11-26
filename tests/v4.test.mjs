@@ -41,3 +41,51 @@ test('Operations migration gates payment and evidence, records exact settlement 
  const s=db.prepare('SELECT gross,worker_share,owner_share FROM order_settlements').get();assert.equal(s.gross,14999);assert.equal(s.worker_share,8999);assert.equal(s.owner_share,6000);assert.equal(db.prepare('SELECT COUNT(*) AS n FROM order_settlements').get().n,1);db.close();
 });
 test('Operations scope and seller settlement policy are explicit',async()=>{const {scopeFor,financeKind}=await import('../v4/operations.mjs');assert.deepEqual(scopeFor({role:'customer',id:'c'}).args,['c']);assert.deepEqual(scopeFor({role:'worker',id:'w'}).args,['w','w']);assert.equal(financeKind('cherax'),'other');assert.equal(financeKind('seller'),'seller');assert.equal(financeKind('gta-heist'),'joki');assert.equal(mayTransition('worker','w','w','processing','completed'),false);});
+
+test('Four-role API lifecycle with SQLite D1 adapter and real persisted records',async()=>{
+ const {DatabaseSync}=await import('node:sqlite');const {readFile}=await import('node:fs/promises');
+ const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON');
+ for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
+ const ids={owner:'111111111111111111',management:'222222222222222222',worker:'333333333333333333',customer:'444444444444444444',other:'555555555555555555'};
+ const cookies={};
+ for(const [role,id] of Object.entries(ids)){
+  db.prepare('INSERT INTO users VALUES(?,?,?,?)').run(id,role,role==='worker'?'worker':'customer',1);
+  if(role==='management')db.prepare('INSERT INTO management_grants VALUES(?,?)').run(id,1);
+  const token=crypto.randomUUID()+crypto.randomUUID();cookies[role]='nexo_session='+token;
+  const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token))),n=>n.toString(16).padStart(2,'0')).join('');
+  db.prepare('INSERT INTO sessions VALUES(?,?,?)').run(hash,id,Math.floor(Date.now()/1000)+3600);
+ }
+ const DB={prepare(sql){return {args:[],bind(...args){this.args=args;return this;},async first(){return db.prepare(sql).get(...this.args)||null;},async all(){return {results:db.prepare(sql).all(...this.args)};},async run(){return {meta:{changes:Number(db.prepare(sql).run(...this.args).changes)}};}};},async batch(statements){db.exec('BEGIN');try{const out=[];for(const stmt of statements)out.push(await stmt.run());db.exec('COMMIT');return out;}catch(e){db.exec('ROLLBACK');throw e;}}};
+ const env={DB,PUBLIC_ORIGIN:'https://nexoraid.example',OWNER_DISCORD_ID:ids.owner,NEXORAID_BOT_API_KEY:'b'.repeat(64)};
+ const call=async(role,path,data)=>{const headers={cookie:cookies[role],origin:env.PUBLIC_ORIGIN,'content-type':'application/json'};return worker.fetch(req('/api/'+path,{headers,...(data===undefined?{}:{method:'POST',body:JSON.stringify(data)})}),env);};
+ try{
+  for(const role of ['owner','management','worker','customer'])assert.equal((await (await call(role,'me')).json()).user.role,role);
+  const created=await call('customer','orders',{service_id:'gta-heist',quantity:1});assert.equal(created.status,201);const {order}=await created.json();const id=order.id;
+  assert.equal((await (await call('other','orders')).json()).orders.length,0);
+  assert.equal((await call('other','orders/'+id)).status,404);
+  assert.equal((await (await call('worker','orders')).json()).orders[0].customer_id,null);
+  assert.equal((await call('management','team')).status,403);
+  assert.equal((await call('customer','orders/'+id+'/claim',{})).status,403);
+  assert.equal((await call('worker','orders/'+id+'/claim',{})).status,200);
+  assert.equal((await call('worker','orders/'+id+'/claim',{})).status,409);
+  assert.equal((await call('owner','team/role',{user_id:ids.worker,role:'customer'})).status,409);
+  assert.equal((await call('management','orders/'+id+'/quote',{amount:15000})).status,200);
+  assert.equal((await call('management','orders/'+id+'/status',{status:'confirmed'})).status,200);
+  assert.equal((await call('worker','orders/'+id+'/status',{status:'processing'})).status,409);
+  assert.equal((await call('management','orders/'+id+'/payment',{amount:15000,reference:'transfer-001'})).status,403);
+  assert.equal((await call('owner','orders/'+id+'/payment',{amount:14000,reference:'transfer-001'})).status,400);
+  assert.equal((await call('owner','orders/'+id+'/payment',{amount:15000,reference:'transfer-001'})).status,200);
+  assert.equal((await call('worker','orders/'+id+'/status',{status:'processing'})).status,200);
+  assert.equal((await call('management','orders/'+id+'/status',{status:'completed'})).status,409);
+  const bridge=await worker.fetch(req('/api/bot/orders/'+id+'/evidence',{method:'POST',headers:{authorization:'Bearer '+env.NEXORAID_BOT_API_KEY,'x-discord-user-id':ids.worker,'x-discord-guild-id':'1487728359482851348','content-type':'application/json'},body:JSON.stringify({evidence:'Work completed; reference #1'})}),env);assert.equal(bridge.status,200);
+  assert.equal((await call('worker','orders/'+id+'/status',{status:'completed'})).status,403);
+  assert.equal((await call('management','orders/'+id+'/status',{status:'completed'})).status,200);
+  const finance=await (await call('owner','settlements')).json();assert.equal(finance.settlements[0].worker_share,9000);assert.equal(finance.settlements[0].owner_share,6000);
+  assert.equal((await call('customer','settlements')).status,403);assert.equal((await call('management','audit')).status,403);
+  const personal=await (await call('worker','settlements')).json();assert.equal(personal.settlements[0].worker_share,9000);assert.equal('owner_share' in personal.settlements[0],false);
+  const detail=await (await call('customer','orders/'+id)).json();assert.equal(detail.evidence,null);assert.equal('payment_ref' in detail.order,false);
+  const summary=await (await call('owner','dashboard')).json();assert.equal(summary.counts.completed,1);
+  assert.equal((await call('owner','team/role',{user_id:ids.worker,role:'customer'})).status,200);
+  assert.equal((await call('worker','settlements')).status,403);
+ }finally{db.close();}
+});
