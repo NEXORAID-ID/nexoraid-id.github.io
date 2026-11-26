@@ -24,7 +24,7 @@ export async function workspace({p,m,url,user,env,readBody,r}){
    const w=!owner(user),where=w?'worker_id=?':'1=1',args=w?[user.id]:[];
    const earned=await db.prepare('SELECT COALESCE(SUM(worker_share),0) AS earned FROM order_settlements WHERE '+where).bind(...args).first();
    const spent=await db.prepare("SELECT COALESCE(SUM(CASE WHEN state='paid' THEN amount ELSE 0 END),0) AS paid,COALESCE(SUM(CASE WHEN state='pending' THEN amount ELSE 0 END),0) AS pending FROM payout_requests WHERE "+where).bind(...args).first();
-   const res=await page(db,url,'payout_requests','id,worker_id,amount,state,created_at,reviewed_at',where,args);if(!res.ok)return res;
+   const res=await page(db,url,'payout_requests','id,worker_id,amount,state,created_at,reviewed_at,(SELECT approved_at FROM payout_approvals a WHERE a.payout_id=payout_requests.id) AS approved_at',where,args);if(!res.ok)return res;
    return json({...await res.json(),balance:{...earned,...spent,available:earned.earned-spent.paid-spent.pending}});
   }
   if(owner(user)||!entitled)return deny();
@@ -36,8 +36,10 @@ export async function workspace({p,m,url,user,env,readBody,r}){
  if(payout&&post&&idRe.test(payout[1])){
   if(!owner(user))return deny();
   const b=await readBody(r),ref=str(b?.reference,4,80),id=payout[1];
-  if(!ref||!['paid','rejected'].includes(b?.state))return err('Status dan referensi / alasan wajib.');
-  return write(db,db.prepare("UPDATE payout_requests SET state=?,reviewed_at=?,reviewed_by=?,reference=? WHERE id=? AND state='pending' AND (?<>'paid' OR NOT EXISTS(SELECT 1 FROM payout_requests WHERE state='paid' AND reference=?))").bind(b.state,t,user.id,ref,id,b.state,ref),user,'payout:'+b.state,id,t);
+  if(!ref||!['approved','paid','rejected'].includes(b?.state))return err('Status dan referensi / alasan wajib.');
+  if(b.state==='approved')return write(db,db.prepare("INSERT INTO payout_approvals(payout_id,approved_by,approved_at,note) SELECT id,?,?,? FROM payout_requests WHERE id=? AND state='pending' ON CONFLICT(payout_id) DO NOTHING").bind(user.id,t,ref,id),user,'payout:approved',id,t);
+  if(b.state==='paid'&&b.confirmed!==true)return err('Konfirmasi transfer aktual wajib.');
+  return write(db,db.prepare("UPDATE payout_requests SET state=?,reviewed_at=?,reviewed_by=?,reference=? WHERE id=? AND state='pending' AND (?<>'paid' OR (EXISTS(SELECT 1 FROM payout_approvals WHERE payout_id=payout_requests.id) AND NOT EXISTS(SELECT 1 FROM payout_requests WHERE state='paid' AND reference=?)))").bind(b.state,t,user.id,ref,id,b.state,ref),user,'payout:'+b.state,id,t);
  }
  if(p==='/api/workspace/expenses'&&(get||post)){
   if(!owner(user))return deny();

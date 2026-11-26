@@ -44,3 +44,21 @@ BEGIN SELECT RAISE(ABORT,'account_suspended'); END;
 CREATE TRIGGER suspension_claim_guard BEFORE UPDATE OF assigned_to ON orders
 WHEN NEW.assigned_to IS NOT NULL AND EXISTS(SELECT 1 FROM account_suspensions WHERE user_id=NEW.assigned_to)
 BEGIN SELECT RAISE(ABORT,'account_suspended'); END;
+
+-- Separate approval from cash disbursement; pending continues to reserve worker balance.
+-- Existing paid/rejected requests remain untouched; no fabricated historical approvals.
+CREATE TABLE payout_approvals (
+ payout_id TEXT PRIMARY KEY REFERENCES payout_requests(id),
+ approved_by TEXT NOT NULL REFERENCES users(id),approved_at INTEGER NOT NULL,
+ note TEXT NOT NULL CHECK(length(note) BETWEEN 4 AND 80)
+);
+CREATE TRIGGER payout_approval_pending_guard BEFORE INSERT ON payout_approvals
+WHEN NOT EXISTS(SELECT 1 FROM payout_requests WHERE id=NEW.payout_id AND state='pending')
+BEGIN SELECT RAISE(ABORT,'payout_not_pending'); END;
+CREATE TRIGGER payout_approval_no_update BEFORE UPDATE ON payout_approvals
+BEGIN SELECT RAISE(ABORT,'payout_approval_immutable'); END;
+CREATE TRIGGER payout_approval_no_delete BEFORE DELETE ON payout_approvals
+BEGIN SELECT RAISE(ABORT,'payout_approval_immutable'); END;
+CREATE TRIGGER payout_paid_approval_guard BEFORE UPDATE OF state ON payout_requests
+WHEN NEW.state='paid' AND OLD.state='pending' AND NOT EXISTS(SELECT 1 FROM payout_approvals WHERE payout_id=NEW.id)
+BEGIN SELECT RAISE(ABORT,'payout_approval_required'); END;
