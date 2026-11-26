@@ -6,11 +6,13 @@ export async function installments({p,m,user,env,r,readBody}){
  if(!route)return null;
  const [,id,action]=route,db=env.DB;
  const order=await db.prepare('SELECT customer_id,status FROM orders WHERE id=?').bind(id).first();
- if(!order||!(user.role==='owner'||order.customer_id===user.id))return err('Order tidak ditemukan.',404);
+ const managementRead=user.role==='management'&&action==='installments'&&m==='GET';
+ if(!order||!(user.role==='owner'||order.customer_id===user.id||managementRead))return err('Order tidak ditemukan.',404);
  if(action==='installments'&&m==='GET'){
   const b=await db.prepare('SELECT b.*,f.state FROM installment_balances b JOIN order_finance f ON f.order_id=b.order_id WHERE b.order_id=?').bind(id).first();
   if(!b)return json({balance:null,receipts:[]});
-  const rows=(await db.prepare('SELECT amount,reference,created_at FROM verified_receipts WHERE order_id=? ORDER BY created_at,id LIMIT 200').bind(id).all()).results;
+  // Management needs the balance to respect invoice/cancel locks, not payment references.
+  const rows=managementRead?[]:(await db.prepare('SELECT amount,reference,created_at FROM verified_receipts WHERE order_id=? ORDER BY created_at,id LIMIT 200').bind(id).all()).results;
   return json({balance:{...b,due:order.status==='cancelled'||b.state==='paid'?0:Math.max(0,b.invoice_amount-b.received),surplus_due:Math.max(0,b.received-b.invoice_amount-b.surplus_refunded)},receipts:rows});
  }
  if(m!=='POST')return err('Metode tidak diizinkan.',405);
