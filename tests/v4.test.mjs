@@ -111,6 +111,9 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await call('customer','orders/'+id)).status,200);
   assert.equal((await call('owner','orders/'+id+'/payment',{amount:11000,reference:'transfer-001'})).status,200);
   const paidOrder=(await (await call('customer','orders/'+id)).json()).order;
+  const botFinance=async(role,method='GET')=>worker.fetch(req('/api/bot/orders/'+id+'/finance',{method,headers:{authorization:'Bearer '+env.NEXORAID_BOT_API_KEY,'x-discord-user-id':ids[role],'x-discord-guild-id':'1487728359482851348'}}),env);
+  const bf=await botFinance('customer');assert.equal(bf.status,200);const fin=(await bf.json()).finance;assert.equal(fin.received_amount,16000);assert.equal(fin.overpayment_due,1000);assert.equal('reference' in fin,false);
+  assert.equal((await botFinance('other')).status,404);assert.equal((await botFinance('owner','POST')).status,404);
   assert.equal(paidOrder.received_amount,16000);assert.equal(paidOrder.overpayment_due,1000);assert.equal(paidOrder.payment_state,'paid');
   assert.equal((await call('owner','workspace/orders/'+id+'/receipt-refund',{kind:'overpayment',amount:1001,reference:'over-ref-001',confirmed:true})).status,409);
   assert.equal((await call('owner','workspace/orders/'+id+'/receipt-refund',{kind:'overpayment',amount:1000,reference:'over-ref-001',confirmed:true})).status,200);

@@ -46,8 +46,10 @@ def scalar(sql):
     return value
 
 def source_snapshot():
-    counts={name:scalar(f'SELECT COUNT(*) FROM "{name}"') for name in restore.NAMES}
-    totals={name:scalar(sql) for name,sql in restore.TOTALS.items()}
+    existing={r["name"] for r in query("SELECT name FROM sqlite_master WHERE type='table'")}
+    names, queries=restore.snapshot_plan(existing)
+    counts={name:scalar(f'SELECT COUNT(*) FROM "{name}"') for name in names}
+    totals={name:scalar(sql) for name,sql in queries.items()}
     attachments={}
     # IDs are UUIDs in the actual application; quote literal regardless of content.
     rows=query("SELECT id FROM order_attachments ORDER BY id")

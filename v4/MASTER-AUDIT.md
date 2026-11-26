@@ -113,3 +113,7 @@ Website PR #4: initial commit 070f7f00, migration 0012 and ticket-queue tests; s
 | A84 | Seeded financial restore, independent reconciliation, rejection of mismatch, invalid SQL and ATTACH, copied session cleanup; isolated D1 migration/export/restore passed. | f66cb96d, [local gate 45866262430](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45866262430) | No evidence of encrypted off-volume production backup or production-derived isolated restore. Do not promote finance migrations on this alone. |
 
 The labels RUNTIME PROBE PASSED, ISOLATED E2E PASSED and ISOLATED RESTORE PASSED describe only the named evidence. None is full production acceptance. Earlier evidence rows are historical records, not current release clearance. No change to production data or Discord channels.
+
+### Finance A23–A35 candidate (PR #31, 27 Nov 2026 WIB)
+- Migrations 0016–0019: cash period controls; payout approval; individual verified receipts, excess liability and refunds; explicit seller fee, actual cost basis, post-repayment policy and noncash bonus records.
+- Website remains canonical for linked Discord orders. Read-only bot finance status exposes no payment references. Legacy ledger import/reconciliation, signed policy evidence, complete reports, actual staging, owner-approved encrypted backup/restore and production transaction evidence are still required. Registry states remain open pending evidence.

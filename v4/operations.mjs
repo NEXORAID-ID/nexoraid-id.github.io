@@ -63,13 +63,18 @@ export async function operations({p,m,url,user,env,readBody,r}){
   const rows=(await db.prepare('SELECT '+columns+' FROM all_order_settlements WHERE '+where+' ORDER BY order_id LIMIT 51').bind(...(worker?[user.id,before]:[before])).all()).results;
   const settlements=rows.slice(0,50);return json({settlements,next:rows.length>50?settlements.at(-1).order_id:null});
  }
- const match=p.match(/^\/api\/orders\/([a-f0-9-]{36})(?:\/(quote|payment|evidence|assign|cancel|seller-fee|cost-basis))?$/);
+ const match=p.match(/^\/api\/orders\/([a-f0-9-]{36})(?:\/(quote|payment|evidence|assign|cancel|seller-fee|cost-basis|finance))?$/);
  if(!match||!uuid.test(match[1]))return null;
  const [,id,action]=match;
  const order=await db.prepare('SELECT '+orderFields+joins+' WHERE o.id=?').bind(id).first();
  if(!order)return err('Order tidak ditemukan.',404);
  const owns=order.customer_id===user.id,assigned=order.assigned_to===user.id,over=staff(user.role);
  if(!over&&!owns&&!(user.role==='worker'&&(assigned||order.status==='requested')))return err('Order tidak ditemukan.',404);
+ if(action==='finance'){
+  if(m!=='GET')return err('Metode tidak diizinkan.',405);
+  if(!over&&!owns&&!(assigned&&user.role==='worker'))return err('Order tidak ditemukan.',404);
+  return json({finance:{order_id:id,status:order.status,invoice_amount:order.invoice_amount,received_amount:order.received_amount,outstanding_amount:order.outstanding_amount,overpayment_due:order.overpayment_due,partial_refunded_amount:order.partial_refunded_amount,payment_state:order.payment_state}});
+ }
  if(!action&&m==='GET'){
   const visible=redact(order,user);
   // Payment references and evidence are deliberately excluded from general customer responses.
