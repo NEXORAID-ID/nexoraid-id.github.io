@@ -1,0 +1,35 @@
+name: Isolated D1 migration gate
+on:
+  pull_request:
+    paths: ['v4/**','tests/**','.github/workflows/d1-local-gate.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  local-d1:
+    runs-on: ubuntu-24.04
+    env:
+      D1_DATABASE_ID: '00000000-0000-4000-8000-000000000001'
+      PUBLIC_ORIGIN: 'https://staging.invalid'
+      OWNER_DISCORD_ID: '111111111111111111'
+      DISCORD_CLIENT_ID: '222222222222222222'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build isolated configuration
+        run: |
+          npm run build
+          node v4/scripts/prepare.mjs
+      - name: Apply migrations only to temporary local D1
+        run: |
+          set -eu
+          localdb="$(mktemp -d)"
+          trap 'rm -rf "$localdb"' EXIT
+          npx --yes wrangler@4.168.0 d1 migrations apply nexoraid-v4 --local --config v4/.generated/wrangler.json
+          npx --yes wrangler@4.168.0 d1 execute nexoraid-v4 --local --config v4/.generated/wrangler.json --command "SELECT COUNT(*) AS rows_in_empty_ledger FROM cash_movements;"
+          npx --yes wrangler@4.168.0 d1 export nexoraid-v4 --local --config v4/.generated/wrangler.json --output "$localdb/fixture.sql"
+          python3 v4/scripts/restore-check.py < "$localdb/fixture.sql"
