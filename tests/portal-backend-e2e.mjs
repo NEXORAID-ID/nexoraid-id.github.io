@@ -19,18 +19,27 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  assert.equal(login.headers.get('location'),'/portal.html');
  const cookie=login.headers.getSetCookie().find(x=>x.startsWith('nexo_session=')).split(';')[0];
  ctx=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce',serviceWorkers:'block'});
- const page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));let lastOrderBody;
+ const page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));let lastOrderBody,lostOrderResponse=true;
  for(const [name,body] of Object.entries(portalFiles))await page.route('**/'+name,r=>r.fulfill({contentType:name.endsWith('.html')?'text/html':name.endsWith('.css')?'text/css':'text/javascript',body}));
  await page.route('**/api/**',async route=>{
   const req=route.request(),u=new URL(req.url()),method=req.method(),body=req.postData();
   if(u.pathname==='/api/orders'&&method==='POST')lastOrderBody=body;
   const response=await worker.fetch(new Request(origin+u.pathname+u.search,{method,headers:{cookie,origin,'content-type':'application/json'},...(body?{body}:{})}),env);
+  if(lostOrderResponse&&u.pathname==='/api/orders'&&method==='POST'&&response.status===201){lostOrderResponse=false;await route.abort('failed');return;}
   await route.fulfill({status:response.status,contentType:response.headers.get('content-type')||'application/json',body:await response.text()});
  });
  await page.goto(url+'portal.html');await page.waitForFunction(()=>document.querySelector('#status')?.textContent==='Terhubung.');
  assert.equal(await page.locator('#roleBadge').innerText(),'Pelanggan');
  await page.locator('#service').selectOption('optiwindows');await page.locator('#quantity').fill('1');
+ await page.locator('#request button').click();await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('belum pasti'));
+ const lost=JSON.parse(lastOrderBody);assert.equal(db.prepare('SELECT COUNT(*) n FROM orders').get().n,1);
+ await page.reload();await page.waitForFunction(()=>document.querySelector('#status')?.textContent==='Terhubung.');
+ await page.locator('#service').selectOption('optiwindows');await page.locator('#quantity').fill('2');
+ page.once('dialog',d=>d.accept());
  await page.locator('#request button').click();await page.waitForFunction(()=>document.querySelector('#status')?.textContent.startsWith('Permintaan tercatat:'));
+ assert.deepEqual(JSON.parse(lastOrderBody),lost);assert.equal(db.prepare('SELECT COUNT(*) n FROM orders').get().n,1);
+ await page.locator('#quantity').fill('1');
+ console.log('Browser lost-response checkout recovery passed: persisted original key and payload after reload and edited quantity.');
  const order=db.prepare('SELECT * FROM orders').get();assert.equal(order.customer_id,id);assert.equal(order.estimate,150000);
  assert.equal(db.prepare('SELECT COUNT(*) n FROM web_ticket_outbox WHERE order_id=?').get(order.id).n,1);
  const call=(path,body)=>worker.fetch(new Request(origin+path,{method:'POST',headers:{cookie,origin,'content-type':'application/json'},body}),env);
