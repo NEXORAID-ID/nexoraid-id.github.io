@@ -4,7 +4,7 @@ import { services, CONFIG } from '../services-data.js';
 import { categories, queryCatalog, priceValue, fixedPriceValue, comparisonTotals, escapeHTML, orderText } from '../catalog.js';
 
 test('catalog records have unique stable routes and complete order information', () => {
-  assert.equal(services.length, 58);
+  assert.equal(services.length, 138);
   assert.equal(new Set(services.map(s => s.id)).size, services.length);
   for (const service of services) {
     assert.match(service.id, /^[a-z0-9-]+$/);
@@ -75,7 +75,7 @@ test('catalog values are escaped before HTML insertion', () => {
 });
 test('Windows and Office prices and GTA login-only terms remain intact', () => {
   for (const [id,price] of [['windows-license','Rp75.000'],['office-license','Rp75.000'],['windows-office-bundle','Rp100.000']]) assert.equal(services.find(s=>s.id===id).price,price);
-  const gta = services.filter(s=>s.id.startsWith('gta-')&&!s.id.startsWith('gta-heist'));
+  const gta = services.filter(s=>s.id.startsWith('gta-')&&!s.id.startsWith('gta-heist')&&!s.parent_id);
   assert.equal(gta.length,18);
   assert.ok(!/mabar|non-login/i.test(JSON.stringify(gta)));
   assert.ok(gta.every(s=>JSON.stringify(s.details).includes('via login akun')));

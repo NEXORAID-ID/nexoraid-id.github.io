@@ -2512,3 +2512,2325 @@ export const services = [
     ]
   }
 ];
+
+// Explicit stable SKUs for the previously published package rows. IDs are not derived at runtime.
+services.push(...[
+  {
+    "id": "gta-rank-v-100-rank",
+    "parent_id": "gta-rank",
+    "category": "gaming",
+    "icon": "⭐",
+    "name": "GTA Online — Rank Boost — +100 RANK",
+    "badge": "VIA LOGIN",
+    "desc": "+100 RANK. Rank, Crew Rank, dan LSCM REP. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp12.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "+100 RANK",
+        "Rp12.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-rank-v-250-rank",
+    "parent_id": "gta-rank",
+    "category": "gaming",
+    "icon": "⭐",
+    "name": "GTA Online — Rank Boost — +250 RANK",
+    "badge": "VIA LOGIN",
+    "desc": "+250 RANK. Rank, Crew Rank, dan LSCM REP. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp22.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "+250 RANK",
+        "Rp22.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-rank-v-500-rank",
+    "parent_id": "gta-rank",
+    "category": "gaming",
+    "icon": "⭐",
+    "name": "GTA Online — Rank Boost — +500 RANK",
+    "badge": "VIA LOGIN",
+    "desc": "+500 RANK. Rank, Crew Rank, dan LSCM REP. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp39.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "+500 RANK",
+        "Rp39.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-rank-v-1000-rank",
+    "parent_id": "gta-rank",
+    "category": "gaming",
+    "icon": "⭐",
+    "name": "GTA Online — Rank Boost — +1000 RANK",
+    "badge": "VIA LOGIN",
+    "desc": "+1000 RANK. Rank, Crew Rank, dan LSCM REP. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp59.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "+1000 RANK",
+        "Rp59.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-rank-v-8000-rank",
+    "parent_id": "gta-rank",
+    "category": "gaming",
+    "icon": "⭐",
+    "name": "GTA Online — Rank Boost — +8000 RANK",
+    "badge": "VIA LOGIN",
+    "desc": "+8000 RANK. Rank, Crew Rank, dan LSCM REP. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp119.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "+8000 RANK",
+        "Rp119.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-rank-v-request-crew-rank",
+    "parent_id": "gta-rank",
+    "category": "gaming",
+    "icon": "⭐",
+    "name": "GTA Online — Rank Boost — REQUEST CREW RANK",
+    "badge": "VIA LOGIN",
+    "desc": "REQUEST CREW RANK. Rank, Crew Rank, dan LSCM REP. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp8.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "REQUEST CREW RANK",
+        "Rp8.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-rank-v-1000-lscm-rep",
+    "parent_id": "gta-rank",
+    "category": "gaming",
+    "icon": "⭐",
+    "name": "GTA Online — Rank Boost — +1000 LSCM REP",
+    "badge": "VIA LOGIN",
+    "desc": "+1000 LSCM REP. Rank, Crew Rank, dan LSCM REP. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp14.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "+1000 LSCM REP",
+        "Rp14.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-stats-v-1-stat",
+    "parent_id": "gta-stats",
+    "category": "gaming",
+    "icon": "📊",
+    "name": "GTA Online — Max Stats — 1 STAT",
+    "badge": "VIA LOGIN",
+    "desc": "1 STAT. Pilihan Stamina, Strength, Shooting, Stealth, Driving, Flying, atau Lung Capacity. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp4.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "1 STAT",
+        "Rp4.999 • Pilihan: Stamina / Strength / Shooting / Stealth / Driving / Flying / Lung Capacity"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-stats-v-3-stats",
+    "parent_id": "gta-stats",
+    "category": "gaming",
+    "icon": "📊",
+    "name": "GTA Online — Max Stats — 3 STATS",
+    "badge": "VIA LOGIN",
+    "desc": "3 STATS. Pilihan Stamina, Strength, Shooting, Stealth, Driving, Flying, atau Lung Capacity. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp12.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "3 STATS",
+        "Rp12.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-stats-v-full-max-stats",
+    "parent_id": "gta-stats",
+    "category": "gaming",
+    "icon": "📊",
+    "name": "GTA Online — Max Stats — FULL MAX STATS",
+    "badge": "VIA LOGIN",
+    "desc": "FULL MAX STATS. Pilihan Stamina, Strength, Shooting, Stealth, Driving, Flying, atau Lung Capacity. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp19.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "FULL MAX STATS",
+        "Rp19.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-unlock-v-fast-run-ability",
+    "parent_id": "gta-unlock",
+    "category": "gaming",
+    "icon": "🔓",
+    "name": "GTA Online — Unlock Package — FAST RUN ABILITY",
+    "badge": "VIA LOGIN",
+    "desc": "FAST RUN ABILITY. Unlock ability, DLC, senjata, progress, dan kosmetik. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp8.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "FAST RUN ABILITY",
+        "Rp8.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-unlock-v-unlock-all-dlc",
+    "parent_id": "gta-unlock",
+    "category": "gaming",
+    "icon": "🔓",
+    "name": "GTA Online — Unlock Package — UNLOCK ALL DLC",
+    "badge": "VIA LOGIN",
+    "desc": "UNLOCK ALL DLC. Unlock ability, DLC, senjata, progress, dan kosmetik. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp17.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "UNLOCK ALL DLC",
+        "Rp17.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-unlock-v-unlock-rare-weapons",
+    "parent_id": "gta-unlock",
+    "category": "gaming",
+    "icon": "🔓",
+    "name": "GTA Online — Unlock Package — UNLOCK RARE WEAPONS",
+    "badge": "VIA LOGIN",
+    "desc": "UNLOCK RARE WEAPONS. Unlock ability, DLC, senjata, progress, dan kosmetik. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp14.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "UNLOCK RARE WEAPONS",
+        "Rp14.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-unlock-v-unlock-services",
+    "parent_id": "gta-unlock",
+    "category": "gaming",
+    "icon": "🔓",
+    "name": "GTA Online — Unlock Package — UNLOCK SERVICES",
+    "badge": "VIA LOGIN",
+    "desc": "UNLOCK SERVICES. Unlock ability, DLC, senjata, progress, dan kosmetik. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp14.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "UNLOCK SERVICES",
+        "Rp14.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-unlock-v-unlock-arena-war",
+    "parent_id": "gta-unlock",
+    "category": "gaming",
+    "icon": "🔓",
+    "name": "GTA Online — Unlock Package — UNLOCK ARENA WAR",
+    "badge": "VIA LOGIN",
+    "desc": "UNLOCK ARENA WAR. Unlock ability, DLC, senjata, progress, dan kosmetik. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp8.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "UNLOCK ARENA WAR",
+        "Rp8.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-unlock-v-unlock-all-trophies",
+    "parent_id": "gta-unlock",
+    "category": "gaming",
+    "icon": "🔓",
+    "name": "GTA Online — Unlock Package — UNLOCK ALL TROPHIES",
+    "badge": "VIA LOGIN",
+    "desc": "UNLOCK ALL TROPHIES. Unlock ability, DLC, senjata, progress, dan kosmetik. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp12.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "UNLOCK ALL TROPHIES",
+        "Rp12.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-unlock-v-unlock-all-progress",
+    "parent_id": "gta-unlock",
+    "category": "gaming",
+    "icon": "🔓",
+    "name": "GTA Online — Unlock Package — UNLOCK ALL PROGRESS",
+    "badge": "VIA LOGIN",
+    "desc": "UNLOCK ALL PROGRESS. Unlock ability, DLC, senjata, progress, dan kosmetik. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp14.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "UNLOCK ALL PROGRESS",
+        "Rp14.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-unlock-v-career-progress-100",
+    "parent_id": "gta-unlock",
+    "category": "gaming",
+    "icon": "🔓",
+    "name": "GTA Online — Unlock Package — CAREER PROGRESS 100%",
+    "badge": "VIA LOGIN",
+    "desc": "CAREER PROGRESS 100%. Unlock ability, DLC, senjata, progress, dan kosmetik. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp17.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "CAREER PROGRESS 100%",
+        "Rp17.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-unlock-v-all-basic-weapons",
+    "parent_id": "gta-unlock",
+    "category": "gaming",
+    "icon": "🔓",
+    "name": "GTA Online — Unlock Package — ALL BASIC WEAPONS",
+    "badge": "VIA LOGIN",
+    "desc": "ALL BASIC WEAPONS. Unlock ability, DLC, senjata, progress, dan kosmetik. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp7.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "ALL BASIC WEAPONS",
+        "Rp7.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-unlock-v-all-weapons",
+    "parent_id": "gta-unlock",
+    "category": "gaming",
+    "icon": "🔓",
+    "name": "GTA Online — Unlock Package — ALL WEAPONS",
+    "badge": "VIA LOGIN",
+    "desc": "ALL WEAPONS. Unlock ability, DLC, senjata, progress, dan kosmetik. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp8.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "ALL WEAPONS",
+        "Rp8.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-unlock-v-all-ammo",
+    "parent_id": "gta-unlock",
+    "category": "gaming",
+    "icon": "🔓",
+    "name": "GTA Online — Unlock Package — ALL AMMO",
+    "badge": "VIA LOGIN",
+    "desc": "ALL AMMO. Unlock ability, DLC, senjata, progress, dan kosmetik. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "ALL AMMO",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-unlock-v-all-weapons-all-ammo",
+    "parent_id": "gta-unlock",
+    "category": "gaming",
+    "icon": "🔓",
+    "name": "GTA Online — Unlock Package — ALL WEAPONS + ALL AMMO",
+    "badge": "VIA LOGIN",
+    "desc": "ALL WEAPONS + ALL AMMO. Unlock ability, DLC, senjata, progress, dan kosmetik. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp11.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "ALL WEAPONS + ALL AMMO",
+        "Rp11.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-unlock-v-all-outfits",
+    "parent_id": "gta-unlock",
+    "category": "gaming",
+    "icon": "🔓",
+    "name": "GTA Online — Unlock Package — ALL OUTFITS",
+    "badge": "VIA LOGIN",
+    "desc": "ALL OUTFITS. Unlock ability, DLC, senjata, progress, dan kosmetik. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp8.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "ALL OUTFITS",
+        "Rp8.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-unlock-v-all-liveries",
+    "parent_id": "gta-unlock",
+    "category": "gaming",
+    "icon": "🔓",
+    "name": "GTA Online — Unlock Package — ALL LIVERIES",
+    "badge": "VIA LOGIN",
+    "desc": "ALL LIVERIES. Unlock ability, DLC, senjata, progress, dan kosmetik. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp8.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "ALL LIVERIES",
+        "Rp8.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-unlock-v-all-tattoos",
+    "parent_id": "gta-unlock",
+    "category": "gaming",
+    "icon": "🔓",
+    "name": "GTA Online — Unlock Package — ALL TATTOOS",
+    "badge": "VIA LOGIN",
+    "desc": "ALL TATTOOS. Unlock ability, DLC, senjata, progress, dan kosmetik. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "ALL TATTOOS",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-unlock-v-all-hairstyles",
+    "parent_id": "gta-unlock",
+    "category": "gaming",
+    "icon": "🔓",
+    "name": "GTA Online — Unlock Package — ALL HAIRSTYLES",
+    "badge": "VIA LOGIN",
+    "desc": "ALL HAIRSTYLES. Unlock ability, DLC, senjata, progress, dan kosmetik. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "ALL HAIRSTYLES",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-unlock-v-all-masks",
+    "parent_id": "gta-unlock",
+    "category": "gaming",
+    "icon": "🔓",
+    "name": "GTA Online — Unlock Package — ALL MASKS",
+    "badge": "VIA LOGIN",
+    "desc": "ALL MASKS. Unlock ability, DLC, senjata, progress, dan kosmetik. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "ALL MASKS",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-unlock-v-all-accessories",
+    "parent_id": "gta-unlock",
+    "category": "gaming",
+    "icon": "🔓",
+    "name": "GTA Online — Unlock Package — ALL ACCESSORIES",
+    "badge": "VIA LOGIN",
+    "desc": "ALL ACCESSORIES. Unlock ability, DLC, senjata, progress, dan kosmetik. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "ALL ACCESSORIES",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-cosmetic-v-cosmetic-full-pack",
+    "parent_id": "gta-cosmetic",
+    "category": "gaming",
+    "icon": "👕",
+    "name": "GTA Online — Cosmetic & Modded Outfit — COSMETIC FULL PACK",
+    "badge": "VIA LOGIN",
+    "desc": "COSMETIC FULL PACK. Cosmetic Full Pack dan pilihan 1–10 Modded Outfit. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp22.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "COSMETIC FULL PACK",
+        "Rp22.999 • All Outfits; All Liveries; All Tattoos; All Hairstyles; All Masks; All Accessories"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-cosmetic-v-1-modded-outfit",
+    "parent_id": "gta-cosmetic",
+    "category": "gaming",
+    "icon": "👕",
+    "name": "GTA Online — Cosmetic & Modded Outfit — 1 MODDED OUTFIT",
+    "badge": "VIA LOGIN",
+    "desc": "1 MODDED OUTFIT. Cosmetic Full Pack dan pilihan 1–10 Modded Outfit. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "1 MODDED OUTFIT",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-cosmetic-v-3-modded-outfit",
+    "parent_id": "gta-cosmetic",
+    "category": "gaming",
+    "icon": "👕",
+    "name": "GTA Online — Cosmetic & Modded Outfit — 3 MODDED OUTFIT",
+    "badge": "VIA LOGIN",
+    "desc": "3 MODDED OUTFIT. Cosmetic Full Pack dan pilihan 1–10 Modded Outfit. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp14.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "3 MODDED OUTFIT",
+        "Rp14.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-cosmetic-v-5-modded-outfit",
+    "parent_id": "gta-cosmetic",
+    "category": "gaming",
+    "icon": "👕",
+    "name": "GTA Online — Cosmetic & Modded Outfit — 5 MODDED OUTFIT",
+    "badge": "VIA LOGIN",
+    "desc": "5 MODDED OUTFIT. Cosmetic Full Pack dan pilihan 1–10 Modded Outfit. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp24.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "5 MODDED OUTFIT",
+        "Rp24.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-cosmetic-v-10-modded-outfit",
+    "parent_id": "gta-cosmetic",
+    "category": "gaming",
+    "icon": "👕",
+    "name": "GTA Online — Cosmetic & Modded Outfit — 10 MODDED OUTFIT",
+    "badge": "VIA LOGIN",
+    "desc": "10 MODDED OUTFIT. Cosmetic Full Pack dan pilihan 1–10 Modded Outfit. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp44.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "10 MODDED OUTFIT",
+        "Rp44.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-office-mid-town",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — OFFICE MID TOWN",
+    "badge": "VIA LOGIN",
+    "desc": "OFFICE MID TOWN. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp2.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "OFFICE MID TOWN",
+        "Rp2.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-ceo-office",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — CEO OFFICE",
+    "badge": "VIA LOGIN",
+    "desc": "CEO OFFICE. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "CEO OFFICE",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-kosatka",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — KOSATKA",
+    "badge": "VIA LOGIN",
+    "desc": "KOSATKA. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "KOSATKA",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-agency",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — AGENCY",
+    "badge": "VIA LOGIN",
+    "desc": "AGENCY. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "AGENCY",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-arcade",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — ARCADE",
+    "badge": "VIA LOGIN",
+    "desc": "ARCADE. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "ARCADE",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-nightclub",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — NIGHTCLUB",
+    "badge": "VIA LOGIN",
+    "desc": "NIGHTCLUB. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "NIGHTCLUB",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-bunker",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — BUNKER",
+    "badge": "VIA LOGIN",
+    "desc": "BUNKER. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "BUNKER",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-facility",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — FACILITY",
+    "badge": "VIA LOGIN",
+    "desc": "FACILITY. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "FACILITY",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-auto-shop",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — AUTO SHOP",
+    "badge": "VIA LOGIN",
+    "desc": "AUTO SHOP. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "AUTO SHOP",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-mc-clubhouse",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — MC CLUBHOUSE",
+    "badge": "VIA LOGIN",
+    "desc": "MC CLUBHOUSE. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp4.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "MC CLUBHOUSE",
+        "Rp4.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-hangar",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — HANGAR",
+    "badge": "VIA LOGIN",
+    "desc": "HANGAR. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "HANGAR",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-penthouse",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — PENTHOUSE",
+    "badge": "VIA LOGIN",
+    "desc": "PENTHOUSE. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "PENTHOUSE",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-yacht",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — YACHT",
+    "badge": "VIA LOGIN",
+    "desc": "YACHT. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "YACHT",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-terrorbyte",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — TERRORBYTE",
+    "badge": "VIA LOGIN",
+    "desc": "TERRORBYTE. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp7.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "TERRORBYTE",
+        "Rp7.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-avenger",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — AVENGER",
+    "badge": "VIA LOGIN",
+    "desc": "AVENGER. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp7.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "AVENGER",
+        "Rp7.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-moc",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — MOC",
+    "badge": "VIA LOGIN",
+    "desc": "MOC. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp7.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "MOC",
+        "Rp7.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-acid-lab",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — ACID LAB",
+    "badge": "VIA LOGIN",
+    "desc": "ACID LAB. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp7.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "ACID LAB",
+        "Rp7.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-salvage-yard",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — SALVAGE YARD",
+    "badge": "VIA LOGIN",
+    "desc": "SALVAGE YARD. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "SALVAGE YARD",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-bail-office",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — BAIL OFFICE",
+    "badge": "VIA LOGIN",
+    "desc": "BAIL OFFICE. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "BAIL OFFICE",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-vehicle-warehouse",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — VEHICLE WAREHOUSE",
+    "badge": "VIA LOGIN",
+    "desc": "VEHICLE WAREHOUSE. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "VEHICLE WAREHOUSE",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-special-cargo-warehouse",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — SPECIAL CARGO WAREHOUSE",
+    "badge": "VIA LOGIN",
+    "desc": "SPECIAL CARGO WAREHOUSE. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "SPECIAL CARGO WAREHOUSE",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-1-mansion",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — 1 MANSION",
+    "badge": "VIA LOGIN",
+    "desc": "1 MANSION. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "1 MANSION",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-3-mansion",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — 3 MANSION",
+    "badge": "VIA LOGIN",
+    "desc": "3 MANSION. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp12.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "3 MANSION",
+        "Rp12.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-5-high-end-apartment",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — 5 HIGH-END APARTMENT",
+    "badge": "VIA LOGIN",
+    "desc": "5 HIGH-END APARTMENT. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp8.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "5 HIGH-END APARTMENT",
+        "Rp8.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-8-high-end-apartment",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — 8 HIGH-END APARTMENT",
+    "badge": "VIA LOGIN",
+    "desc": "8 HIGH-END APARTMENT. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp12.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "8 HIGH-END APARTMENT",
+        "Rp12.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-property-v-10-high-end-apartment-max",
+    "parent_id": "gta-property",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Properti & Bisnis — 10 HIGH-END APARTMENT MAX",
+    "badge": "VIA LOGIN",
+    "desc": "10 HIGH-END APARTMENT MAX. Properti, bisnis, layanan, mansion, dan apartemen satuan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp17.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "10 HIGH-END APARTMENT MAX",
+        "Rp17.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-business-v-business-starter-pack",
+    "parent_id": "gta-business",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Business Bundle — BUSINESS STARTER PACK",
+    "badge": "VIA LOGIN",
+    "desc": "BUSINESS STARTER PACK. Business Starter, Business Raid, dan Full Business Pack. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp14.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "BUSINESS STARTER PACK",
+        "Rp14.999 • KOSATKA; AGENCY; NIGHTCLUB"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-business-v-business-raid-pack",
+    "parent_id": "gta-business",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Business Bundle — BUSINESS RAID PACK",
+    "badge": "VIA LOGIN",
+    "desc": "BUSINESS RAID PACK. Business Starter, Business Raid, dan Full Business Pack. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp24.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "BUSINESS RAID PACK",
+        "Rp24.999 • CEO OFFICE; KOSATKA; AGENCY; NIGHTCLUB; BUNKER; ARCADE; AUTO SHOP"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-business-v-full-business-pack",
+    "parent_id": "gta-business",
+    "category": "gaming",
+    "icon": "🏢",
+    "name": "GTA Online — Business Bundle — FULL BUSINESS PACK",
+    "badge": "VIA LOGIN",
+    "desc": "FULL BUSINESS PACK. Business Starter, Business Raid, dan Full Business Pack. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp19.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "FULL BUSINESS PACK",
+        "Rp19.999 • CEO OFFICE; VEHICLE WAREHOUSE; SPECIAL CARGO WAREHOUSE; BUNKER; HANGAR; NIGHTCLUB; AUTO SHOP; SALVAGE YARD; BAIL OFFICE"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-luxury-v-full-mc-business-pack",
+    "parent_id": "gta-luxury",
+    "category": "gaming",
+    "icon": "🏙️",
+    "name": "GTA Online — MC, Services & Luxury Pack — FULL MC BUSINESS PACK",
+    "badge": "VIA LOGIN",
+    "desc": "FULL MC BUSINESS PACK. Paket MC Business, Services, dan Luxury Property. Lihat isi paket di Detail. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp14.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "FULL MC BUSINESS PACK",
+        "Rp14.999 • Cocaine Lockup; Meth Lab; Counterfeit Cash Factory; Weed Farm; Document Forgery Office"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-luxury-v-full-services-pack",
+    "parent_id": "gta-luxury",
+    "category": "gaming",
+    "icon": "🏙️",
+    "name": "GTA Online — MC, Services & Luxury Pack — FULL SERVICES PACK",
+    "badge": "VIA LOGIN",
+    "desc": "FULL SERVICES PACK. Paket MC Business, Services, dan Luxury Property. Lihat isi paket di Detail. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp19.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "FULL SERVICES PACK",
+        "Rp19.999 • KOSATKA; TERRORBYTE; AVENGER; MOC; ACID LAB; AGENCY; FACILITY; MASTER CONTROL TERMINAL"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-luxury-v-luxury-property-pack",
+    "parent_id": "gta-luxury",
+    "category": "gaming",
+    "icon": "🏙️",
+    "name": "GTA Online — MC, Services & Luxury Pack — LUXURY PROPERTY PACK",
+    "badge": "VIA LOGIN",
+    "desc": "LUXURY PROPERTY PACK. Paket MC Business, Services, dan Luxury Property. Lihat isi paket di Detail. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp29.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "LUXURY PROPERTY PACK",
+        "Rp29.999 • YACHT; PENTHOUSE; 3 MANSION; 10 HIGH-END APARTMENT MAX"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-vehicles-v-1-kendaraan",
+    "parent_id": "gta-vehicles",
+    "category": "gaming",
+    "icon": "🚗",
+    "name": "GTA Online — Kendaraan — 1 KENDARAAN",
+    "badge": "VIA LOGIN",
+    "desc": "1 KENDARAAN. Pilihan 1–25 kendaraan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp2.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "1 KENDARAAN",
+        "Rp2.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-vehicles-v-5-kendaraan",
+    "parent_id": "gta-vehicles",
+    "category": "gaming",
+    "icon": "🚗",
+    "name": "GTA Online — Kendaraan — 5 KENDARAAN",
+    "badge": "VIA LOGIN",
+    "desc": "5 KENDARAAN. Pilihan 1–25 kendaraan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp9.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "5 KENDARAAN",
+        "Rp9.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-vehicles-v-10-kendaraan",
+    "parent_id": "gta-vehicles",
+    "category": "gaming",
+    "icon": "🚗",
+    "name": "GTA Online — Kendaraan — 10 KENDARAAN",
+    "badge": "VIA LOGIN",
+    "desc": "10 KENDARAAN. Pilihan 1–25 kendaraan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp19.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "10 KENDARAAN",
+        "Rp19.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-vehicles-v-15-kendaraan",
+    "parent_id": "gta-vehicles",
+    "category": "gaming",
+    "icon": "🚗",
+    "name": "GTA Online — Kendaraan — 15 KENDARAAN",
+    "badge": "VIA LOGIN",
+    "desc": "15 KENDARAAN. Pilihan 1–25 kendaraan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp29.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "15 KENDARAAN",
+        "Rp29.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-vehicles-v-20-kendaraan",
+    "parent_id": "gta-vehicles",
+    "category": "gaming",
+    "icon": "🚗",
+    "name": "GTA Online — Kendaraan — 20 KENDARAAN",
+    "badge": "VIA LOGIN",
+    "desc": "20 KENDARAAN. Pilihan 1–25 kendaraan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp39.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "20 KENDARAAN",
+        "Rp39.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-vehicles-v-25-kendaraan",
+    "parent_id": "gta-vehicles",
+    "category": "gaming",
+    "icon": "🚗",
+    "name": "GTA Online — Kendaraan — 25 KENDARAAN",
+    "badge": "VIA LOGIN",
+    "desc": "25 KENDARAAN. Pilihan 1–25 kendaraan. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp49.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "25 KENDARAAN",
+        "Rp49.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-special-v-ganti-gender",
+    "parent_id": "gta-special",
+    "category": "gaming",
+    "icon": "🎁",
+    "name": "GTA Online — Special & Heist Prep — GANTI GENDER",
+    "badge": "VIA LOGIN",
+    "desc": "GANTI GENDER. Ganti gender, prize ride, podium car, dan persiapan heist. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp8.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "GANTI GENDER",
+        "Rp8.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-special-v-cayo-casino-max-prep",
+    "parent_id": "gta-special",
+    "category": "gaming",
+    "icon": "🎁",
+    "name": "GTA Online — Special & Heist Prep — CAYO + CASINO MAX PREP",
+    "badge": "VIA LOGIN",
+    "desc": "CAYO + CASINO MAX PREP. Ganti gender, prize ride, podium car, dan persiapan heist. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp9.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "CAYO + CASINO MAX PREP",
+        "Rp9.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-special-v-lscm-prize-ride",
+    "parent_id": "gta-special",
+    "category": "gaming",
+    "icon": "🎁",
+    "name": "GTA Online — Special & Heist Prep — LSCM PRIZE RIDE",
+    "badge": "VIA LOGIN",
+    "desc": "LSCM PRIZE RIDE. Ganti gender, prize ride, podium car, dan persiapan heist. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "LSCM PRIZE RIDE",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-special-v-casino-podium-car",
+    "parent_id": "gta-special",
+    "category": "gaming",
+    "icon": "🎁",
+    "name": "GTA Online — Special & Heist Prep — CASINO PODIUM CAR",
+    "badge": "VIA LOGIN",
+    "desc": "CASINO PODIUM CAR. Ganti gender, prize ride, podium car, dan persiapan heist. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "CASINO PODIUM CAR",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-special-v-all-heist-max-prep",
+    "parent_id": "gta-special",
+    "category": "gaming",
+    "icon": "🎁",
+    "name": "GTA Online — Special & Heist Prep — ALL HEIST MAX PREP",
+    "badge": "VIA LOGIN",
+    "desc": "ALL HEIST MAX PREP. Ganti gender, prize ride, podium car, dan persiapan heist. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp12.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "ALL HEIST MAX PREP",
+        "Rp12.999 • Cayo Perico; Diamond Casino; Doomsday; Apartment Heist"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-recovery-v-k-d-reset",
+    "parent_id": "gta-recovery",
+    "category": "gaming",
+    "icon": "🛠️",
+    "name": "GTA Online — Recovery — K/D RESET",
+    "badge": "VIA LOGIN",
+    "desc": "K/D RESET. K/D Reset, Race Wins, dan Skill Unlock. Tersedia jika fitur masih support dan setelah dicek admin. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "K/D RESET",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-recovery-v-race-wins",
+    "parent_id": "gta-recovery",
+    "category": "gaming",
+    "icon": "🛠️",
+    "name": "GTA Online — Recovery — RACE WINS",
+    "badge": "VIA LOGIN",
+    "desc": "RACE WINS. K/D Reset, Race Wins, dan Skill Unlock. Tersedia jika fitur masih support dan setelah dicek admin. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "RACE WINS",
+        "Rp5.999"
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "gta-recovery-v-skill-unlock",
+    "parent_id": "gta-recovery",
+    "category": "gaming",
+    "icon": "🛠️",
+    "name": "GTA Online — Recovery — SKILL UNLOCK",
+    "badge": "VIA LOGIN",
+    "desc": "SKILL UNLOCK. K/D Reset, Race Wins, dan Skill Unlock. Tersedia jika fitur masih support dan setelah dicek admin. PC Legacy / Enhanced, via login akun.",
+    "price": "Rp5.999",
+    "accent": "rgba(49,215,255,.18)",
+    "details": [
+      [
+        "SKILL UNLOCK",
+        "Rp5.999 • Note: layanan recovery tertentu hanya tersedia jika fitur masih support dan akan dicek admin terlebih dahulu."
+      ],
+      [
+        "Platform",
+        "PC Only • Legacy / Enhanced • Harga sama"
+      ],
+      [
+        "Metode",
+        "Semua layanan via login akun"
+      ],
+      [
+        "Proses",
+        "Sesuai antrean dan cooldown akun; beberapa layanan dicek admin terlebih dahulu"
+      ]
+    ]
+  },
+  {
+    "id": "rockstar-2fa-recovery",
+    "category": "gaming",
+    "icon": "🔐",
+    "name": "Rockstar — Pemulihan 2FA",
+    "badge": "REQUEST",
+    "desc": "Bantuan pengajuan melalui Rockstar Support resmi untuk Microsoft Authenticator yang hilang atau tidak memiliki cadangan. Verifikasi dilakukan pelanggan; hasil bergantung pada Rockstar.",
+    "price": "Rp150.000",
+    "details": [
+      [
+        "Harga",
+        "Rp150.000"
+      ],
+      [
+        "Proses",
+        "Pengajuan melalui Rockstar Support resmi"
+      ],
+      [
+        "Verifikasi",
+        "Dilakukan pelanggan; jangan memberikan OTP atau kata sandi"
+      ],
+      [
+        "Hasil",
+        "Bergantung pada keputusan Rockstar Support"
+      ]
+    ]
+  }
+]);

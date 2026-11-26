@@ -18,7 +18,7 @@ let basket = safeBasket(readStore('nexoraid-basket',[]), services);
 const basketNav=$('#basketNav');
 function updateBasketNav(){if(basketNav)basketNav.textContent='Keranjang ('+basket.reduce((n,r)=>n+r.quantity,0)+')';}
 function updateFavorites(){ $$('[data-favorite]').forEach(b=>{const selected=favorites.includes(b.dataset.favorite);b.setAttribute('aria-pressed',String(selected));b.textContent=selected?'♥ Tersimpan':'♡ Favorit';}); }
-function addBasket(id){if(!services.some(s=>s.id===id))return;const row=basket.find(s=>s.id===id);if(row){if(row.quantity>=99){showToast('Jumlah maksimal 99.');return;}row.quantity++;}else{if(basket.length>=50){showToast('Keranjang sudah penuh.');return;}basket.push({id,quantity:1});}const saved=saveStore('nexoraid-basket',basket);updateBasketNav();renderBasket();showToast(saved?'Ditambahkan ke keranjang.':'Ditambahkan untuk sesi halaman ini; penyimpanan browser tidak tersedia.');}
+function addBasket(id,quantity=1){if(!services.some(s=>s.id===id)||!Number.isInteger(quantity)||quantity<1||quantity>99)return;const row=basket.find(s=>s.id===id);if(row){if(row.quantity+quantity>99){showToast('Jumlah maksimal 99.');return;}row.quantity+=quantity;}else{if(basket.length>=50){showToast('Keranjang sudah penuh.');return;}basket.push({id,quantity});}const saved=saveStore('nexoraid-basket',basket);updateBasketNav();renderBasket();showToast(saved?'Ditambahkan ke keranjang.':'Ditambahkan untuk sesi halaman ini; penyimpanan browser tidak tersedia.');}
 updateBasketNav();
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const icons = {
@@ -347,7 +347,8 @@ if (detail) {
     document.title = `${service.name} — NEXORAID`;
     $('meta[name="description"]').content = `${service.desc} Harga: ${service.price}. Pemesanan melalui tiket Discord NEXORAID.`;
     const serviceURL = new URL(serviceHref(service.id), location.href).href;
-    const options=packageOptions(service);
+    const linkedVariants=services.filter(s=>s.parent_id===service.id);
+    const options=linkedVariants.length?linkedVariants.flatMap(s=>{const amount=fixedPriceValue(s.price);return amount===null?[]:[{id:s.id,serviceId:s.id,label:s.details[0][0]==='Harga portal saat ini'?s.name:s.details[0][0],amount}];}):packageOptions(service);
     const pricing=pricingInfo(service.price);
     const variantSelect=options.length?'<label for="orderVariant">Pilih paket katalog</label><select id="orderVariant"><option value="">Konfirmasi paket melalui tiket</option>'+options.map(o=>'<option value="'+esc(o.id)+'">'+esc(o.label)+' — '+money(o.amount)+'</option>').join('')+'</select>':'';
     const estimateUI=pricing.type==='fixed'||options.length?'<label for="orderQuantity">Jumlah</label><input type="number" id="orderQuantity" min="1" max="99" value="1"><p id="orderEstimate" role="status"></p>':'';
@@ -368,7 +369,7 @@ if (detail) {
       const amount=selected?.amount??(pricing.type==='fixed'?pricing.min:null);
       return {selected,quantity,total:amount===null?null:amount*quantity};
     }
-    function updateEstimate(){const target=$('#orderEstimate');if(!target)return;const order=currentOrder();target.textContent=order.total===null?'Pilih paket untuk melihat estimasi.':'Subtotal indikatif: '+money(order.total)+' (harga final dikonfirmasi tim)';}
+    function updateEstimate(){const order=currentOrder();const add=detail.querySelector('[data-basket]');if(add){add.dataset.basket=order.selected?.serviceId||service.id;add.dataset.quantity=String(order.quantity);}const target=$('#orderEstimate');if(!target)return;target.textContent=order.total===null?'Pilih paket untuk melihat estimasi.':'Subtotal indikatif: '+money(order.total)+' (harga final dikonfirmasi tim)';}
     $('#orderVariant')?.addEventListener('change',updateEstimate);
     $('#orderQuantity')?.addEventListener('input',updateEstimate);
     $('#orderQuantity')?.addEventListener('change',()=>{$('#orderQuantity').value=String(currentOrder().quantity);updateEstimate();});
@@ -392,7 +393,7 @@ function renderBasket(){
 document.addEventListener('click',event=>{
  const fav=event.target.closest('[data-favorite]');const add=event.target.closest('[data-basket]');const rem=event.target.closest('[data-remove-basket]');
  if(fav){const id=fav.dataset.favorite;if(!services.some(s=>s.id===id))return;favorites=favorites.includes(id)?favorites.filter(x=>x!==id):safeSelection([...favorites,id],services);const stored=saveStore('nexoraid-favorites',favorites);updateFavorites();if(!stored)showToast('Favorit hanya tersimpan pada halaman ini.');document.dispatchEvent(new Event('nexoraid-favorites'));}
- if(add)addBasket(add.dataset.basket);
+ if(add)addBasket(add.dataset.basket,Number(add.dataset.quantity||1));
  if(rem){basket=basket.filter(r=>r.id!==rem.dataset.removeBasket);saveStore('nexoraid-basket',basket);updateBasketNav();renderBasket();}
 });
 $('#basketItems')?.addEventListener('change',event=>{const id=event.target.dataset.quantity;if(!id)return;const row=basket.find(r=>r.id===id);if(!row)return;const value=Number(event.target.value);row.quantity=Number.isInteger(value)?Math.max(1,Math.min(99,value)):1;saveStore('nexoraid-basket',basket);updateBasketNav();renderBasket();});

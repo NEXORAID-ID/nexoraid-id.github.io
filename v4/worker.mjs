@@ -199,7 +199,8 @@ async function handle(r,env){
  if(p==='/api/orders'&&m==='GET')return listOrders(env.DB,user,url);
  if(p==='/api/orders'&&m==='POST'){
   const b=await body(r);
-  return createCheckout({env,user,items:[{service_id:b?.service_id,quantity:b?.quantity}],key:b?.request_id,single:true});
+  if(!b||Object.keys(b).some(k=>!['service_id','quantity','request_id'].includes(k)))return err('Layanan, jumlah atau ID permintaan tidak valid.',400);
+  return createCheckout({env,user,items:[{service_id:b.service_id,quantity:b.quantity}],key:b.request_id,single:true});
  }
  const match=p.match(/^\/api\/orders\/([a-f0-9-]{36})\/(claim|status)$/);
  if(match&&m==='POST'){

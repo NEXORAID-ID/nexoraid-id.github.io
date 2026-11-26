@@ -294,9 +294,9 @@ input[type=search]::-webkit-search-cancel-button { display: none; }
 .compare-add { position: relative; z-index: 1; align-self: flex-start; min-height: 36px; margin-top: 12px; padding: 8px 12px; border: 1px solid #31597c; border-radius: 7px; background: #10233a; color: #a9dfff; font-size: 11px; transition: border-color .2s, background .2s, color .2s; }
 .compare-add:hover, .compare-add[aria-pressed=true] { border-color: #63c8ff; background: #63c8ff16; color: #e8f8ff; }
 .catalog-note { font-size: 12px; max-width: 870px; margin: 35px 0 0; padding-left: 18px; border-left: 2px solid #398dc4; }
-.pagination { display: flex; justify-content: center; gap: 8px; margin-top: 36px; }
+.pagination { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 36px; }
 .pagination:empty { display: none; }
-.page-button { width: 44px; height: 44px; background: transparent; border: 1px solid var(--line); border-radius: 7px; font-size: 13px; }
+.page-button { flex: 0 0 44px; width: 44px; height: 44px; background: transparent; border: 1px solid var(--line); border-radius: 7px; font-size: 13px; }
 .page-button.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
 .empty-state { text-align: center; padding: 70px 20px; border: 1px dashed var(--line); border-radius: 12px; }
 .empty-state h1 { font-size: clamp(36px, 5vw, 60px); }
