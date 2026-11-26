@@ -98,7 +98,29 @@ async function handle(r,env){
   let diff=0;for(let i=0;i<expected.length;i++)diff|=actual.charCodeAt(i)^expected.charCodeAt(i);
   if(diff!==0)return err('Bot tidak terotorisasi.',401);
   const actor=r.headers.get('x-discord-user-id'),guild=r.headers.get('x-discord-guild-id');
-  if(!validId(actor)||guild!=='1487728359482851348')return err('Identitas bot tidak valid.',403);
+  if(guild!=='1487728359482851348')return err('Server bot tidak valid.',403);
+  if(p==='/api/bot/ticket-sync'&&m==='GET'){
+   const rows=(await env.DB.prepare("SELECT o.id,o.customer_id,o.service_id,o.quantity,o.estimate,o.status,o.created_at FROM web_ticket_outbox q JOIN orders o ON o.id=q.order_id WHERE q.message_id IS NULL AND o.status NOT IN ('completed','cancelled') AND q.next_attempt<=? ORDER BY q.next_attempt,o.created_at,o.id LIMIT 20").bind(now()).all()).results;
+   return json({orders:rows.map(o=>({...o,service_name:services.find(s=>s.id===o.service_id)?.name||o.service_id}))});
+  }
+  if(p==='/api/bot/ticket-sync'&&m==='POST'){
+   const b=await body(r);
+   if(!b||!/^[-a-f0-9]{36}$/.test(b.order_id||''))return err('Order tidak valid.',400);
+   if(b.retry===true){
+    await env.DB.prepare("UPDATE web_ticket_outbox SET next_attempt=? WHERE order_id=? AND message_id IS NULL").bind(now()+120,b.order_id).run();
+    return json({ok:true});
+   }
+   if(!validId(b.channel_id)||!validId(b.message_id))return err('Ticket tidak valid.',400);
+   const res=await env.DB.prepare("UPDATE web_ticket_outbox SET channel_id=?,message_id=? WHERE order_id=? AND (message_id IS NULL OR (channel_id=? AND message_id=?))").bind(b.channel_id,b.message_id,b.order_id,b.channel_id,b.message_id).run();
+   return res.meta.changes?json({ok:true}):err('Ticket mapping conflict.',409);
+  }
+  if(p==='/api/bot/ticket-active'&&m==='GET'){
+   const customer=url.searchParams.get('customer_id');
+   if(!validId(customer))return err('Customer tidak valid.',400);
+   const active=await env.DB.prepare("SELECT id FROM orders WHERE customer_id=? AND status NOT IN ('completed','cancelled') LIMIT 1").bind(customer).first();
+   return json({active:!!active});
+  }
+  if(!validId(actor))return err('Identitas bot tidak valid.',403);
   p=p.replace('/api/bot/','/api/');
   if(!((p==='/api/orders'&&['GET','POST'].includes(m))||(m==='POST'&&/^\/api\/orders\/[a-f0-9-]{36}\/(claim|status|evidence)$/.test(p))))return err('Endpoint bot tidak diizinkan.',404);
   await env.DB.prepare("INSERT INTO users(id,display_name,created_at) VALUES(?,?,?) ON CONFLICT(id) DO NOTHING").bind(actor,'Discord '+actor,now()).run();
