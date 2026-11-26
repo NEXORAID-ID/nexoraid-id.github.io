@@ -45,7 +45,7 @@ test('Operations scope and seller settlement policy are explicit',async()=>{cons
 test('Four-role API lifecycle with SQLite D1 adapter and real persisted records',async()=>{
  const {DatabaseSync}=await import('node:sqlite');const {readFile}=await import('node:fs/promises');
  const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON');
- for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
+ for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_request_idempotency.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
  const ids={owner:'111111111111111111',management:'222222222222222222',worker:'333333333333333333',customer:'444444444444444444',other:'555555555555555555'};
  const cookies={};
  for(const [role,id] of Object.entries(ids)){
@@ -57,10 +57,14 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
  }
  const DB={prepare(sql){return {args:[],bind(...args){this.args=args;return this;},async first(){return db.prepare(sql).get(...this.args)||null;},async all(){return {results:db.prepare(sql).all(...this.args)};},async run(){return {meta:{changes:Number(db.prepare(sql).run(...this.args).changes)}};}};},async batch(statements){db.exec('BEGIN');try{const out=[];for(const stmt of statements)out.push(await stmt.run());db.exec('COMMIT');return out;}catch(e){db.exec('ROLLBACK');throw e;}}};
  const env={DB,PUBLIC_ORIGIN:'https://nexoraid.example',OWNER_DISCORD_ID:ids.owner,NEXORAID_BOT_API_KEY:'b'.repeat(64)};
- const call=async(role,path,data)=>{const headers={cookie:cookies[role],origin:env.PUBLIC_ORIGIN,'content-type':'application/json'};return worker.fetch(req('/api/'+path,{headers,...(data===undefined?{}:{method:'POST',body:JSON.stringify(data)})}),env);};
+ const call=async(role,path,data,key)=>{const headers={cookie:cookies[role],origin:env.PUBLIC_ORIGIN,'content-type':'application/json',...(key?{'idempotency-key':key}:{})};return worker.fetch(req('/api/'+path,{headers,...(data===undefined?{}:{method:'POST',body:JSON.stringify(data)})}),env);};
  try{
   for(const role of ['owner','management','worker','customer'])assert.equal((await (await call(role,'me')).json()).user.role,role);
-  const created=await call('customer','orders',{service_id:'gta-heist',quantity:1});assert.equal(created.status,201);const {order}=await created.json();const id=order.id;
+  const created=await call('customer','orders',{service_id:'gta-heist',quantity:1},'request-test-00001');assert.equal(created.status,201);const {order}=await created.json();const id=order.id;
+  const retry=await call('customer','orders',{service_id:'gta-heist',quantity:1},'request-test-00001');assert.equal(retry.status,200);assert.equal((await retry.json()).order.id,id);
+  assert.equal((await call('customer','orders',{service_id:'gta-heist',quantity:2},'request-test-00001')).status,409);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM orders').get().n,1);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE action='order:create'").get().n,1);
   assert.equal((await (await call('other','orders')).json()).orders.length,0);
   assert.equal((await call('other','orders/'+id)).status,404);
   assert.equal((await (await call('worker','orders')).json()).orders[0].customer_id,null);

@@ -136,10 +136,15 @@ async function handle(r,env){
  if(p==='/api/orders'&&m==='GET')return listOrders(env.DB,user,url);
  if(p==='/api/orders'&&m==='POST'){
   const b=await body(r);const order=b&&estimateOrder(b.service_id,b.quantity);if(!order)return err('Layanan atau jumlah tidak valid.',400);
+  const key=r.headers.get('idempotency-key');
+  if(key!==null&&!/^[a-zA-Z0-9_-]{16,80}$/.test(key))return err('Idempotency key tidak valid.',400);
+  const replay=async()=>key===null?null:env.DB.prepare('SELECT id,service_id,quantity,catalog_price,estimate,status FROM orders WHERE customer_id=? AND request_key=?').bind(user.id,key).first();
+  const respond=existing=>existing.service_id!==order.service_id||existing.quantity!==order.quantity?err('Idempotency key sudah digunakan untuk permintaan berbeda.',409):json({order:existing,replayed:true});
+  const existing=await replay();if(existing)return respond(existing);
   const t=now(),id=crypto.randomUUID();
-  // Atomic conditional insert: no more than 5 requests per user in any rolling hour.
-  const [result]=await env.DB.batch([env.DB.prepare("INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,estimate,created_at,updated_at) SELECT ?,?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM orders WHERE customer_id=? AND created_at>=?)<5").bind(id,user.id,order.service_id,order.quantity,order.catalog_price,order.estimate,t,t,user.id,t-3600),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'order:create',?,? WHERE changes()=1").bind(user.id,id,t)]);
-  if(!result.meta.changes)return err('Batas permintaan per jam tercapai.',429);
+  // Atomic rate limit and unique request key; a retry does not consume quota.
+  const [result]=await env.DB.batch([env.DB.prepare("INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,estimate,created_at,updated_at,request_key) SELECT ?,?,?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM orders WHERE customer_id=? AND created_at>=?)<5 ON CONFLICT(customer_id,request_key) DO NOTHING").bind(id,user.id,order.service_id,order.quantity,order.catalog_price,order.estimate,t,t,key,user.id,t-3600),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'order:create',?,? WHERE changes()=1").bind(user.id,id,t)]);
+  if(!result.meta.changes){const prior=await replay();return prior?respond(prior):err('Batas permintaan per jam tercapai.',429);}
   return json({order:{id,...order,status:'requested'}},201);
  }
  const match=p.match(/^\/api\/orders\/([a-f0-9-]{36})\/(claim|status)$/);
