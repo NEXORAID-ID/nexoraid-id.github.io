@@ -61,7 +61,7 @@ export async function workspace({p,m,url,user,env,readBody,r}){
    const completed=await db.prepare('SELECT COALESCE(SUM(gross),0) AS gross,COALESCE(SUM(worker_share),0) AS worker_share,COALESCE(SUM(owner_share),0) AS owner_share FROM order_settlements WHERE created_at>=? AND created_at<?').bind(start,end).first();
    const cost=await db.prepare('SELECT COALESCE(SUM(amount),0) AS expenses FROM operating_expenses WHERE created_at>=? AND created_at<?').bind(start,end).first();
    const cash=await db.prepare("SELECT COALESCE(SUM(delta),0) AS received FROM cash_order_movements WHERE kind='payment' AND event_at>=? AND event_at<?").bind(start,end).first();
-   const refunds=await db.prepare('SELECT COALESCE(SUM(-delta),0) AS refunded FROM cash_order_movements WHERE kind='refund' AND event_at>=? AND event_at<?').bind(start,end).first();
+   const refunds=await db.prepare("SELECT COALESCE(SUM(-delta),0) AS refunded FROM cash_order_movements WHERE kind='refund' AND event_at>=? AND event_at<?").bind(start,end).first();
    const completedRefunds=await db.prepare('SELECT COALESCE(SUM(amount),0) AS completed_refund_cost FROM completed_refunds WHERE created_at>=? AND created_at<?').bind(start,end).first();
    const payouts=await db.prepare("SELECT COALESCE(SUM(amount),0) AS paid_out FROM payout_requests WHERE state='paid' AND reviewed_at>=? AND reviewed_at<?").bind(start,end).first();
    const daily=(await db.prepare("SELECT date(created_at,'unixepoch','+7 hours') AS day,SUM(gross) AS gross,SUM(owner_share) AS owner_share FROM order_settlements WHERE created_at>=? AND created_at<? GROUP BY day ORDER BY day").bind(start,end).all()).results;
