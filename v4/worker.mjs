@@ -7,6 +7,7 @@ import { ticketLinks } from './ticket-links.mjs';
 import { collaboration } from './collaboration.mjs';
 import { customer,deviceLabel } from './customer.mjs';
 
+import { ticketQueue } from './ticket-queue.mjs';
 const DAY=86400;
 const cookie=(name,value,age)=>name+'='+value+'; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age='+age;
 const getCookie=(r,name)=>r.headers.get('Cookie')?.split(';').map(s=>s.trim()).find(s=>s.startsWith(name+'='))?.slice(name.length+1)||'';
@@ -95,6 +96,15 @@ async function handle(r,env){
  }
  if(p==='/api/catalog'&&m==='GET'){const response=env.DB?json({services:await memberCatalog(env.DB),catalog_revision:1}):json({services:services.map(({id,name,category,desc,price})=>({id,name,category,desc,price})),baseline:true});response.headers.set('access-control-allow-origin','*');return response;}
  if(!env.DB||!env.PUBLIC_ORIGIN||url.origin!==env.PUBLIC_ORIGIN)return err('Layanan akun belum dikonfigurasi untuk domain ini.',503);
+ if(p==='/api/bot/ticket-queue'){
+ const key=env.NEXORAID_TICKET_MACHINE_KEY||'';
+ if(!/^[a-f0-9]{64}$/i.test(key)||key===env.NEXORAID_BOT_API_KEY)return err('Integrasi tiket belum dikonfigurasi.',503);
+ const actual=await hash(r.headers.get('authorization')||''),expected=await hash('Bearer '+key);
+ let diff=0;for(let i=0;i<expected.length;i++)diff|=actual.charCodeAt(i)^expected.charCodeAt(i);
+ if(diff!==0)return err('Bot tidak terotorisasi.',401);
+ if(r.headers.get('x-discord-guild-id')!=='1487728359482851348'||r.headers.has('x-discord-user-id'))return err('Identitas mesin tidak valid.',403);
+ return ticketQueue({db:env.DB,r,m,readBody:body});
+ }
  const bot=p.startsWith('/api/bot/');
  let botUser=null;
  if(bot){
