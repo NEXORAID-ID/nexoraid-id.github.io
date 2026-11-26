@@ -32,7 +32,8 @@ CREATE TABLE receipt_adjustments (
  kind TEXT NOT NULL CHECK(kind IN ('surplus','partial_cancel')),
  amount INTEGER NOT NULL CHECK(amount BETWEEN 1 AND 999999999),
  reference TEXT NOT NULL UNIQUE CHECK(length(reference) BETWEEN 4 AND 80),
- actor_id TEXT NOT NULL REFERENCES users(id),created_at INTEGER NOT NULL
+ actor_id TEXT NOT NULL REFERENCES users(id),created_at INTEGER NOT NULL,
+ reason TEXT NOT NULL CHECK(length(trim(reason)) BETWEEN 10 AND 300)
 );
 CREATE INDEX receipt_adjustments_order ON receipt_adjustments(order_id);
 CREATE VIEW installment_balances AS

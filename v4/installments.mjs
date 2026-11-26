@@ -23,7 +23,9 @@ export async function installments({p,m,user,env,r,readBody}){
   kind='payment:installment';stmt=db.prepare('INSERT INTO verified_receipts VALUES(?,?,?,?,?,?)').bind(rowId,id,b.amount,ref,user.id,t);
  }else{
   if(!['surplus','partial_cancel'].includes(b.kind))return err('Jenis koreksi tidak valid.');
-  kind='payment:adjustment';stmt=db.prepare('INSERT INTO receipt_adjustments VALUES(?,?,?,?,?,?,?)').bind(rowId,id,b.kind,b.amount,ref,user.id,t);
+  const reason=typeof b.reason==='string'?b.reason.trim():'';
+  if(reason.length<10||reason.length>300)return err('Alasan pengembalian dana wajib 10–300 karakter.');
+  kind='payment:adjustment';stmt=db.prepare('INSERT INTO receipt_adjustments(id,order_id,kind,amount,reference,actor_id,created_at,reason) VALUES(?,?,?,?,?,?,?,?)').bind(rowId,id,b.kind,b.amount,ref,user.id,t,reason);
  }
  try{await db.batch([stmt,db.prepare('INSERT INTO audit_events(actor_id,action,target_id,created_at) VALUES(?,?,?,?)').bind(user.id,kind,id,t)]);return json({ok:true},201);}
  catch(e){if(/receipt_not_allowed|adjustment_not_allowed|UNIQUE constraint|duplicate_payment_reference|duplicate_refund_reference/i.test(String(e.message)))return err('Referensi sudah dipakai atau syarat pembayaran/refund belum terpenuhi.',409);throw e;}
