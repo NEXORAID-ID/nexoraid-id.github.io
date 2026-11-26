@@ -118,6 +118,11 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   const requested=await call('worker','workspace/payouts',{amount:8000});assert.equal(requested.status,200);const payoutId=(await requested.json()).id;
   assert.equal((await call('worker','workspace/payouts',{amount:1001})).status,409);
   assert.equal((await call('management','workspace/payouts/'+payoutId,{state:'paid',reference:'bank-001'})).status,403);
+  assert.equal((await call('owner','workspace/payouts/'+payoutId,{state:'paid',reference:'bank-001'})).status,409);
+  assert.equal((await call('owner','workspace/payouts/'+payoutId,{state:'approved',reference:'approve-001'})).status,200);
+  assert.equal((await call('owner','workspace/payouts/'+payoutId,{state:'approved',reference:'approve-002'})).status,409);
+  const approved=(await (await call('worker','workspace/payouts')).json());
+  assert.equal(approved.balance.paid,0);assert.equal(approved.balance.pending,8000);assert.ok(approved.items.find(x=>x.id===payoutId).approved_at);
   assert.equal((await call('owner','workspace/payouts/'+payoutId,{state:'paid',reference:'bank-001'})).status,200);
   assert.equal((await call('owner','workspace/payouts/'+payoutId,{state:'paid',reference:'bank-002'})).status,409);
   assert.equal((await (await call('worker','workspace/payouts')).json()).balance.available,1000);
