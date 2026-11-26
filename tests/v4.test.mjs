@@ -45,7 +45,7 @@ test('Operations scope and seller settlement policy are explicit',async()=>{cons
 test('Four-role API lifecycle with SQLite D1 adapter and real persisted records',async()=>{
  const {DatabaseSync}=await import('node:sqlite');const {readFile}=await import('node:fs/promises');
  const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON');
- for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
+ for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_workspace.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
  const ids={owner:'111111111111111111',management:'222222222222222222',worker:'333333333333333333',customer:'444444444444444444',other:'555555555555555555'};
  const cookies={};
  for(const [role,id] of Object.entries(ids)){
@@ -85,6 +85,23 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   const personal=await (await call('worker','settlements')).json();assert.equal(personal.settlements[0].worker_share,9000);assert.equal('owner_share' in personal.settlements[0],false);
   const detail=await (await call('customer','orders/'+id)).json();assert.equal(detail.evidence,null);assert.equal('payment_ref' in detail.order,false);
   const summary=await (await call('owner','dashboard')).json();assert.equal(summary.counts.completed,1);
+  const wp=await call('worker','workspace/payouts',{amount:9001});assert.equal(wp.status,409);
+  const requested=await call('worker','workspace/payouts',{amount:8000});assert.equal(requested.status,200);const payoutId=(await requested.json()).id;
+  assert.equal((await call('worker','workspace/payouts',{amount:1001})).status,409);
+  assert.equal((await call('management','workspace/payouts/'+payoutId,{state:'paid',reference:'bank-001'})).status,403);
+  assert.equal((await call('owner','workspace/payouts/'+payoutId,{state:'paid',reference:'bank-001'})).status,200);
+  assert.equal((await call('owner','workspace/payouts/'+payoutId,{state:'paid',reference:'bank-002'})).status,409);
+  assert.equal((await (await call('worker','workspace/payouts')).json()).balance.available,1000);
+  assert.equal((await call('other','workspace/orders/'+id+'/review',{rating:5,note:'OK'})).status,404);
+  assert.equal((await call('customer','workspace/orders/'+id+'/review',{rating:5,note:'OK'})).status,200);
+  assert.equal((await call('customer','workspace/orders/'+id+'/review',{rating:4,note:'Again'})).status,409);
+  assert.equal((await call('customer','workspace/orders/'+id+'/support',{kind:'question',message:'Please check the result'})).status,200);
+  const cases=await (await call('management','workspace/support')).json();assert.equal(cases.items.length,1);
+  assert.equal((await call('management','workspace/support/'+cases.items[0].id,{resolution:'Checked and resolved'})).status,200);
+  assert.equal((await call('worker','workspace/expenses',{category:'hosting',amount:500,note:'Hosting',reference:'exp-1'})).status,403);
+  assert.equal((await call('owner','workspace/expenses',{category:'hosting',amount:500,note:'Hosting',reference:'exp-1'})).status,200);
+  const report=await (await call('owner','workspace/report')).json();assert.equal(report.finance.recorded_margin,5500);
+  assert.equal((await (await call('management','workspace/report')).json()).finance,undefined);
   assert.equal((await call('owner','team/role',{user_id:ids.worker,role:'customer'})).status,200);
   assert.equal((await call('worker','settlements')).status,403);
  }finally{db.close();}

@@ -1,6 +1,7 @@
 import { services } from '../services-data.js';
 import { fixedPriceValue } from '../catalog.js';
 import { operations,listOrders } from './operations.mjs';
+import { workspace } from './workspace.mjs';
 
 const DAY=86400;
 const cookie=(name,value,age)=>name+'='+value+'; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age='+age;
@@ -147,6 +148,7 @@ async function handle(r,env){
   const [_,id,action]=match;const t=now();
   if(action==='claim'){
    if(user.role!=='worker')return err('Akses penjoki diperlukan.',403);
+   const presence=await env.DB.prepare('SELECT available FROM worker_presence WHERE worker_id=?').bind(user.id).first();if(presence?.available===0)return err('Aktifkan ketersediaan untuk mengambil order.',409);
    const results=await env.DB.batch([env.DB.prepare("UPDATE orders SET status='claimed',assigned_to=?,updated_at=? WHERE id=? AND status='requested' AND assigned_to IS NULL AND customer_id<>?").bind(user.id,t,id,user.id),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'claim',?,? WHERE changes()=1").bind(user.id,id,t)]);
    return results[0].meta.changes?json({ok:true}):err('Order tidak tersedia.',409);
   }
@@ -158,6 +160,7 @@ async function handle(r,env){
   const results=await env.DB.batch([env.DB.prepare('UPDATE orders SET status=?,updated_at=? WHERE id=? AND status=? AND assigned_to IS ?').bind(b.status,t,id,order.status,order.assigned_to),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,?,?,? WHERE changes()=1").bind(user.id,'status:'+b.status,id,t)]);
   return results[0].meta.changes?json({ok:true}):err('Status sudah berubah.',409);
  }
+ if(!bot&&p.startsWith('/api/workspace/')){const extra=await workspace({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
  if(!bot||p.endsWith('/evidence')){const extra=await operations({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
  if(p==='/api/team'&&m==='GET'){
   if(user.role!=='owner')return err('Akses owner diperlukan.',403);
