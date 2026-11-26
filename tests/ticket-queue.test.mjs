@@ -49,7 +49,7 @@ test('machine route rejects missing, reused, wrong key and actor impersonation',
 
 test('actor health authenticates without creating users or returning account data',async()=>{
  const origin='https://nexoraid.example',key='a'.repeat(64);
- const call=k=>worker.fetch(new Request(origin+'/api/bot/health',{headers:{authorization:'Bearer '+k,'x-discord-guild-id':'1487728359482851348','x-discord-user-id':'444444444444444444'}}),{DB:{prepare(){throw Error('must not mutate or read users');}},PUBLIC_ORIGIN:origin,NEXORAID_BOT_API_KEY:key});
+ const call=(k,path='/api/bot/health')=>worker.fetch(new Request(origin+path,{headers:{authorization:'Bearer '+k,'x-discord-guild-id':'1487728359482851348','x-discord-user-id':'444444444444444444'}}),{DB:{prepare(){throw Error('must not mutate or read users');}},PUBLIC_ORIGIN:origin,NEXORAID_BOT_API_KEY:key});
  assert.equal((await call('b'.repeat(64))).status,401);
- assert.deepEqual(await (await call(key)).json(),{ok:true});
+ assert.deepEqual(await (await call(key)).json(),{ok:true});assert.deepEqual(await (await call(key,'/api/bot/orders?probe=1')).json(),{ok:true});
 });

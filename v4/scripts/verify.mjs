@@ -18,11 +18,19 @@ await check('/api/auth/login',async r=>{const url=new URL(r.headers.get('locatio
 await check('/api/me',async r=>{if(!(await r.json()).error)throw Error('Expected auth rejection');},401);
 
 for(const [path,key,method,body,extra] of [
- ['/api/bot/health',process.env.NEXORAID_BOT_API_KEY,'GET',undefined,{'x-discord-user-id':process.env.OWNER_DISCORD_ID}],
+ ['/api/bot/orders?probe=1',process.env.NEXORAID_BOT_API_KEY,'GET',undefined,{'x-discord-user-id':process.env.OWNER_DISCORD_ID}],
  ['/api/bot/ticket-queue',process.env.NEXORAID_TICKET_MACHINE_KEY,'POST',JSON.stringify({action:'health'}),{'content-type':'application/json'}]
 ]){
  if(!key)throw Error('Missing bridge verification credential');
- const response=await fetch(origin+path,{method,body,headers:{authorization:'Bearer '+key,'x-discord-guild-id':'1487728359482851348',...extra},redirect:'error',signal:AbortSignal.timeout(15000)});
- if(!response.ok||!(await response.json()).ok)throw Error(path+' credential probe failed: HTTP '+response.status);
+ let passed=false,lastStatus='transport';
+ for(let attempt=0;attempt<6;attempt++){
+  try{
+   const response=await fetch(origin+path,{method,body,headers:{authorization:'Bearer '+key,'x-discord-guild-id':'1487728359482851348',...extra},redirect:'error',signal:AbortSignal.timeout(15000)});
+   lastStatus=String(response.status);const result=await response.json().catch(()=>null);
+   if(response.ok&&result?.ok===true){passed=true;break;}
+  }catch{}
+  if(attempt<5)await new Promise(r=>setTimeout(r,3000));
+ }
+ if(!passed)throw Error(path+' authenticated read-only probe failed: HTTP '+lastStatus);
  console.log(path+' authenticated read-only probe OK');
 }
