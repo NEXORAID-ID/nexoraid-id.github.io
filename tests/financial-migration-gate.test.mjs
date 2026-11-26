@@ -25,3 +25,14 @@ test('stale and future evidence fail, no pending migrations needs no attestation
  assert.throws(()=>check({...evidence,verified_at:new Date(now+1).toISOString()}));
  assert.doesNotThrow(()=>verifyEvidence(null,{pending:[]}));
 });
+
+test('rejects missing versions, duplicate numeric versions and malformed inventory',()=>{
+ assert.throws(()=>pendingFinancialMigrations([files[0],files[2]],[files[0]]),/sequence/);
+ assert.throws(()=>pendingFinancialMigrations([...files,'0017_duplicate.sql'],[files[0]]),/sequence/);
+ assert.throws(()=>pendingFinancialMigrations([...files,'bad.sql'],[files[0]]),/Invalid migration inventory/);
+});
+test('rejects out-of-order applied history and incomplete baseline; pending order is canonical',()=>{
+ assert.throws(()=>pendingFinancialMigrations(files,[files[0],files[2]]),/exact prefix/);
+ assert.throws(()=>pendingFinancialMigrations(files,[]),/baseline not applied/);
+ assert.deepEqual(pendingFinancialMigrations([...files].reverse(),[files[0]]),pending);
+});
