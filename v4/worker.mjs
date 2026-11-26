@@ -2,6 +2,7 @@ import { services } from '../services-data.js';
 import { fixedPriceValue } from '../catalog.js';
 import { operations,listOrders } from './operations.mjs';
 import { workspace } from './workspace.mjs';
+import { business,memberCatalog,applyOverride,rateLimit } from './business.mjs';
 
 const DAY=86400;
 const cookie=(name,value,age)=>name+'='+value+'; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age='+age;
@@ -134,9 +135,13 @@ async function handle(r,env){
   const response=json({ok:true});response.headers.append('set-cookie',cookie('nexo_session','',0));return response;
  }
  if(p==='/api/me'&&m==='GET')return json({user});
+ if(p==='/api/auth/logout-all'&&m==='POST'&&!bot){await env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(user.id).run();const response=json({ok:true});response.headers.append('set-cookie',cookie('nexo_session','',0));return response;}
+ if(!bot&&p.startsWith('/api/business/')){if(m==='POST'&&!await rateLimit(env.DB,user.id))return err('Terlalu banyak permintaan.',429);const extra=await business({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
  if(p==='/api/orders'&&m==='GET')return listOrders(env.DB,user,url);
  if(p==='/api/orders'&&m==='POST'){
   const b=await body(r);const order=b&&estimateOrder(b.service_id,b.quantity);if(!order)return err('Layanan atau jumlah tidak valid.',400);
+  const override=await env.DB.prepare('SELECT amount,enabled,promo_percent FROM catalog_overrides WHERE service_id=?').bind(order.service_id).first();
+  if(override){const s=applyOverride(services.find(s=>s.id===order.service_id),override);if(!s.enabled)return err('Layanan sedang tidak tersedia.',409);order.catalog_price=s.price;order.estimate=s.unit_amount===null?null:s.unit_amount*order.quantity;}
   const t=now(),id=crypto.randomUUID();
   // Atomic conditional insert: no more than 5 requests per user in any rolling hour.
   const [result]=await env.DB.batch([env.DB.prepare("INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,estimate,created_at,updated_at) SELECT ?,?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM orders WHERE customer_id=? AND created_at>=?)<5").bind(id,user.id,order.service_id,order.quantity,order.catalog_price,order.estimate,t,t,user.id,t-3600),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'order:create',?,? WHERE changes()=1").bind(user.id,id,t)]);
