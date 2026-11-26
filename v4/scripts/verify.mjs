@@ -16,3 +16,13 @@ await check('/api/catalog',async r=>{const c=await r.json();if(!Array.isArray(c.
 for(const p of ['/','/login.html','/portal.html'])await check(p,async r=>{if(!r.headers.get('content-type')?.includes('text/html'))throw Error('Not HTML');});
 await check('/api/auth/login',async r=>{const url=new URL(r.headers.get('location'));if(url.hostname!=='discord.com'||url.searchParams.get('redirect_uri')!==origin+'/api/auth/callback')throw Error('Wrong OAuth redirect');},303,{'Sec-Fetch-Mode':'navigate'});
 await check('/api/me',async r=>{if(!(await r.json()).error)throw Error('Expected auth rejection');},401);
+
+for(const [path,key,method,body,extra] of [
+ ['/api/bot/health',process.env.NEXORAID_BOT_API_KEY,'GET',undefined,{'x-discord-user-id':process.env.OWNER_DISCORD_ID}],
+ ['/api/bot/ticket-queue',process.env.NEXORAID_TICKET_MACHINE_KEY,'POST',JSON.stringify({action:'health'}),{'content-type':'application/json'}]
+]){
+ if(!key)throw Error('Missing bridge verification credential');
+ const response=await fetch(origin+path,{method,body,headers:{authorization:'Bearer '+key,'x-discord-guild-id':'1487728359482851348',...extra},redirect:'error',signal:AbortSignal.timeout(15000)});
+ if(!response.ok||!(await response.json()).ok)throw Error(path+' credential probe failed: HTTP '+response.status);
+ console.log(path+' authenticated read-only probe OK');
+}

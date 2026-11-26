@@ -17,6 +17,7 @@ test('outbox no backfill; rollback, lease expiry, retry and canonical ack',async
  const db={prepare(q){return{args:[],bind(...a){this.args=a;return this;},async first(){return sql.prepare(q).get(...this.args)||null;},async run(){return{meta:{changes:Number(sql.prepare(q).run(...this.args).changes)}}}}},async batch(ss){sql.exec('BEGIN');try{const r=[];for(const s of ss)r.push(await s.run());sql.exec('COMMIT');return r;}catch(e){sql.exec('ROLLBACK');throw e;}}};
  let time=1000;
  const call=b=>ticketQueue({db,r:null,m:'POST',readBody:async()=>b,clock:()=>time});
+ const before=sql.prepare('SELECT attempts,lease_token FROM web_ticket_outbox WHERE order_id=?').get(id);assert.equal((await call({action:'health'})).status,200);assert.deepEqual(sql.prepare('SELECT attempts,lease_token FROM web_ticket_outbox WHERE order_id=?').get(id),before);
  const a=await(await call({action:'lease'})).json();assert.equal(a.order.id,id);
  assert.equal((await(await call({action:'lease'})).json()).order,null);
  time+=181;const next=await(await call({action:'lease'})).json();assert.notEqual(next.lease_token,a.lease_token);
@@ -44,4 +45,11 @@ test('machine route rejects missing, reused, wrong key and actor impersonation',
  assert.equal((await call({NEXORAID_TICKET_MACHINE_KEY:key,NEXORAID_BOT_API_KEY:key})).status,503);
  assert.equal((await call({NEXORAID_TICKET_MACHINE_KEY:key},{authorization:'Bearer '+other})).status,401);
  assert.equal((await call({NEXORAID_TICKET_MACHINE_KEY:key},{authorization:'Bearer '+key,'x-discord-guild-id':'1487728359482851348','x-discord-user-id':'444444444444444444'})).status,403);
+});
+
+test('actor health authenticates without creating users or returning account data',async()=>{
+ const origin='https://nexoraid.example',key='a'.repeat(64);
+ const call=k=>worker.fetch(new Request(origin+'/api/bot/health',{headers:{authorization:'Bearer '+k,'x-discord-guild-id':'1487728359482851348','x-discord-user-id':'444444444444444444'}}),{DB:{prepare(){throw Error('must not mutate or read users');}},PUBLIC_ORIGIN:origin,NEXORAID_BOT_API_KEY:key});
+ assert.equal((await call('b'.repeat(64))).status,401);
+ assert.deepEqual(await (await call(key)).json(),{ok:true});
 });

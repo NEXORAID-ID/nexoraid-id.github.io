@@ -118,6 +118,7 @@ async function handle(r,env){
   if(diff!==0)return err('Bot tidak terotorisasi.',401);
   const actor=r.headers.get('x-discord-user-id'),guild=r.headers.get('x-discord-guild-id');
   if(!validId(actor)||guild!=='1487728359482851348')return err('Identitas bot tidak valid.',403);
+  if(p==='/api/bot/health'&&m==='GET')return json({ok:true});
   p=p.replace('/api/bot/','/api/');
   if(!((p==='/api/orders'&&['GET','POST'].includes(m))||(m==='POST'&&/^\/api\/orders\/[a-f0-9-]{36}\/(claim|status|evidence)$/.test(p))||(['GET','POST'].includes(m)&&/^\/api\/orders\/[a-f0-9-]{36}\/ticket$/.test(p))))return err('Endpoint bot tidak diizinkan.',404);
   await env.DB.prepare("INSERT INTO users(id,display_name,created_at) VALUES(?,?,?) ON CONFLICT(id) DO NOTHING").bind(actor,'Discord '+actor,now()).run();
