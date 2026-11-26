@@ -14,7 +14,7 @@ export function applyOverride(s,row){
 export async function memberCatalog(db,includeDisabled=false){
  const rows=(await db.prepare('SELECT service_id,amount,enabled,promo_percent FROM catalog_overrides').all()).results;
  const overrides=new Map(rows.map(x=>[x.service_id,x]));
- return services.map(s=>applyOverride(s,overrides.get(s.id))).filter(s=>includeDisabled||s.enabled).map(({id,name,category,desc,price,unit_amount,enabled,promo_percent})=>({id,name,category,desc,price,unit_amount,enabled,promo_percent}));
+ return services.map(s=>{const live=applyOverride(s,overrides.get(s.id));if(s.parent_id&&overrides.get(s.parent_id)?.enabled===0)live.enabled=false;return live;}).filter(s=>includeDisabled||s.enabled).map(({id,name,category,desc,price,unit_amount,enabled,promo_percent,parent_id})=>({id,name,category,desc,price,unit_amount,enabled,promo_percent,...(parent_id?{parent_id}:{})}));
 }
 export function splitInvestor(profit,remaining){
  if(!integer(profit)||!Number.isSafeInteger(remaining)||remaining<1)return null;

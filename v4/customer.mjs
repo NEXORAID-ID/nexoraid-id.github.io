@@ -6,7 +6,7 @@ const err=(error,s=400)=>json({error},s);
 export function normalizeCart(items){
  if(!Array.isArray(items)||items.length<1||items.length>5)return null;
  const seen=new Set(),out=[];
- for(const x of items){if(!x||!services.some(s=>s.id===x.service_id)||seen.has(x.service_id)||!Number.isInteger(x.quantity)||x.quantity<1||x.quantity>99)return null;seen.add(x.service_id);out.push({service_id:x.service_id,quantity:x.quantity});}
+ for(const x of items){if(!x||Object.keys(x).some(k=>!['service_id','quantity'].includes(k))||!services.some(s=>s.id===x.service_id)||seen.has(x.service_id)||!Number.isInteger(x.quantity)||x.quantity<1||x.quantity>99)return null;seen.add(x.service_id);out.push({service_id:x.service_id,quantity:x.quantity});}
  return out.sort((a,b)=>a.service_id.localeCompare(b.service_id));
 }
 export function deviceLabel(ua=''){return (/Android/i.test(ua)?'Android':/iPhone|iPad/i.test(ua)?'iOS':/Windows/i.test(ua)?'Windows':/Macintosh/i.test(ua)?'macOS':/Linux/i.test(ua)?'Linux':'Perangkat lain')+' · '+(/Edg\//i.test(ua)?'Edge':/Firefox|FxiOS/i.test(ua)?'Firefox':/Chrome|CriOS/i.test(ua)?'Chrome':/Safari/i.test(ua)?'Safari':'Browser');}
