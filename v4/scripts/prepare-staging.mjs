@@ -1,0 +1,12 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import {spawnSync} from 'node:child_process';
+const e=process.env;
+const id=e.STAGING_D1_DATABASE_ID, account=e.STAGING_ACCOUNT_ID, origin=e.STAGING_PUBLIC_ORIGIN;
+if(!/^[a-f0-9]{32}$/i.test(account||'')||!(/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id||''))||!/^https:\/\/nexoraid-v4-staging\.[a-z0-9-]+\.workers\.dev$/.test(origin||''))throw Error('Dedicated staging configuration required');
+if(!/^[a-f0-9]{32}$/i.test(e.PRODUCTION_ACCOUNT_ID||'')||account.toLowerCase()===e.PRODUCTION_ACCOUNT_ID.toLowerCase())throw Error('Staging must use a separate Cloudflare account');
+if(!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(e.PRODUCTION_D1_DATABASE_ID||'')||id.toLowerCase()===e.PRODUCTION_D1_DATABASE_ID.toLowerCase())throw Error('Staging D1 must be separate');
+const run=spawnSync(process.execPath,['v4/scripts/prepare.mjs'],{stdio:'inherit',env:{...e,D1_DATABASE_ID:id,PUBLIC_ORIGIN:origin,OWNER_DISCORD_ID:'111111111111111111',DISCORD_CLIENT_ID:'222222222222222222',MAINTENANCE_MODE:'true'}});
+if(run.status!==0)throw Error('Build staging config failed');
+const p='v4/.generated/wrangler.json',c=JSON.parse(await readFile(p,'utf8'));
+c.name='nexoraid-v4-staging';c.main='../staging-worker.mjs';c.d1_databases[0].database_name='nexoraid-v4-staging';c.vars.DISCORD_CLIENT_SECRET='synthetic-staging-not-a-credential';delete c.secrets;
+await writeFile('v4/.generated/wrangler-staging.json',JSON.stringify(c,null,2));
