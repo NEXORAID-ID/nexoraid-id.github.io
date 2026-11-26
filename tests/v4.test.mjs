@@ -180,3 +180,14 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   const otherSessions=await (await call('other','customer/sessions')).json();assert.equal((await call('customer','customer/sessions/revoke',{id:otherSessions.sessions[0].public_id})).status,404);
  }finally{db.close();}
 });
+
+test('PKCE uses RFC S256 challenge and keeps verifier in secure HTTP-only cookie',async()=>{
+ const {pkceChallenge,discordIdentity}=await import('../v4/worker.mjs');
+ assert.equal(await pkceChallenge('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'),'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM');
+ const env={DB:{},PUBLIC_ORIGIN:'https://nexoraid.example',DISCORD_CLIENT_ID:'123456789012345678',DISCORD_CLIENT_SECRET:'test-secret'};
+ const response=await worker.fetch(req('/api/auth/login'),env);assert.equal(response.status,303);const u=new URL(response.headers.get('location'));assert.equal(u.searchParams.get('code_challenge_method'),'S256');
+ const cookies=response.headers.get('set-cookie'),verifier=cookies.match(/nexo_pkce=([A-Za-z0-9_-]{43})/)?.[1];assert.ok(verifier);assert.match(cookies,/HttpOnly; Secure; SameSite=Lax/);assert.equal(await pkceChallenge(verifier),u.searchParams.get('code_challenge'));assert.equal(u.search.includes(verifier),false);
+ let count=0;const result=await discordIdentity(env,'test-code',async(url,options)=>{if(++count===1){assert.equal(new URLSearchParams(options.body).get('code_verifier'),verifier);return Response.json({access_token:'test-token'});}return Response.json({id:'123456789012345678'});},()=>{},verifier);assert.ok(result.user);
+ const state=u.searchParams.get('state');const missing=await worker.fetch(req('/api/auth/callback?code=x&state='+state,{headers:{cookie:'nexo_state='+state}}),env);assert.equal(missing.headers.get('location'),'/portal.html?login_error=invalid_state');
+});
+test('maintenance rejects write requests without accessing database',async()=>{const env={DB:{},PUBLIC_ORIGIN:'https://nexoraid.example',MAINTENANCE_MODE:'true'};const res=await worker.fetch(req('/api/orders',{method:'POST',headers:{origin:env.PUBLIC_ORIGIN}}),env);assert.equal(res.status,503);});
