@@ -6,7 +6,7 @@ const err=(error,s=400)=>json({error},s);
 export function normalizeCart(items){
  if(!Array.isArray(items)||items.length<1||items.length>5)return null;
  const seen=new Set(),out=[];
- for(const x of items){if(!x||Object.keys(x).some(k=>!['service_id','quantity'].includes(k))||!services.some(s=>s.id===x.service_id)||seen.has(x.service_id)||!Number.isInteger(x.quantity)||x.quantity<1||x.quantity>99)return null;seen.add(x.service_id);out.push({service_id:x.service_id,quantity:x.quantity});}
+ for(const x of items){if(!x||Object.keys(x).some(k=>!['service_id','quantity'].includes(k))||!services.some(s=>s.id===x.service_id&&s.orderable!==false)||seen.has(x.service_id)||!Number.isInteger(x.quantity)||x.quantity<1||x.quantity>99)return null;seen.add(x.service_id);out.push({service_id:x.service_id,quantity:x.quantity});}
  return out.sort((a,b)=>a.service_id.localeCompare(b.service_id));
 }
 // All D1 order entry points share the same per-customer request namespace.

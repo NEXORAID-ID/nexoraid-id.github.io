@@ -4834,3 +4834,52 @@ services.push(...[
     ]
   }
 ]);
+
+// Informational entries: never create an order, invoice or payment for these.
+services.push(...[
+  {
+    "id": "hyperboostx",
+    "category": "software",
+    "icon": "⚡",
+    "name": "HyperBoostX",
+    "badge": "GRATIS",
+    "desc": "Windows optimizer yang didistribusikan gratis. Lihat catatan dan berkas rilis resmi di GitHub; versi V3 tidak diklaim sudah dirilis.",
+    "price": "Gratis",
+    "orderable": false,
+    "download_url": "https://github.com/jxxzy/HyperBoostX/releases",
+    "details": [
+      [
+        "Harga",
+        "Gratis — tidak perlu checkout"
+      ],
+      [
+        "Distribusi",
+        "GitHub resmi pengembang"
+      ],
+      [
+        "Catatan",
+        "Baca persyaratan dan catatan rilis sebelum instalasi."
+      ]
+    ]
+  },
+  {
+    "id": "top-up-game",
+    "category": "gaming",
+    "icon": "🎮",
+    "name": "Top-up Game",
+    "badge": "MENYUSUL",
+    "desc": "Daftar game, nominal dan harga top-up sedang disiapkan. Pemesanan belum dibuka.",
+    "price": "Menyusul",
+    "orderable": false,
+    "details": [
+      [
+        "Status",
+        "Belum tersedia untuk dipesan"
+      ],
+      [
+        "Harga",
+        "Menunggu pricelist resmi"
+      ]
+    ]
+  }
+]);

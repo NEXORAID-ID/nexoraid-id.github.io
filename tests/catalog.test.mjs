@@ -4,7 +4,7 @@ import { services, CONFIG } from '../services-data.js';
 import { categories, queryCatalog, priceValue, fixedPriceValue, comparisonTotals, escapeHTML, orderText } from '../catalog.js';
 
 test('catalog records have unique stable routes and complete order information', () => {
-  assert.equal(services.length, 138);
+  assert.equal(services.length, 140);
   assert.equal(new Set(services.map(s => s.id)).size, services.length);
   for (const service of services) {
     assert.match(service.id, /^[a-z0-9-]+$/);

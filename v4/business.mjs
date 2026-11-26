@@ -7,6 +7,7 @@ const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:
 const err=(error,status=400)=>json({error},status);
 const now=()=>Math.floor(Date.now()/1000);
 export function applyOverride(s,row){
+ if(s.orderable===false)return {...s,unit_amount:null,enabled:true,promo_percent:0};
  const n=row?.amount??fixedPriceValue(s.price),pct=row?.promo_percent??0;
  const price=n===null?null:Math.max(1,Math.floor(n*(100-pct)/100));
  return {...s,price:price===null?s.price:'Rp'+price.toLocaleString('id-ID'),unit_amount:price,enabled:row?.enabled!==0,promo_percent:pct};
@@ -16,7 +17,7 @@ export async function memberCatalog(db,includeDisabled=false){
  const overrides=new Map(rows.map(x=>[x.service_id,x]));
  const effective=services.map(s=>{const live=applyOverride(s,overrides.get(s.id));if(s.parent_id&&overrides.get(s.parent_id)?.enabled===0)live.enabled=false;return live;});
  for(const s of effective){const children=effective.filter(v=>v.parent_id===s.id);if(children.length&&s.unit_amount===null){const amounts=children.filter(v=>v.enabled&&v.unit_amount!==null).map(v=>v.unit_amount);s.price=amounts.length?'Mulai Rp'+Math.min(...amounts).toLocaleString('id-ID'):'Sesuai Request';}}
- return effective.filter(s=>includeDisabled||s.enabled).map(({id,name,category,desc,price,unit_amount,enabled,promo_percent,parent_id})=>({id,name,category,desc,price,unit_amount,enabled,promo_percent,...(parent_id?{parent_id}:{})}));
+ return effective.filter(s=>includeDisabled||s.enabled).map(({id,name,category,desc,price,unit_amount,enabled,promo_percent,parent_id,orderable,download_url})=>({id,name,category,desc,price,unit_amount,enabled,promo_percent,...(parent_id?{parent_id}:{}),...(orderable===false?{orderable:false}:{}),...(download_url?{download_url}:{})}));
 }
 export function splitInvestor(profit,remaining){
  if(!integer(profit)||!Number.isSafeInteger(remaining)||remaining<1)return null;
@@ -54,7 +55,7 @@ export async function business({p,m,url,user,env,readBody,r}){
  if(!p.startsWith('/api/business/'))return null;
  if(!owner)return err('Khusus owner.',403);
  if(p==='/api/business/catalog'&&post){
-  const b=await readBody(r);if(!b||!services.some(s=>s.id===b.service_id)||typeof b.enabled!=='boolean'||!(b.amount===null||integer(b.amount))||!Number.isInteger(b.promo_percent)||b.promo_percent<0||b.promo_percent>90||b.promo_percent&&b.amount===null)return err('Harga, layanan atau promo tidak valid.');
+  const b=await readBody(r);if(!b||!services.some(s=>s.id===b.service_id&&s.orderable!==false)||typeof b.enabled!=='boolean'||!(b.amount===null||integer(b.amount))||!Number.isInteger(b.promo_percent)||b.promo_percent<0||b.promo_percent>90||b.promo_percent&&b.amount===null)return err('Harga, layanan atau promo tidak valid.');
   return record(db,db.prepare('INSERT INTO catalog_overrides VALUES(?,?,?,?,?,?) ON CONFLICT(service_id) DO UPDATE SET amount=excluded.amount,enabled=excluded.enabled,promo_percent=excluded.promo_percent,actor_id=excluded.actor_id,updated_at=excluded.updated_at').bind(b.service_id,b.amount,Number(b.enabled),b.promo_percent,user.id,t),user,'catalog:update',b.service_id,t);
  }
  if(p==='/api/business/suppliers'&&get){
