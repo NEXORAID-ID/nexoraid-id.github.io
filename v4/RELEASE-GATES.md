@@ -11,3 +11,5 @@ Updated 2026-11-26. Status: NOT STABLE. Single prioritized backlog for both repo
 | P1 | Bot operations | Persistence restart, moderation, giveaway, transcript and backup restore drill remain. |
 | P2 | Release | Real deployment SHA, rollback, monitoring, runbook and final evidence remain. |
 No provider credentials or production data in this file. Merge candidates only after CI passes; do not reset existing data or Discord structure. No QRIS or AI activation without official configuration.
+
+2026-11-26: Bot PR #2 merged 941f0e2d; CI 45790364887: 36 pass, 0 fail, 0 skip. Website initial candidate CI 45790450130: 38 pass, 0 fail, 0 skip. Main QRIS update ea71e7e preserved in refreshed candidate. Cloudflare run 45799832564 failed before deploy: all seven environment inputs missing. Browser request key retained for same payload on failed response within page lifetime; reload recovery and bot integration remain. QRIS remains manual; owner scan verification pending.
