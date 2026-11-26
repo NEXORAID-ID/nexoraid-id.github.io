@@ -62,3 +62,8 @@ label>input,label>select,label>textarea,form>button{width:100%;min-width:0;max-w
 body.session-expired>:not(#sessionExpired){display:none!important}
 #sessionExpired:not([hidden]){display:grid;gap:14px;max-width:560px;margin:clamp(24px,8vh,90px) auto;padding:24px;background:var(--panel);border:1px solid var(--line);border-radius:18px}
 @media print{body.session-expired>:not(#sessionExpired){display:none!important}body.session-expired #sessionExpired{display:block!important;color:#000;background:#fff}}
+
+#globalResults .empty{margin:4px 0;color:var(--muted)}
+.loading-skeleton{min-height:76px}
+#calendarBody article:has(.overdue){border-color:#ef7474}
+@media print{.print-invoice tr{break-inside:avoid}.print-invoice{overflow-wrap:anywhere}}
