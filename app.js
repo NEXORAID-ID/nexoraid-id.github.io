@@ -1,6 +1,10 @@
-import { CONFIG, services } from './services-data.js';
+import { CONFIG, services as baselineServices } from './services-data.js';
+import { getLiveCatalog } from './live-catalog.js';
 import { categories, escapeHTML as esc, queryCatalog, orderText, fixedPriceValue, comparisonTotals, PAGE_SIZE, safeSelection, safeBasket, basketTotals, basketText, packageOptions, pricingInfo, priceCSV } from './catalog.js';
 
+const catalogue=await getLiveCatalog(baselineServices,location);
+const services=catalogue.services;
+if(catalogue.production){const notice=document.createElement('p');notice.className='catalog-source-notice';notice.textContent=catalogue.live?'Katalog aktif terhubung ke NEXORAID V4. Harga final mengikuti invoice portal.':'Katalog cadangan: harga dan ketersediaan belum tersinkron. Konfirmasi melalui portal sebelum membayar.';document.querySelector('main')?.prepend(notice);}
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const money = amount => 'Rp'+amount.toLocaleString('id-ID');
@@ -398,11 +402,11 @@ $('#basketForm')?.addEventListener('submit',event=>{event.preventDefault();if(ba
 renderBasket();updateFavorites();
 // Branch publishing fallback: prices and downloads work even without generated artifacts.
 const priceHost = $('#priceListStatic');
-if (priceHost && !builtSite) {
+if (priceHost && (!builtSite||catalogue.live)) {
   priceHost.innerHTML = '<div class="price-table-wrap"><table class="price-table"><caption>Harga katalog</caption><thead><tr><th scope="col">Layanan</th><th scope="col">Harga</th></tr></thead><tbody>'+services.map(s=>'<tr><th scope="row"><a href="'+esc(serviceHref(s.id))+'">'+esc(s.name)+'</a></th><td>'+esc(s.price)+'</td></tr>').join('')+'</tbody></table></div>';
 }
 const priceDownload = $('#priceDownload');
-if (priceDownload && !builtSite) {
+if (priceDownload && (!builtSite||catalogue.live)) {
   priceDownload.href = URL.createObjectURL(new Blob([priceCSV(services)],{type:'text/csv;charset=utf-8'}));
   priceDownload.download = 'pricelist.csv';
 }

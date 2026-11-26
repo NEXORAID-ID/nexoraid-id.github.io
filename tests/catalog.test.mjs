@@ -109,3 +109,9 @@ test('DOM collection operations use the multi-element selector',async()=>{
  const source=await readFile(new URL('../app.js',import.meta.url),'utf8');
  assert.doesNotMatch(source,/(^|[^$])\$\([^)]*\)\.(forEach|map|filter|find)\b/m);
 });
+
+test('Live catalogue merges authoritative prices, excludes disabled items and removes stale monetary details',async()=>{
+ const {mergeLiveCatalog}=await import('../live-catalog.js');const base=[{id:'a',price:'Rp10.000',details:[['Package','Rp10.000'],['Contents','5 items']]},{id:'b',price:'Rp20.000',details:[]}];
+ const merged=mergeLiveCatalog(base,{catalog_revision:1,services:[{id:'a',enabled:true,price:'Rp9.000'}]});
+ assert.equal(merged.length,1);assert.equal(merged[0].price,'Rp9.000');assert.deepEqual(merged[0].details,[['Harga portal saat ini','Rp9.000'],['Contents','5 items']]);assert.throws(()=>mergeLiveCatalog(base,{services:[]}));
+});

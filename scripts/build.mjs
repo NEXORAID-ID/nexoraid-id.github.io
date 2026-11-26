@@ -63,7 +63,7 @@ for(const s of services){
 await copyFile(path.join(root,'v4','login.html'),path.join(output,'login.html'));
 await copyFile(path.join(root,'v4','portal.css'),path.join(output,'portal.css'));
 await writeFile(path.join(output,'pricelist.csv'), priceCSV(services));
-for (const file of ['app.js', 'catalog.js', 'services-data.js', 'styles.css', 'premium.css', 'route-fallback.js', '.nojekyll']) await copyFile(path.join(root, file), path.join(output, file));
+for (const file of ['app.js', 'catalog.js', 'live-catalog.js', 'services-data.js', 'styles.css', 'premium.css', 'route-fallback.js', '.nojekyll']) await copyFile(path.join(root, file), path.join(output, file));
 for (const asset of await readdir(path.join(root, 'assets'))) {
   if (/\.(png|webp|jpg|svg|woff2)$/.test(asset)) await copyFile(path.join(root, 'assets', asset), path.join(output, 'assets', asset));
 }

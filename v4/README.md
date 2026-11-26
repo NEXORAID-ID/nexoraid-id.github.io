@@ -57,3 +57,6 @@ Health now queries required tables and reports schema and deployed Git SHA; a mi
 
 ### Order collaboration (0009)
 Scoped chat and internal notes, staff-assigned priority/deadline, month-filtered deadline list, private payment/work image attachments. Files limited to three per kind/order and 512 KiB each, with PNG/JPEG signature checks; downloaded as octet-stream with attachment headers, not rendered inline. Signature checks are not full malware scanning. Payment proof is visible only to customer and owner; work proof to assigned worker and staff. Do not submit credentials. No attachment automatically verifies payment or completes work. Calendar lists at most 200 items; chats at most 500 per order, showing newest 100. Retention/backup policy and real D1 load testing remain required.
+
+### Live storefront
+The public storefront on the official Pages and Worker origins fetches the public catalogue (credentials omitted), merges live prices and excludes disabled services. An offline/baseline notice is visible when the API is unavailable. Built static HTML, CSV and historical SEO metadata remain fallback snapshots; JavaScript replaces the visible price table and download when live data is available. Marketing copy outside catalog cards may still refer to older promotions; use the portal invoice as the final price.

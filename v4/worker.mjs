@@ -92,7 +92,7 @@ async function handle(r,env){
   let ready=false;try{if(env.DB){const check=await env.DB.prepare('SELECT (SELECT COUNT(*) FROM users WHERE 0)+(SELECT COUNT(*) FROM order_ticket_links WHERE 0)+(SELECT COUNT(*) FROM rejected_payment_claims WHERE 0)+(SELECT COUNT(*) FROM order_attachments WHERE 0)+(SELECT COUNT(*) FROM order_messages WHERE 0)+(SELECT COUNT(*) FROM order_plans WHERE 0) AS probe').first();ready=check?.probe===0;}}catch{}
   return json({status:ready&&oauthReady(env)?'ok':'degraded',version:4,release:env.RELEASE_SHA||null,database_configured:Boolean(env.DB),database_ready:ready,login_configured:oauthReady(env),schema:ready?9:null},ready&&oauthReady(env)?200:503);
  }
- if(p==='/api/catalog'&&m==='GET')return env.DB?json({services:await memberCatalog(env.DB)}):json({services:services.map(({id,name,category,desc,price})=>({id,name,category,desc,price})),baseline:true});
+ if(p==='/api/catalog'&&m==='GET'){const response=env.DB?json({services:await memberCatalog(env.DB),catalog_revision:1}):json({services:services.map(({id,name,category,desc,price})=>({id,name,category,desc,price})),baseline:true});response.headers.set('access-control-allow-origin','*');return response;}
  if(!env.DB||!env.PUBLIC_ORIGIN||url.origin!==env.PUBLIC_ORIGIN)return err('Layanan akun belum dikonfigurasi untuk domain ini.',503);
  const bot=p.startsWith('/api/bot/');
  let botUser=null;
