@@ -3,6 +3,7 @@ import { fixedPriceValue } from '../catalog.js';
 import { operations,listOrders } from './operations.mjs';
 import { workspace } from './workspace.mjs';
 import { business,memberCatalog,applyOverride,rateLimit } from './business.mjs';
+import { ticketLinks } from './ticket-links.mjs';
 
 const DAY=86400;
 const cookie=(name,value,age)=>name+'='+value+'; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age='+age;
@@ -101,7 +102,7 @@ async function handle(r,env){
   const actor=r.headers.get('x-discord-user-id'),guild=r.headers.get('x-discord-guild-id');
   if(!validId(actor)||guild!=='1487728359482851348')return err('Identitas bot tidak valid.',403);
   p=p.replace('/api/bot/','/api/');
-  if(!((p==='/api/orders'&&['GET','POST'].includes(m))||(m==='POST'&&/^\/api\/orders\/[a-f0-9-]{36}\/(claim|status|evidence)$/.test(p))))return err('Endpoint bot tidak diizinkan.',404);
+  if(!((p==='/api/orders'&&['GET','POST'].includes(m))||(m==='POST'&&/^\/api\/orders\/[a-f0-9-]{36}\/(claim|status|evidence)$/.test(p))||(['GET','POST'].includes(m)&&/^\/api\/orders\/[a-f0-9-]{36}\/ticket$/.test(p))))return err('Endpoint bot tidak diizinkan.',404);
   await env.DB.prepare("INSERT INTO users(id,display_name,created_at) VALUES(?,?,?) ON CONFLICT(id) DO NOTHING").bind(actor,'Discord '+actor,now()).run();
   const u=await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+' FROM users u WHERE u.id=?').bind(actor).first();
   botUser=u?{...u,role:roleFor(u,env)}:null;
@@ -165,6 +166,7 @@ async function handle(r,env){
   const results=await env.DB.batch([env.DB.prepare('UPDATE orders SET status=?,updated_at=? WHERE id=? AND status=? AND assigned_to IS ?').bind(b.status,t,id,order.status,order.assigned_to),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,?,?,? WHERE changes()=1").bind(user.id,'status:'+b.status,id,t)]);
   return results[0].meta.changes?json({ok:true}):err('Status sudah berubah.',409);
  }
+ if(p.endsWith('/ticket')){const linked=await ticketLinks({p,m,user,env,bot,r,readBody:body});if(linked)return linked;}
  if(!bot&&p.startsWith('/api/workspace/')){const extra=await workspace({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
  if(!bot||p.endsWith('/evidence')){const extra=await operations({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
  if(p==='/api/team'&&m==='GET'){

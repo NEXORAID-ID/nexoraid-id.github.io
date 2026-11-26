@@ -45,7 +45,7 @@ test('Operations scope and seller settlement policy are explicit',async()=>{cons
 test('Four-role API lifecycle with SQLite D1 adapter and real persisted records',async()=>{
  const {DatabaseSync}=await import('node:sqlite');const {readFile}=await import('node:fs/promises');
  const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON');
- for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_workspace.sql','0006_business.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
+ for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_workspace.sql','0006_business.sql','0007_ticket_links.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
  const ids={owner:'111111111111111111',management:'222222222222222222',worker:'333333333333333333',customer:'444444444444444444',other:'555555555555555555'};
  const cookies={};
  for(const [role,id] of Object.entries(ids)){
@@ -63,6 +63,11 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   const created=await call('customer','orders',{service_id:'gta-heist',quantity:1});assert.equal(created.status,201);const {order}=await created.json();const id=order.id;
   assert.equal((await (await call('other','orders')).json()).orders.length,0);
   assert.equal((await call('other','orders/'+id)).status,404);
+  assert.equal((await call('other','orders/'+id+'/ticket')).status,404);
+  assert.equal((await call('customer','orders/'+id+'/ticket',{guild_id:'1487728359482851348',channel_id:'666666666666666666',ticket_id:'0001'})).status,403);
+  const ticketBridge=await worker.fetch(req('/api/bot/orders/'+id+'/ticket',{method:'POST',headers:{authorization:'Bearer '+env.NEXORAID_BOT_API_KEY,'x-discord-user-id':ids.customer,'x-discord-guild-id':'1487728359482851348','content-type':'application/json'},body:JSON.stringify({guild_id:'1487728359482851348',channel_id:'666666666666666666',ticket_id:'0001'})}),env);
+  assert.equal(ticketBridge.status,200);
+  assert.equal((await (await call('customer','orders/'+id+'/ticket')).json()).ticket.ticket_id,'0001');
   assert.equal((await (await call('worker','orders')).json()).orders[0].customer_id,null);
   assert.equal((await call('management','team')).status,403);
   assert.equal((await call('customer','orders/'+id+'/claim',{})).status,403);
