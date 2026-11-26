@@ -30,3 +30,32 @@ test('D1 sync grants only verified worker, revokes stale sessions, preserves own
  sync(id,false);assert.equal(db.prepare('SELECT role FROM users WHERE id=?').get(id).role,'customer');
  assert.equal(db.prepare('SELECT COUNT(*) n FROM audit_events').get().n,2);db.close();
 });
+
+test('actual OAuth callback creates verified worker session and /api/me resolves role without manual grant',async()=>{
+ const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON');
+ for(const n of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_workspace.sql','0006_business.sql','0007_ticket_links.sql','0008_integrity.sql','0009_order_collaboration.sql','0010_checkout.sql'])db.exec(await readFile(new URL('../v4/migrations/'+n,import.meta.url),'utf8'));
+ const DB={prepare(sql){return {bind(...args){return {async run(){return {meta:{changes:Number(db.prepare(sql).run(...args).changes)}};},async first(){return db.prepare(sql).get(...args)||null;}};}};},async batch(stmts){db.exec('BEGIN');try{const out=[];for(const s of stmts)out.push(await s.run());db.exec('COMMIT');return out;}catch(e){db.exec('ROLLBACK');throw e;}}};
+ const state='a'.repeat(72),verifier='b'.repeat(43);
+ const config={...env,DB,OWNER_DISCORD_ID:'999999999999999999'};
+ const callback=()=>worker.fetch(new Request(env.PUBLIC_ORIGIN+'/api/auth/callback?code=fixture&state='+state,{headers:{cookie:'nexo_state='+state+'; nexo_pkce='+verifier}}),config);
+ let calls=0;config.DISCORD_OAUTH_FETCH=async()=>++calls===1?Response.json({access_token:'fixture'}):calls===2?Response.json({id,username:'fixture'}):Response.json({roles:[role]});
+ try{
+ const r=await callback();assert.equal(r.status,303);assert.equal(r.headers.get('location'),'/portal.html');
+ const session=r.headers.getSetCookie().find(x=>x.startsWith('nexo_session='));assert.ok(session);assert.match(session,/Max-Age=900/);
+ const me=await worker.fetch(new Request(env.PUBLIC_ORIGIN+'/api/me',{headers:{cookie:session.split(';')[0]}}),config);
+ assert.equal(me.status,200);assert.equal((await me.json()).user.role,'worker');
+ calls=0;config.DISCORD_OAUTH_FETCH=async()=>++calls===1?Response.json({access_token:'fixture'}):calls===2?Response.json({id,username:'fixture'}):Response.json({},{status:429});
+ const failed=await callback();assert.match(failed.headers.get('location'),/membership_unavailable/);
+ assert.equal(db.prepare('SELECT role FROM users WHERE id=?').get(id).role,'worker');
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM sessions').get().n,1);
+ }finally{db.close();}
+});
+test('runtime membership diagnostic requires exact owner and actor key; no arbitrary lookup or data exposure',async()=>{
+ const owner='999999999999999999',key='a'.repeat(64);let calls=0;
+ const config={...env,DB:{},OWNER_DISCORD_ID:owner,NEXORAID_BOT_API_KEY:key,DISCORD_MEMBERSHIP_BOT_TOKEN:'fixture',DISCORD_MEMBERSHIP_FETCH:async url=>{calls++;assert.equal(url,'https://discord.com/api/v10/guilds/1487728359482851348/members/'+owner);return Response.json({user:{id:owner},roles:[role]});}};
+ const call=(actor,token=key)=>worker.fetch(new Request(env.PUBLIC_ORIGIN+'/api/bot/health?membership=1&user_id='+id,{headers:{authorization:'Bearer '+token,'x-discord-user-id':actor,'x-discord-guild-id':'1487728359482851348'}}),config);
+ assert.equal((await call(id)).status,403);assert.equal((await call(owner,'wrong')).status,401);assert.equal(calls,0);
+ const r=await call(owner);assert.equal(r.status,200);assert.deepEqual(await r.json(),{ok:true,reason:'VERIFIED',upstream_status:200});assert.equal(calls,1);
+ config.DISCORD_MEMBERSHIP_FETCH=async()=>Response.json({private:'never expose'},{status:401});
+ const fail=await call(owner);assert.equal(fail.status,503);assert.deepEqual(await fail.json(),{ok:false,reason:'UNAUTHORIZED',upstream_status:401});
+});
