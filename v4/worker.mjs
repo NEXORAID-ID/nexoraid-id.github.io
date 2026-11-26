@@ -37,6 +37,11 @@ async function body(r){
  try{while(true){const {value,done}=await reader.read();if(done)break;size+=value.length;if(size>4096){await reader.cancel();return null;}chunks.push(value);}
  const bytes=new Uint8Array(size);let off=0;for(const c of chunks){bytes.set(c,off);off+=c.length;}const value=JSON.parse(new TextDecoder().decode(bytes));return value&&typeof value==='object'&&!Array.isArray(value)?value:null;}catch{return null;}
 }
+export function oauthFailure(status,value){
+ const known=['invalid_client','invalid_grant','invalid_request','unauthorized_client','unsupported_grant_type','invalid_scope'];
+ return status===429?'rate_limited':known.includes(value?.error)?value.error:status===401?'invalid_client':'provider_error';
+}
+const loginFailure=(code)=>redirect('/portal.html?login_error='+encodeURIComponent(code),[cookie('nexo_state','',0)]);
 function oauthReady(env){return Boolean(env.PUBLIC_ORIGIN&&env.DISCORD_CLIENT_ID&&env.DISCORD_CLIENT_SECRET&&env.DB);}
 async function handle(r,env){
  const url=new URL(r.url),m=r.method;let p=url.pathname;
@@ -69,19 +74,24 @@ async function handle(r,env){
  }else if(m!=='GET'&&r.headers.get('origin')!==env.PUBLIC_ORIGIN)return err('Origin tidak diizinkan.',403);
  if(p==='/api/auth/login'&&m==='GET'){
   if(!oauthReady(env))return err('Login belum dikonfigurasi.',503);
-  const state=random();const q=new URLSearchParams({client_id:env.DISCORD_CLIENT_ID,response_type:'code',redirect_uri:env.PUBLIC_ORIGIN+'/api/auth/callback',scope:'identify',state,prompt:'consent'});
+  const state=random();const q=new URLSearchParams({client_id:env.DISCORD_CLIENT_ID.trim(),response_type:'code',redirect_uri:env.PUBLIC_ORIGIN+'/api/auth/callback',scope:'identify',state,prompt:'consent'});
   return redirect('https://discord.com/oauth2/authorize?'+q,[cookie('nexo_state',state,600)]);
  }
  if(p==='/api/auth/callback'&&m==='GET'){
   if(!oauthReady(env))return err('Login belum dikonfigurasi.',503);
   const code=url.searchParams.get('code'),state=url.searchParams.get('state');
-  if(!code||!state||state!==getCookie(r,'nexo_state')||!/^[a-f0-9-]{72}$/.test(state))return err('Sesi login tidak valid. Coba lagi.',400);
-  const tokenResponse=await fetch('https://discord.com/api/v10/oauth2/token',{method:'POST',body:new URLSearchParams({client_id:env.DISCORD_CLIENT_ID,client_secret:env.DISCORD_CLIENT_SECRET,grant_type:'authorization_code',code,redirect_uri:env.PUBLIC_ORIGIN+'/api/auth/callback'})});
-  if(!tokenResponse.ok)return err('Login Discord gagal.',502);
-  const token=await tokenResponse.json();
-  const userResponse=await fetch('https://discord.com/api/v10/users/@me',{headers:{authorization:'Bearer '+token.access_token}});
-  if(!userResponse.ok)return err('Identitas Discord tidak tersedia.',502);
-  const user=await userResponse.json();if(!validId(user.id))return err('Identitas tidak valid.',502);
+  if(!state||state!==getCookie(r,'nexo_state')||!/^[a-f0-9-]{72}$/.test(state))return loginFailure('invalid_state');
+  if(url.searchParams.get('error')==='access_denied')return loginFailure('access_denied');
+  if(!code||code.length>2048)return loginFailure('invalid_grant');
+  let token,user;
+  try{
+   const tokenResponse=await fetch('https://discord.com/api/v10/oauth2/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded','accept':'application/json'},redirect:'error',signal:AbortSignal.timeout(15000),body:new URLSearchParams({client_id:env.DISCORD_CLIENT_ID.trim(),client_secret:env.DISCORD_CLIENT_SECRET.trim(),grant_type:'authorization_code',code,redirect_uri:env.PUBLIC_ORIGIN+'/api/auth/callback'})});
+   if(!tokenResponse.ok){const reason=oauthFailure(tokenResponse.status,await tokenResponse.json().catch(()=>null));console.warn('Discord OAuth token exchange rejected',{status:tokenResponse.status,reason});return loginFailure(reason);}
+   token=await tokenResponse.json();if(typeof token.access_token!=='string'||!token.access_token)return loginFailure('provider_error');
+   const userResponse=await fetch('https://discord.com/api/v10/users/@me',{headers:{authorization:'Bearer '+token.access_token,accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(15000)});
+   if(!userResponse.ok){console.warn('Discord OAuth identity rejected',{status:userResponse.status});return loginFailure('identity_error');}
+   user=await userResponse.json();if(!validId(user.id))return loginFailure('identity_error');
+  }catch{console.warn('Discord OAuth request failed');return loginFailure('provider_error');}
   const t=now(),s=random();
   await env.DB.batch([
    env.DB.prepare('INSERT INTO users(id,display_name,created_at) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET display_name=excluded.display_name').bind(user.id,String(user.global_name||user.username||'Pelanggan').slice(0,100),t),
