@@ -5,6 +5,7 @@ import { workspace } from './workspace.mjs';
 import { business,memberCatalog,applyOverride,rateLimit } from './business.mjs';
 import { ticketLinks } from './ticket-links.mjs';
 import { collaboration } from './collaboration.mjs';
+import { customer,deviceLabel } from './customer.mjs';
 
 const DAY=86400;
 const cookie=(name,value,age)=>name+'='+value+'; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age='+age;
@@ -89,8 +90,8 @@ async function handle(r,env){
   return page.ok?new Response(page.body,{status:404,headers:page.headers}):asset;
  }
  if(p==='/api/health'&&m==='GET'){
-  let ready=false;try{if(env.DB){const check=await env.DB.prepare('SELECT (SELECT COUNT(*) FROM users WHERE 0)+(SELECT COUNT(*) FROM order_ticket_links WHERE 0)+(SELECT COUNT(*) FROM rejected_payment_claims WHERE 0)+(SELECT COUNT(*) FROM order_attachments WHERE 0)+(SELECT COUNT(*) FROM order_messages WHERE 0)+(SELECT COUNT(*) FROM order_plans WHERE 0) AS probe').first();ready=check?.probe===0;}}catch{}
-  return json({status:ready&&oauthReady(env)?'ok':'degraded',version:4,release:env.RELEASE_SHA||null,database_configured:Boolean(env.DB),database_ready:ready,login_configured:oauthReady(env),schema:ready?9:null},ready&&oauthReady(env)?200:503);
+  let ready=false;try{if(env.DB){const check=await env.DB.prepare('SELECT (SELECT COUNT(*) FROM users WHERE 0)+(SELECT COUNT(*) FROM order_ticket_links WHERE 0)+(SELECT COUNT(*) FROM rejected_payment_claims WHERE 0)+(SELECT COUNT(*) FROM order_attachments WHERE 0)+(SELECT COUNT(*) FROM order_messages WHERE 0)+(SELECT COUNT(*) FROM order_plans WHERE 0)+(SELECT COUNT(*) FROM checkout_groups WHERE 0)+(SELECT COUNT(*) FROM session_metadata WHERE 0) AS probe').first();ready=check?.probe===0;}}catch{}
+  return json({status:ready&&oauthReady(env)?'ok':'degraded',version:4,release:env.RELEASE_SHA||null,database_configured:Boolean(env.DB),database_ready:ready,login_configured:oauthReady(env),schema:ready?10:null},ready&&oauthReady(env)?200:503);
  }
  if(p==='/api/catalog'&&m==='GET'){const response=env.DB?json({services:await memberCatalog(env.DB),catalog_revision:1}):json({services:services.map(({id,name,category,desc,price})=>({id,name,category,desc,price})),baseline:true});response.headers.set('access-control-allow-origin','*');return response;}
  if(!env.DB||!env.PUBLIC_ORIGIN||url.origin!==env.PUBLIC_ORIGIN)return err('Layanan akun belum dikonfigurasi untuk domain ini.',503);
@@ -125,11 +126,12 @@ async function handle(r,env){
   const result=await discordIdentity(env,code);
   if(result.error)return loginFailure(result.error);
   const user=result.user;
-  const t=now(),s=random();
+  const t=now(),s=random(),sessionHash=await hash(s);
   await env.DB.batch([
    env.DB.prepare('INSERT INTO users(id,display_name,created_at) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET display_name=excluded.display_name').bind(user.id,String(user.global_name||user.username||'Pelanggan').slice(0,100),t),
    env.DB.prepare('DELETE FROM sessions WHERE expires_at<=?').bind(t),
-   env.DB.prepare('INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)').bind(await hash(s),user.id,t+7*DAY)
+   env.DB.prepare('INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)').bind(sessionHash,user.id,t+7*DAY),
+   env.DB.prepare('INSERT INTO session_metadata VALUES(?,?,?,?)').bind(sessionHash,crypto.randomUUID(),deviceLabel(r.headers.get('user-agent')||''),t)
   ]);
   return redirect('/portal.html',[cookie('nexo_state','',0),cookie('nexo_session',s,7*DAY)]);
  }
@@ -142,6 +144,7 @@ async function handle(r,env){
  if(p==='/api/me'&&m==='GET'){const earned=await env.DB.prepare('SELECT order_id FROM order_settlements WHERE worker_id=? LIMIT 1').bind(user.id).first();return json({user:{...user,finance_access:user.role==='owner'||user.role==='worker'||Boolean(earned)}});}
  if(p==='/api/auth/logout-all'&&m==='POST'&&!bot){await env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(user.id).run();const response=json({ok:true});response.headers.append('set-cookie',cookie('nexo_session','',0));return response;}
  if(m==='POST'&&!(p==='/api/team/role'&&user.role!=='owner')&&!await rateLimit(env.DB,user.id))return err('Terlalu banyak permintaan.',429);
+ if(!bot&&p.startsWith('/api/customer/')){const extra=await customer({p,m,user,env,r,readBody:body,sessionHash:await hash(getCookie(r,'nexo_session'))});if(extra)return extra;}
  if(!bot&&p.startsWith('/api/business/')){const extra=await business({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
  if(p==='/api/orders'&&m==='GET')return listOrders(env.DB,user,url);
  if(p==='/api/orders'&&m==='POST'){

@@ -60,3 +60,6 @@ Scoped chat and internal notes, staff-assigned priority/deadline, month-filtered
 
 ### Live storefront
 The public storefront on the official Pages and Worker origins fetches the public catalogue (credentials omitted), merges live prices and excludes disabled services. An offline/baseline notice is visible when the API is unavailable. Built static HTML, CSV and historical SEO metadata remain fallback snapshots; JavaScript replaces the visible price table and download when live data is available. Marketing copy outside catalog cards may still refer to older promotions; use the portal invoice as the final price.
+
+### Checkout and sessions (0010)
+Atomic checkout of up to five distinct services creates separate order/invoice records, shares the rolling five-orders/hour quota, and supports idempotent retries. Cart is session-local; favorites are account-scoped. No unified payment is implied. Device session labels are coarse browser/OS labels; no IP stored, no session hash exposed. Existing sessions preserved. Individual session revocation is scoped to the account.

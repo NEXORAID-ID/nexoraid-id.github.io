@@ -45,7 +45,7 @@ test('Operations scope and seller settlement policy are explicit',async()=>{cons
 test('Four-role API lifecycle with SQLite D1 adapter and real persisted records',async()=>{
  const {DatabaseSync}=await import('node:sqlite');const {readFile}=await import('node:fs/promises');
  const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON');
- for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_workspace.sql','0006_business.sql','0007_ticket_links.sql','0008_integrity.sql','0009_order_collaboration.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
+ for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_workspace.sql','0006_business.sql','0007_ticket_links.sql','0008_integrity.sql','0009_order_collaboration.sql','0010_checkout.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
  const ids={owner:'111111111111111111',management:'222222222222222222',worker:'333333333333333333',customer:'444444444444444444',other:'555555555555555555'};
  const cookies={};
  for(const [role,id] of Object.entries(ids)){
@@ -152,5 +152,16 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await (await call('customer','business/notifications')).json()).unread,0);
   assert.equal((await call('owner','team/role',{user_id:ids.worker,role:'customer'})).status,200);
   assert.equal((await call('worker','settlements')).status,200);assert.equal((await (await call('worker','workspace/payouts')).json()).balance.available,1000);assert.equal((await (await call('worker','me')).json()).user.finance_access,true);
+  assert.equal((await call('customer','customer/saved',{service_id:'gta-heist',saved:true})).status,200);
+  assert.deepEqual((await (await call('other','customer/saved')).json()).saved,[]);
+  const basket={request_id:'checkout-test-001',items:[{service_id:'gta-heist',quantity:1},{service_id:'optiwindows',quantity:1}]};
+  const checkout=await call('other','customer/checkout',basket);assert.equal(checkout.status,201);const result=await checkout.json();assert.equal(result.orders.length,2);
+  const again=await call('other','customer/checkout',basket);assert.equal(again.status,200);assert.equal((await again.json()).checkout_id,result.checkout_id);
+  assert.equal((await call('other','customer/checkout',{...basket,items:[{service_id:'gta-heist',quantity:2}]})).status,409);
+  assert.equal((await call('other','customer/checkout',{...basket,request_id:'checkout-test-002',items:[...basket.items,{service_id:'cherax',quantity:1}]})).status,429);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM checkout_groups').get().n,1);
+  const hashes=db.prepare('SELECT token_hash,user_id FROM sessions').all();for(const x of hashes)db.prepare('INSERT INTO session_metadata VALUES(?,?,?,?)').run(x.token_hash,crypto.randomUUID(),'Test',1);
+  const sessions=await (await call('customer','customer/sessions')).json();assert.equal(sessions.sessions.length,1);assert.equal(sessions.sessions[0].current,true);assert.equal('token_hash' in sessions.sessions[0],false);
+  const otherSessions=await (await call('other','customer/sessions')).json();assert.equal((await call('customer','customer/sessions/revoke',{id:otherSessions.sessions[0].public_id})).status,404);
  }finally{db.close();}
 });
