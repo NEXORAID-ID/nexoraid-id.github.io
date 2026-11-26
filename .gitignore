@@ -6,3 +6,6 @@ Thumbs.db
 .env
 .env.*
 *.zip
+
+v4/.generated/
+*.sql.partial

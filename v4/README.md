@@ -63,3 +63,6 @@ The public storefront on the official Pages and Worker origins fetches the publi
 
 ### Checkout and sessions (0010)
 Atomic checkout of up to five distinct services creates separate order/invoice records, shares the rolling five-orders/hour quota, and supports idempotent retries. Cart is session-local; favorites are account-scoped. No unified payment is implied. Device session labels are coarse browser/OS labels; no IP stored, no session hash exposed. Existing sessions preserved. Individual session revocation is scoped to the account.
+
+### Completed-order refund (0011)
+Owner can record actual partial/full post-completion refunds with explicit owner-borne-cost confirmation. Amount capped at verified payment; unique refund references across both ledgers. Historical worker earnings are unchanged, completed status is retained, and report margin deducts these refunds at the recorded date. This is an opt-in policy per refund, not an automatic deduction or transfer. Refund during processing remains a separate review case. The private manual redeploy script now exports D1 before applying migrations; no recovery exercise has been performed. See RELEASE-GATE.md.

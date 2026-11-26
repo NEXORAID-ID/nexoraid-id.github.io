@@ -10,6 +10,7 @@ on:
       - 'premium.css'
       - 'app.js'
       - 'catalog.js'
+      - 'live-catalog.js'
       - 'services-data.js'
       - 'scripts/**'
       - '.github/workflows/cloudflare-v4.yml'
@@ -55,6 +56,7 @@ jobs:
           node v4/scripts/prepare.mjs
       - name: Apply D1 migrations and deploy
         run: |
+          # Manual deployment creates a private export; CI uses Cloudflare-managed recovery.
           npx --yes wrangler@4 d1 migrations apply nexoraid-v4 --remote --config v4/.generated/wrangler.json
           umask 077
           secret_file="$(mktemp)"

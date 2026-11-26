@@ -7,7 +7,7 @@ const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:
 const err=(error,status)=>json({error},status);
 export function financeKind(serviceId){return serviceId==='seller'?'seller':serviceId.startsWith('gta-')?'joki':'other';}
 export function scopeFor(user){return staff(user.role)?{where:'1=1',args:[]}:user.role==='worker'?{where:"(o.customer_id=? OR o.assigned_to=? OR o.status='requested')",args:[user.id,user.id]}:{where:'o.customer_id=?',args:[user.id]};}
-const orderFields="o.*,f.amount AS invoice_amount,f.kind AS invoice_kind,f.state AS payment_state,f.paid_at,w.submitted_at AS evidence_at,EXISTS(SELECT 1 FROM payment_claims c WHERE c.order_id=o.id) AS payment_claimed,(SELECT amount FROM order_refunds r WHERE r.order_id=o.id) AS refunded_amount";
+const orderFields="o.*,f.amount AS invoice_amount,f.kind AS invoice_kind,f.state AS payment_state,f.paid_at,w.submitted_at AS evidence_at,EXISTS(SELECT 1 FROM payment_claims c WHERE c.order_id=o.id) AS payment_claimed,(COALESCE((SELECT amount FROM order_refunds r WHERE r.order_id=o.id),0)+COALESCE((SELECT SUM(amount) FROM completed_refunds r WHERE r.order_id=o.id),0)) AS refunded_amount";
 const joins=" FROM orders o LEFT JOIN order_finance f ON f.order_id=o.id LEFT JOIN order_work w ON w.order_id=o.id";
 function redact(o,user){if(user.role==='worker'&&o.status==='requested'&&o.customer_id!==user.id)return {...o,customer_id:null};return o;}
 export async function listOrders(db,user,url){

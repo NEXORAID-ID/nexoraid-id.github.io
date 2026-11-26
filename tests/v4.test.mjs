@@ -45,7 +45,7 @@ test('Operations scope and seller settlement policy are explicit',async()=>{cons
 test('Four-role API lifecycle with SQLite D1 adapter and real persisted records',async()=>{
  const {DatabaseSync}=await import('node:sqlite');const {readFile}=await import('node:fs/promises');
  const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON');
- for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_workspace.sql','0006_business.sql','0007_ticket_links.sql','0008_integrity.sql','0009_order_collaboration.sql','0010_checkout.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
+ for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_workspace.sql','0006_business.sql','0007_ticket_links.sql','0008_integrity.sql','0009_order_collaboration.sql','0010_checkout.sql','0011_refund_ledger.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
  const ids={owner:'111111111111111111',management:'222222222222222222',worker:'333333333333333333',customer:'444444444444444444',other:'555555555555555555'};
  const cookies={};
  for(const [role,id] of Object.entries(ids)){
@@ -160,6 +160,15 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await call('other','customer/checkout',{...basket,items:[{service_id:'gta-heist',quantity:2}]})).status,409);
   assert.equal((await call('other','customer/checkout',{...basket,request_id:'checkout-test-002',items:[...basket.items,{service_id:'cherax',quantity:1}]})).status,429);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM checkout_groups').get().n,1);
+  const refundData={amount:3000,reference:'refund-completed-1',reason:'Customer agreed partial refund',owner_bears_cost:true};
+  assert.equal((await call('management','workspace/orders/'+id+'/completed-refund',refundData)).status,403);
+  assert.equal((await call('owner','workspace/orders/'+id+'/completed-refund',{...refundData,owner_bears_cost:false})).status,400);
+  assert.equal((await call('owner','workspace/orders/'+id+'/completed-refund',refundData)).status,200);
+  assert.equal((await call('owner','workspace/orders/'+id+'/completed-refund',refundData)).status,409);
+  assert.equal((await call('owner','workspace/orders/'+id+'/completed-refund',{...refundData,amount:13000,reference:'refund-completed-2'})).status,409);
+  assert.equal((await (await call('customer','orders/'+id)).json()).order.refunded_amount,3000);
+  assert.equal((await (await call('worker','workspace/payouts')).json()).balance.available,1000);
+  assert.equal((await (await call('owner','workspace/report')).json()).finance.recorded_margin,2500);
   const hashes=db.prepare('SELECT token_hash,user_id FROM sessions').all();for(const x of hashes)db.prepare('INSERT INTO session_metadata VALUES(?,?,?,?)').run(x.token_hash,crypto.randomUUID(),'Test',1);
   const sessions=await (await call('customer','customer/sessions')).json();assert.equal(sessions.sessions.length,1);assert.equal(sessions.sessions[0].current,true);assert.equal('token_hash' in sessions.sessions[0],false);
   const otherSessions=await (await call('other','customer/sessions')).json();assert.equal((await call('customer','customer/sessions/revoke',{id:otherSessions.sessions[0].public_id})).status,404);
