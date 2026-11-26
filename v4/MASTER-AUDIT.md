@@ -79,15 +79,15 @@ Status: candidate development, not stable. Source: owner-approved 26 Nov 2026 au
 | A74 | P0 | IDOR/RBAC tests | O |
 | A75 | P0 | Concurrency and replay tests | O |
 | A76 | P1 | Maintenance mode | O |
-| A77 | P1 | Pin Wrangler patch | O |
-| A78 | P0 | Migration deployment compatibility | O |
+| A77 | P1 | Pin Wrangler patch | DEPLOYMENT GATE PASSED |
+| A78 | P0 | Migration deployment compatibility | DEPLOYMENT GATE PASSED |
 | A79 | P0 | Real backend browser E2E | ISOLATED E2E PASSED |
-| A80 | P1 | Native dependencies CI | O |
-| A81 | P0 | Mandatory security gate | O |
-| A82 | P1 | Isolated staging | O |
-| A83 | P1 | Release drift monitor | O |
+| A80 | P1 | Native dependencies CI | NATIVE CI PASSED |
+| A81 | P0 | Mandatory security gate | DEPLOYMENT GATE PASSED; CONTROL GAP |
+| A82 | P1 | Isolated staging | LOCAL PASSED; CLOUD CANDIDATE |
+| A83 | P1 | Release drift monitor | MERGED; LIVE MONITOR PENDING |
 | A84 | P0 | Restore drill | ISOLATED RESTORE PASSED |
-| A85 | P0 | Complete release evidence | O |
+| A85 | P0 | Complete release evidence | IN PROGRESS |
 
 ## Candidate evidence
 Website PR #4: initial commit 070f7f00, migration 0012 and ticket-queue tests; subsequent candidate changes add portal draft persistence, sync states and schema probe. Bot PR #6: initial commit 48bb583a, subsequent 31c8023b adds gated consumer. New commits require fresh CI. All open items must have specific code/test evidence or explicit external blocker; do not mark stable from this table alone. No data import, no real money transfers, no restructuring.
@@ -133,3 +133,6 @@ Merged implementation: [9729838](https://github.com/NEXORAID-ID/nexoraid-id.gith
 | A51 | Indonesian portal action labels and related browser selectors updated. | Complete public/storefront/dashboard copy and backend error localization review. |
 
 Do not mark VERIFIED or Final Stable without current main CI, deployment evidence and remaining acceptance tests.
+
+## Release gate evidence — 27 Nov
+See [FINAL-STABLE-EVIDENCE.md](FINAL-STABLE-EVIDENCE.md). Scoped historical CI and deployment evidence is not blanket production certification. Production finance migration is blocked pending valid encrypted backup/restore evidence. Cloud staging and live drift monitoring still require dedicated configuration.
