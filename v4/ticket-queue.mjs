@@ -9,6 +9,21 @@ export async function ticketQueue({db,r,m,readBody,clock=()=>Math.floor(Date.now
  if(m!=='POST')return err('Metode tidak diizinkan.',405);
  const b=await readBody(r),t=clock();
  if(b?.action==='health'){const probe=await db.prepare('SELECT COUNT(*) AS probe FROM web_ticket_outbox WHERE 0').first();return probe?.probe===0?json({ok:true}):err('Queue tidak siap.',503);}
+ if(b?.action==='readiness'){
+  // Single read-only snapshot: never lease, backfill, mutate orders, or expose customer IDs.
+  const counts=await db.prepare(`SELECT
+   (SELECT COUNT(*) FROM orders o WHERE o.status NOT IN ('completed','cancelled')) AS active,
+   (SELECT COUNT(*) FROM orders o LEFT JOIN web_ticket_outbox q ON q.order_id=o.id WHERE o.status NOT IN ('completed','cancelled') AND q.order_id IS NULL) AS historicalUnqueued,
+   (SELECT COUNT(*) FROM web_ticket_outbox q JOIN orders o ON o.id=q.order_id WHERE o.status NOT IN ('completed','cancelled') AND q.delivered_at IS NULL) AS pending,
+   (SELECT COUNT(*) FROM web_ticket_outbox q JOIN orders o ON o.id=q.order_id WHERE o.status NOT IN ('completed','cancelled') AND q.delivered_at IS NULL AND q.next_attempt<=? AND (q.lease_until IS NULL OR q.lease_until<=?)) AS eligible,
+   (SELECT COUNT(*) FROM web_ticket_outbox q WHERE q.delivered_at IS NULL AND q.lease_until>?) AS leased,
+   (SELECT COUNT(*) FROM web_ticket_outbox q WHERE q.delivered_at IS NOT NULL) AS delivered,
+   (SELECT COUNT(*) FROM web_ticket_outbox q JOIN orders o ON o.id=q.order_id LEFT JOIN order_ticket_links l ON l.order_id=q.order_id WHERE q.delivered_at IS NOT NULL AND (l.order_id IS NULL OR l.guild_id<>? OR l.customer_id<>o.customer_id OR l.channel_id<>q.channel_id)) AS inconsistent,
+   (SELECT COUNT(*) FROM (SELECT l.customer_id FROM order_ticket_links l JOIN orders o ON o.id=l.order_id WHERE l.guild_id=? AND o.status NOT IN ('completed','cancelled') GROUP BY l.customer_id HAVING COUNT(DISTINCT l.channel_id)>1 OR COUNT(DISTINCT l.ticket_id)>1)) AS splitActive
+  `).bind(t,t,t,guild,guild).first();
+  if(!counts||Object.values(counts).some(v=>!Number.isSafeInteger(v)||v<0))return err('Pemeriksaan antrean tidak valid.',503);
+  return json({ok:true,read_only:true,maintenance:Boolean(maintenance),...counts});
+ }
  if(maintenance)return err('Antrean dalam pemeliharaan.',503);
  if(b?.action==='closure-status'){
   if(!snow(b.customer_id)||!snow(b.channel_id)||typeof b.ticket_id!=='string'||!/^[a-zA-Z0-9_-]{1,80}$/.test(b.ticket_id))return err('Identitas tiket tidak valid.',400);
