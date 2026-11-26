@@ -1,9 +1,12 @@
 import { CONFIG, services } from './services-data.js';
-import { categories, escapeHTML as esc, queryCatalog, orderText, fixedPriceValue, comparisonTotals, PAGE_SIZE, safeSelection, safeBasket, basketTotals, basketText, packageOptions, pricingInfo } from './catalog.js';
+import { categories, escapeHTML as esc, queryCatalog, orderText, fixedPriceValue, comparisonTotals, PAGE_SIZE, safeSelection, safeBasket, basketTotals, basketText, packageOptions, pricingInfo, priceCSV } from './catalog.js';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const money = amount => 'Rp'+amount.toLocaleString('id-ID');
+// Generated static detail pages exist only in the validated build artifact.
+const builtSite = document.querySelector('meta[name="nexoraid-build"]') !== null;
+const serviceHref = id => builtSite ? 'layanan-'+encodeURIComponent(id)+'.html' : 'detail.html?id='+encodeURIComponent(id);
 function readStore(key, fallback) { try {return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback;} catch {return fallback;} }
 function saveStore(key, value) { try {localStorage.setItem(key,JSON.stringify(value));return true;} catch {return false;} }
 let favorites = safeSelection(readStore('nexoraid-favorites',[]), services);
@@ -27,9 +30,9 @@ function icon(category) {
 function serviceCard(service, index = 0, compareEnabled = false) {
   return `<article class="service-card reveal" style="--delay:${index % 3 * 60}ms">
     <div class="service-top"><div class="service-icon">${icon(service.category)}</div><span class="service-badge">${esc(categories[service.category])}</span></div>
-    <h3><a href="layanan-${encodeURIComponent(service.id)}.html">${esc(service.name)}</a></h3><p>${esc(service.desc)}</p>
+    <h3><a href="${serviceHref(service.id)}">${esc(service.name)}</a></h3><p>${esc(service.desc)}</p>
     <div class="service-price"><small>${service.price === 'Sesuai Request' ? 'Harga sesuai kebutuhan' : 'Harga layanan'}</small><strong>${esc(service.price)}</strong></div>
-    <div class="service-actions"><a class="text-link" href="layanan-${encodeURIComponent(service.id)}.html" aria-label="Lihat detail ${esc(service.name)}">Lihat detail ↗</a><a class="btn btn-primary btn-sm" href="layanan-${encodeURIComponent(service.id)}.html#pesan" aria-label="Pesan ${esc(service.name)}">Pesan ↗</a></div>
+    <div class="service-actions"><a class="text-link" href="${serviceHref(service.id)}" aria-label="Lihat detail ${esc(service.name)}">Lihat detail ↗</a><a class="btn btn-primary btn-sm" href="${serviceHref(service.id)}#pesan" aria-label="Pesan ${esc(service.name)}">Pesan ↗</a></div>
     <div class="card-tools"><button type="button" class="compare-add" data-favorite="${esc(service.id)}" aria-pressed="${favorites.includes(service.id)}">${favorites.includes(service.id)?'♥ Tersimpan':'♡ Favorit'}</button><button type="button" class="compare-add" data-basket="${esc(service.id)}">+ Keranjang</button></div>${compareEnabled ? `<button type="button" class="compare-add" data-compare="${esc(service.id)}" aria-pressed="false">+ Bandingkan</button>` : ''}</article>`;
 }
 
@@ -105,7 +108,7 @@ if (ticker) {
     <div class="system-strip"><span class="system-online">KATALOG DIMUAT</span><span>KATALOG <b>${services.length}</b> LAYANAN</span><span>KATEGORI <b>${directoryIds.length}</b></span><span>BANTUAN MELALUI DISCORD</span></div>
   </div></section>`);
   const showcaseIds = ['gta-nexo-spark', 'akun-game-premium', 'windows-license', 'custom-rom'];
-  const showcaseCards = showcaseIds.map(id => services.find(service => service.id === id)).filter(Boolean).map(service => `<a class="showcase-card" href="layanan-${encodeURIComponent(service.id)}.html">
+  const showcaseCards = showcaseIds.map(id => services.find(service => service.id === id)).filter(Boolean).map(service => `<a class="showcase-card" href="${serviceHref(service.id)}">
     <span class="showcase-visual showcase-visual--${esc(service.category)}" aria-hidden="true"><span class="showcase-gridlines"></span><span class="showcase-index">NEXO / ${esc(service.category.toUpperCase())}</span><span class="showcase-icon">${icon(service.category)}</span><span class="showcase-scan"></span></span>
     <span class="showcase-info"><span class="showcase-category">${esc(categories[service.category])}</span><strong>${esc(service.name)}</strong><span class="showcase-price">${esc(service.price)}</span></span><span class="showcase-open" aria-hidden="true">↗</span>
   </a>`).join('');
@@ -130,7 +133,7 @@ function renderHomeSuggestions() {
   }
   const matches = queryCatalog(services, {query}).rows.slice(0, 5);
   homeSearchResults.innerHTML = matches.length
-    ? matches.map(service => `<a role="option" aria-selected="false" data-suggestion href="layanan-${encodeURIComponent(service.id)}.html"><span class="terminal-result-name">${esc(service.name)}<span class="sr-only"> — ${esc(categories[service.category])}</span></span><span class="terminal-result-meta">${esc(service.price)}</span></a>`).join('')
+    ? matches.map(service => `<a role="option" aria-selected="false" data-suggestion href="${serviceHref(service.id)}"><span class="terminal-result-name">${esc(service.name)}<span class="sr-only"> — ${esc(categories[service.category])}</span></span><span class="terminal-result-meta">${esc(service.price)}</span></a>`).join('')
     : '<div class="terminal-empty" role="status">Tidak ada hasil. Coba kata kunci lain.</div>';
   homeSearchResults.hidden = false;
   homeSearchInput.setAttribute('aria-expanded', 'true');
@@ -234,7 +237,7 @@ if (grid) {
     });
     if (!selected.length) return;
     compareTable.innerHTML = `<caption class="sr-only">Perbandingan layanan yang dipilih</caption>
-      <thead><tr><th scope="col">RINGKASAN</th>${selected.map(service => `<th scope="col"><a href="layanan-${encodeURIComponent(service.id)}.html">${esc(service.name)} ↗</a><button type="button" class="compare-remove" data-remove-compare="${esc(service.id)}" aria-label="Hapus ${esc(service.name)} dari perbandingan">×</button></th>`).join('')}</tr></thead>
+      <thead><tr><th scope="col">RINGKASAN</th>${selected.map(service => `<th scope="col"><a href="${serviceHref(service.id)}">${esc(service.name)} ↗</a><button type="button" class="compare-remove" data-remove-compare="${esc(service.id)}" aria-label="Hapus ${esc(service.name)} dari perbandingan">×</button></th>`).join('')}</tr></thead>
       <tbody><tr><th scope="row">Kategori</th>${selected.map(service => `<td>${esc(categories[service.category])}</td>`).join('')}</tr>
       <tr><th scope="row">Harga katalog</th>${selected.map(service => `<td class="compare-price">${esc(service.price)}</td>`).join('')}</tr>
       <tr><th scope="row">Ringkasan</th>${selected.map(service => `<td>${esc(service.desc)}</td>`).join('')}</tr><tr><th scope="row">Rincian paket</th>${selected.map(service=>`<td><ul class="compare-details">${service.details.slice(0,4).map(([k,v])=>`<li><strong>${esc(k)}</strong><br>${esc(v)}</li>`).join('')}</ul></td>`).join('')}</tr></tbody>`;
@@ -339,7 +342,7 @@ if (detail) {
   } else {
     document.title = `${service.name} — NEXORAID`;
     $('meta[name="description"]').content = `${service.desc} Harga: ${service.price}. Pemesanan melalui tiket Discord NEXORAID.`;
-    const serviceURL = new URL(`layanan-${encodeURIComponent(service.id)}.html`, location.href).href;
+    const serviceURL = new URL(serviceHref(service.id), location.href).href;
     const options=packageOptions(service);
     const pricing=pricingInfo(service.price);
     const variantSelect=options.length?'<label for="orderVariant">Pilih paket katalog</label><select id="orderVariant"><option value="">Konfirmasi paket melalui tiket</option>'+options.map(o=>'<option value="'+esc(o.id)+'">'+esc(o.label)+' — '+money(o.amount)+'</option>').join('')+'</select>':'';
@@ -379,7 +382,7 @@ reveal();
 
 function renderBasket(){
  const host=$('#basketItems');if(!host)return;
- host.innerHTML=basket.length?basket.map(row=>{const s=services.find(x=>x.id===row.id);return '<article class="basket-row"><div><h3><a href="layanan-'+esc(s.id)+'.html">'+esc(s.name)+'</a></h3><p>'+esc(s.price)+'</p></div><label>Jumlah <input type="number" min="1" max="99" value="'+row.quantity+'" data-quantity="'+esc(s.id)+'"></label><button type="button" class="btn btn-ghost" data-remove-basket="'+esc(s.id)+'">Hapus</button></article>';}).join(''):'<div class="empty-state"><h2>Keranjang masih kosong</h2><p>Pilih layanan yang ingin dikonsultasikan.</p><a class="btn btn-primary" href="layanan.html">Jelajahi katalog</a></div>';
+ host.innerHTML=basket.length?basket.map(row=>{const s=services.find(x=>x.id===row.id);return '<article class="basket-row"><div><h3><a href="'+esc(serviceHref(s.id))+'">'+esc(s.name)+'</a></h3><p>'+esc(s.price)+'</p></div><label>Jumlah <input type="number" min="1" max="99" value="'+row.quantity+'" data-quantity="'+esc(s.id)+'"></label><button type="button" class="btn btn-ghost" data-remove-basket="'+esc(s.id)+'">Hapus</button></article>';}).join(''):'<div class="empty-state"><h2>Keranjang masih kosong</h2><p>Pilih layanan yang ingin dikonsultasikan.</p><a class="btn btn-primary" href="layanan.html">Jelajahi katalog</a></div>';
  const sums=basketTotals(basket,services);$('#basketTotal').textContent='Subtotal harga tetap (indikatif): '+money(sums.total)+'. '+sums.needsQuote+' layanan perlu penawaran.';$('#basketCopy').disabled=!basket.length;$('#basketClear').disabled=!basket.length;
 }
 document.addEventListener('click',event=>{
@@ -393,3 +396,14 @@ $('#basketClear')?.addEventListener('click',()=>{basket=[];saveStore('nexoraid-b
 $('#favoritesClear')?.addEventListener('click',()=>{favorites=[];saveStore('nexoraid-favorites',favorites);updateFavorites();showToast('Favorit dihapus.');});
 $('#basketForm')?.addEventListener('submit',event=>{event.preventDefault();if(basket.length)copyText(basketText(basket,services,$('#basketNote').value),'Ringkasan disalin. Tempelkan di tiket Discord.');});
 renderBasket();updateFavorites();
+// Branch publishing fallback: prices and downloads work even without generated artifacts.
+const priceHost = $('#priceListStatic');
+if (priceHost && !builtSite) {
+  priceHost.innerHTML = '<div class="price-table-wrap"><table class="price-table"><caption>Harga katalog</caption><thead><tr><th scope="col">Layanan</th><th scope="col">Harga</th></tr></thead><tbody>'+services.map(s=>'<tr><th scope="row"><a href="'+esc(serviceHref(s.id))+'">'+esc(s.name)+'</a></th><td>'+esc(s.price)+'</td></tr>').join('')+'</tbody></table></div>';
+}
+const priceDownload = $('#priceDownload');
+if (priceDownload && !builtSite) {
+  priceDownload.href = URL.createObjectURL(new Blob([priceCSV(services)],{type:'text/csv;charset=utf-8'}));
+  priceDownload.download = 'pricelist.csv';
+}
+

@@ -95,3 +95,17 @@ test('seller fee is consistent in source HTML',async()=>{const {readFile}=await 
 test('pricing type is explicit and range preserves maximum',async()=>{const {pricingInfo,packageOptions}=await import('../catalog.js');assert.deepEqual(pricingInfo('Rp300.000 — Rp550.000'),{type:'range',min:300000,max:550000});assert.deepEqual(pricingInfo('Sesuai Request'),{type:'quote',min:null,max:null});assert.equal(packageOptions(services.find(s=>s.id==='gta-heist'))[0].amount,2500);assert.equal(packageOptions(services.find(s=>s.id==='cherax')).length,0);});
 
 test('official invite is distinct from member-only ticket URL',()=>{assert.match(CONFIG.discordInvite,/^https:\/\/discord\.gg\/[A-Za-z0-9-]+$/);assert.notEqual(CONFIG.discordInvite,CONFIG.discordUrl);});
+
+
+test('CSV export protects formula cells, preserves quotes and contains every service', async()=>{
+ const {csvCell,priceCSV}=await import('../catalog.js');
+ for(const text of ['=1+1','+1','-1','@SUM(1)','  =1','\t=1']) assert.ok(csvCell(text).startsWith('"\''));
+ assert.equal(csvCell('A"B'),'"A""B"');
+ const csv=priceCSV(services); assert.equal(csv.split('\r\n').length,services.length+1);
+ assert.ok(csv.includes('OptiWindows'));
+});
+test('DOM collection operations use the multi-element selector',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const source=await readFile(new URL('../app.js',import.meta.url),'utf8');
+ assert.doesNotMatch(source,/(^|[^$])\$\([^)]*\)\.(forEach|map|filter|find)\b/m);
+});

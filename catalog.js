@@ -70,6 +70,16 @@ export function queryCatalog(services, {category = 'all', query = '', sort = 're
   return { rows: rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE), total: rows.length, totalPages, currentPage };
 }
 
+// Neutralize spreadsheet formulas and quote fields consistently in all exports.
+export function csvCell(value) {
+  const text = String(value);
+  const safe = /^[\s\uFEFF]*[=+@-]|^[\t\r\n]/u.test(text) ? "'"+text : text;
+  return '"'+safe.replaceAll('"','""')+'"';
+}
+export function priceCSV(services) {
+  return '\uFEFF'+[['Layanan','Kategori','Harga katalog'],...services.map(s=>[s.name,s.category,s.price])].map(row=>row.map(csvCell).join(',')).join('\r\n');
+}
+
 export function orderText(service, url) {
   return `Halo admin NEXORAID!\n\nSaya ingin order:\nLayanan: ${service.name}\nHarga katalog: ${service.price}\nDetail: ${url}\n\nGame / platform / perangkat: \nPaket / spesifikasi / request: \n\nMohon konfirmasi stok, harga final, dan estimasi proses. Terima kasih!`;
 }

@@ -120,3 +120,7 @@ Build menghasilkan 32 halaman detail statis, 13 halaman umum termasuk 404, sitem
 V3 includes optional browser smoke tests: `npm install --no-save --package-lock=false playwright@1.56.1`, `npx playwright install chromium`, `npm run build`, `node tests/browser.mjs`. Browser test checks mobile navigation, comparison persistence, favorites, cart, package estimates, legacy route, and static fallback. Prices are indicative; checkout is not a payment gateway.
 
 CI browser gate runs Chromium smoke tests before publishing the Pages artifact. The contact page separates the public invite from the members-only ticket channel.
+
+### Deployment dan validasi
+
+Gunakan **Settings → Pages → Source: GitHub Actions** untuk publikasi artifact `dist/` (45 halaman termasuk 32 detail statis, katalog tanpa JS, metadata SEO dan sitemap). Publishing langsung dari branch hanya merupakan fallback untuk browser dengan JavaScript: tautan detail menggunakan URL legacy, daftar harga dan CSV dibentuk di browser; fitur SEO statis lengkap membutuhkan artifact. Jangan menyatakan rilis stable sebelum workflow Chromium dan deploy berhasil. Tarif serta kebijakan refund/garansi tetap mengikuti konfirmasi pemilik, bukan asumsi teknis.

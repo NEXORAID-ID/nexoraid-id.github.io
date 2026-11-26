@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile, copyFile, readdir, stat, rm, lstat } from '
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CONFIG, services } from '../services-data.js';
-import { escapeHTML } from '../catalog.js';
+import { escapeHTML, priceCSV } from '../catalog.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'dist');
@@ -42,11 +42,12 @@ for (const page of pages) {
   content = content.replace(/href="https:\/\/discord\.com\/channels\/\d+\/\d+"/g, `href="${escapeHTML(CONFIG.discordUrl)}"`);
   if(page==='kontak.html') content=content.replace(/href="https:\/\/discord\.gg\/[A-Za-z0-9-]+"/g,()=> 'href="'+escapeHTML(CONFIG.discordInvite)+'"');
   else content=content.replace(/<a\b[^>]*\bdata-discord-link\b[^>]*>/g,tag=>tag.replace(/href="[^"]*"/,'href="kontak.html"').replace(/\s+target="_blank"/,'').replace(/\s+rel="noopener noreferrer"/,'').replace(/\s+data-discord-link\b/,''));
-  if (page === '404.html') content = content.replace('href="./index.html"', `href="${escapeHTML(basePath)}index.html"`);
+  if (page === '404.html') content = content.replace('href="./index.html"', `href="${escapeHTML(basePath)}index.html"`).replace('src="/route-fallback.js"', `src="${escapeHTML(basePath)}route-fallback.js"`);
   if (siteURL && page !== '404.html') {
     const canonical = page === 'detail.html' ? '' : `<link rel="canonical" href="${new URL(page === 'index.html' ? '' : page, siteURL).href}">`;
     content = content.replace('</head>', `${canonical}<meta property="og:image" content="${new URL('assets/nexoraid-logo-transparent.png', siteURL).href}"><meta property="og:image:alt" content="NEXORAID — Digital Services"><meta property="og:site_name" content="NEXORAID"></head>`);
   }
+  if(page !== '404.html') content = content.replace('</head>', '<meta name="nexoraid-build" content="static"></head>');
   await writeFile(path.join(output, page), content);
 }
 const template=await readFile(path.join(output,'detail.html'),'utf8');
@@ -58,9 +59,8 @@ for(const s of services){
  if(!html.includes('data-service-id="'+s.id+'"'))throw Error('Static detail generation failed: '+s.id);
  await writeFile(path.join(output,filename),html);
 }
-const csvCell=value=>'"'+String(value).replace(/^[=+@-]/,"'for (const file of ['app.js', 'loader.js', 'catalog.js', 'services-data.js', 'styles.css', '.nojekyll'])").replaceAll('"','""')+'"';
-await writeFile(path.join(output,'pricelist.csv'),'\uFEFF'+[['Layanan','Kategori','Harga katalog'],...services.map(s=>[s.name,s.category,s.price])].map(row=>row.map(csvCell).join(',')).join('\r\n'));
-for (const file of ['app.js', 'catalog.js', 'services-data.js', 'styles.css', 'premium.css', '.nojekyll']) await copyFile(path.join(root, file), path.join(output, file));
+await writeFile(path.join(output,'pricelist.csv'), priceCSV(services));
+for (const file of ['app.js', 'catalog.js', 'services-data.js', 'styles.css', 'premium.css', 'route-fallback.js', '.nojekyll']) await copyFile(path.join(root, file), path.join(output, file));
 for (const asset of await readdir(path.join(root, 'assets'))) {
   if (/\.(png|webp|jpg|svg|woff2)$/.test(asset)) await copyFile(path.join(root, 'assets', asset), path.join(output, 'assets', asset));
 }
