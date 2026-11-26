@@ -12,7 +12,8 @@ try{
   const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(url+'index.html');await page.locator('#homeSearchInput').waitFor({timeout:10000});assert.deepEqual(errors,[]);assert.equal(await page.locator('#featuredServices [data-compare]').count(),0);
   await page.locator('#homeSearchInput').fill('OptiWindows');await page.locator('#homeSearchResults [data-suggestion]').first().waitFor();assert.match(await page.locator('#homeSearchResults').innerText(),/OptiWindows/i);await page.keyboard.press('Escape');
-  await page.locator('#navToggle').click();assert.equal(await page.locator('#navToggle').getAttribute('aria-expanded'),'true');assert.ok(await page.locator('#accountNav').isVisible());assert.equal(await page.locator('#accountNav').getAttribute('href'),'https://nexoraid-v4.nexoraid.workers.dev/portal.html');await page.keyboard.press('Escape');
+  await page.locator('#navToggle').click();assert.equal(await page.locator('#navToggle').getAttribute('aria-expanded'),'true');assert.ok(await page.locator('#accountNav').isVisible());assert.equal(await page.locator('#accountNav').getAttribute('href'),'login.html');await page.keyboard.press('Escape');
+  await page.goto(url+'login.html');assert.ok(await page.locator('#login').isVisible());assert.equal(await page.locator('#login').getAttribute('href'),'https://nexoraid-v4.nexoraid.workers.dev/api/auth/login');assert.equal(await page.locator('.role-grid>div').count(),4);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await page.goto(url+'layanan.html?category=software');
   await page.locator('#serviceGrid [data-basket="optiwindows"]').waitFor();
   await page.locator('#serviceGrid [data-compare="optiwindows"]').click();
@@ -27,7 +28,8 @@ try{
   for(const name of ['harga','promo','tentang','kontak','kebijakan','cara-order','seller','faq']){const response=await page.goto(url+name+'.html');assert.ok(response.ok(),name);await page.locator('h1').waitFor();}
   assert.deepEqual(errors,[]);
   const desktop=await browser.newContext({viewport:{width:1440,height:900},reducedMotion:'reduce'});const desktopPage=await desktop.newPage();desktopPage.on('pageerror',e=>errors.push(e.message));
-  await desktopPage.goto(url+'index.html');await desktopPage.locator('#homeSearchInput').waitFor();assert.ok(await desktopPage.locator('#navMenu').isVisible());assert.ok(await desktopPage.locator('#accountNav').isVisible());assert.equal(await desktopPage.locator('#accountNav').getAttribute('href'),'https://nexoraid-v4.nexoraid.workers.dev/portal.html');
+  await desktopPage.goto(url+'index.html');await desktopPage.locator('#homeSearchInput').waitFor();assert.ok(await desktopPage.locator('#navMenu').isVisible());assert.ok(await desktopPage.locator('#accountNav').isVisible());assert.equal(await desktopPage.locator('#accountNav').getAttribute('href'),'login.html');
+  await desktopPage.goto(url+'login.html');assert.ok(await desktopPage.locator('#login').isVisible());assert.ok(await desktopPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await desktopPage.goto(url+'harga.html');assert.equal(await desktopPage.locator('.price-table tbody tr').count(),32);const csv=await desktopPage.request.get(url+'pricelist.csv');assert.ok(csv.ok());assert.match(await csv.text(),/OptiWindows/);
   const {services}=await import('../services-data.js');for(const s of services){const response=await desktopPage.goto(url+'layanan-'+s.id+'.html');assert.ok(response.ok(),s.id);assert.equal(await desktopPage.locator('h1').innerText(),s.name);}
   assert.deepEqual(errors,[]);await desktop.close();

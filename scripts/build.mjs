@@ -59,6 +59,9 @@ for(const s of services){
  if(!html.includes('data-service-id="'+s.id+'"'))throw Error('Static detail generation failed: '+s.id);
  await writeFile(path.join(output,filename),html);
 }
+// Public login landing works on static Pages; authentication stays on the Worker.
+await copyFile(path.join(root,'v4','login.html'),path.join(output,'login.html'));
+await copyFile(path.join(root,'v4','portal.css'),path.join(output,'portal.css'));
 await writeFile(path.join(output,'pricelist.csv'), priceCSV(services));
 for (const file of ['app.js', 'catalog.js', 'services-data.js', 'styles.css', 'premium.css', 'route-fallback.js', '.nojekyll']) await copyFile(path.join(root, file), path.join(output, file));
 for (const asset of await readdir(path.join(root, 'assets'))) {
@@ -77,7 +80,7 @@ if (siteURL) {
 
 // Verify references against the artifact, including GitHub Pages subpath-safe links.
 let references = 0;
-for (const page of [...pages.filter(p => p !== '404.html'),...servicePages]) {
+for (const page of [...pages.filter(p => p !== '404.html'),'login.html',...servicePages]) {
   const content = await readFile(path.join(output, page), 'utf8');
   for (const [, value] of content.matchAll(/(?:href|src)="([^"]+)"/g)) {
     if (/^(?:https?:|#|data:)/.test(value)) continue;

@@ -29,3 +29,6 @@ An OAuth token exchange error redirects back to the portal with a fixed safe err
 
 ### Automatic V4 updates
 Relevant pushes to main trigger the dedicated Cloudflare workflow. It validates the presence of each required environment variable/secret before any remote migrations or deployment. If credentials are missing, the job fails clearly without touching D1. Use the existing Cloudflare account and database; never paste secrets into source or logs. Existing environment approvals are not bypassed. A successful smoke test verifies routing and login redirect, not an actual authenticated Discord session.
+
+### Branded login entry
+Both storefronts now expose login.html, a static branded entry that sends users to the official Worker OAuth endpoint, never collecting credentials. The authenticated Worker portal shares the design. GitHub Pages can publish the login landing independently, but OAuth and role dashboards require the Worker to be deployed and configured. Mobile and desktop smoke tests cover the static login entry and OAuth destination.
