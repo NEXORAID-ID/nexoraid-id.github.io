@@ -31,7 +31,7 @@ test('outbox no backfill; rollback, lease expiry, retry and canonical ack',async
  assert.equal((await call({action:'check',order_id:id,lease_token:final.lease_token})).status,409);
  assert.equal((await call(ack)).status,409);
  assert.equal(sql.prepare('SELECT count(*) n FROM order_ticket_links WHERE order_id=?').get(id).n,0);
- sql.prepare("UPDATE orders SET status='pending' WHERE id=?").run(id);
+ sql.prepare("UPDATE orders SET status='requested' WHERE id=?").run(id);
  assert.equal((await call(ack)).status,200);assert.equal((await(await call(ack)).json()).replayed,true);
  assert.equal((await call({...ack,message_id:'1524898826903752866'})).status,409);
  assert.equal(sql.prepare('SELECT channel_id FROM order_ticket_links WHERE order_id=?').get(id).channel_id,ack.channel_id);
