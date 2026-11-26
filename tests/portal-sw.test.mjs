@@ -1,0 +1,22 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import {readFile} from 'node:fs/promises';
+const source=await readFile(new URL('../v4/portal-sw.js',import.meta.url),'utf8');
+test('service worker only caches static offline shell and never intercepts API',async()=>{
+ const handlers={},writes=[],fetches=[],data=new Map();
+ let online=true,claimed=false;
+ const cache={put:async(k,v)=>{writes.push(k);data.set(k,v)},match:async k=>data.get(k)};
+ const fallback=new Response('offline shell',{headers:{'content-type':'text/html'}});
+ const context={URL,Response,Error,caches:{open:async()=>cache,keys:async()=>[],delete:async()=>true},self:{location:{origin:'https://nexo.test'},clients:{claim:async()=>{claimed=true}},addEventListener:(name,fn)=>{handlers[name]=fn}},fetch:async(req,opts)=>{fetches.push([req,opts]);if(!online)throw Error('offline');return typeof req==='string'?fallback:new Response('online shell')}};
+ vm.runInNewContext(source,context);
+ let pending;handlers.install({waitUntil:p=>{pending=p}});await pending;assert.deepEqual(writes,['/portal-offline.html']);assert.equal(fetches[0][1].credentials,'omit');
+ handlers.activate({waitUntil:p=>{pending=p}});await pending;assert.equal(claimed,true);
+ const run=(url,method='GET',mode='navigate')=>{let result;handlers.fetch({request:{url,method,mode},respondWith:p=>{result=p}});return result};
+ assert.equal(run('https://nexo.test/api/me'),undefined);
+ assert.equal(run('https://nexo.test/portal.html','POST'),undefined);
+ assert.equal(run('https://elsewhere.test/portal.html'),undefined);
+ assert.equal(await (await run('https://nexo.test/portal.html')).text(),'online shell');
+ online=false;assert.equal(await (await run('https://nexo.test/portal.html')).text(),'offline shell');
+ assert.deepEqual(writes,['/portal-offline.html']);
+});

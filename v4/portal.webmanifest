@@ -13,6 +13,13 @@
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
+    },
+    {
+      "src": "/assets/nexoraid-logo-transparent.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any"
     }
-  ]
+  ],
+  "lang": "id"
 }
