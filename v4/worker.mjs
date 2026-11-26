@@ -37,7 +37,7 @@ async function body(r){
 }
 function oauthReady(env){return Boolean(env.PUBLIC_ORIGIN&&env.DISCORD_CLIENT_ID&&env.DISCORD_CLIENT_SECRET&&env.DB);}
 async function handle(r,env){
- const url=new URL(r.url),p=url.pathname,m=r.method;
+ const url=new URL(r.url),m=r.method;let p=url.pathname;
  if(p==='/'&&(m==='GET'||m==='HEAD')){const home=new URL('/index.html',url);return env.ASSETS.fetch(new Request(home,r));}
  if(!p.startsWith('/api/')){
   const asset=await env.ASSETS.fetch(r);
@@ -48,7 +48,23 @@ async function handle(r,env){
  if(p==='/api/health'&&m==='GET')return json({status:'ok',version:4,database_configured:Boolean(env.DB),login_configured:oauthReady(env)});
  if(p==='/api/catalog'&&m==='GET')return json({services:services.map(({id,name,category,desc,price})=>({id,name,category,desc,price}))});
  if(!env.DB||!env.PUBLIC_ORIGIN||url.origin!==env.PUBLIC_ORIGIN)return err('Layanan akun belum dikonfigurasi untuk domain ini.',503);
- if(m!=='GET'&&r.headers.get('origin')!==env.PUBLIC_ORIGIN)return err('Origin tidak diizinkan.',403);
+ const bot=p.startsWith('/api/bot/');
+ let botUser=null;
+ if(bot){
+  if(!/^[a-f0-9]{64}$/i.test(env.NEXORAID_BOT_API_KEY||''))return err('Integrasi bot belum aktif.',503);
+  const token=r.headers.get('authorization')||'';
+  // Compare fixed-length digests without early exit.
+  const actual=await hash(token),expected=await hash('Bearer '+env.NEXORAID_BOT_API_KEY);
+  let diff=0;for(let i=0;i<expected.length;i++)diff|=actual.charCodeAt(i)^expected.charCodeAt(i);
+  if(diff!==0)return err('Bot tidak terotorisasi.',401);
+  const actor=r.headers.get('x-discord-user-id'),guild=r.headers.get('x-discord-guild-id');
+  if(!validId(actor)||guild!=='1487728359482851348')return err('Identitas bot tidak valid.',403);
+  p=p.replace('/api/bot/','/api/');
+  if(!((p==='/api/orders'&&['GET','POST'].includes(m))||(m==='POST'&&/^\/api\/orders\/[a-f0-9-]{36}\/(claim|status)$/.test(p))))return err('Endpoint bot tidak diizinkan.',404);
+  await env.DB.prepare("INSERT INTO users(id,display_name,created_at) VALUES(?,?,?) ON CONFLICT(id) DO NOTHING").bind(actor,'Discord '+actor,now()).run();
+  const u=await env.DB.prepare('SELECT id,display_name,role FROM users WHERE id=?').bind(actor).first();
+  botUser=u?{...u,role:roleFor(u,env)}:null;
+ }else if(m!=='GET'&&r.headers.get('origin')!==env.PUBLIC_ORIGIN)return err('Origin tidak diizinkan.',403);
  if(p==='/api/auth/login'&&m==='GET'){
   if(!oauthReady(env))return err('Login belum dikonfigurasi.',503);
   const state=random();const q=new URLSearchParams({client_id:env.DISCORD_CLIENT_ID,response_type:'code',redirect_uri:env.PUBLIC_ORIGIN+'/api/auth/callback',scope:'identify',state,prompt:'consent'});
@@ -72,7 +88,7 @@ async function handle(r,env){
   ]);
   return redirect('/portal.html',[cookie('nexo_state','',0),cookie('nexo_session',s,7*DAY)]);
  }
- const user=await session(r,env);
+ const user=bot?botUser:await session(r,env);
  if(!user)return err('Silakan masuk melalui Discord.',401);
  if(p==='/api/auth/logout'&&m==='POST'){
   await env.DB.prepare('DELETE FROM sessions WHERE token_hash=?').bind(await hash(getCookie(r,'nexo_session'))).run();
@@ -81,7 +97,7 @@ async function handle(r,env){
  if(p==='/api/me'&&m==='GET')return json({user});
  if(p==='/api/orders'&&m==='GET'){
   const query=user.role==='owner'?env.DB.prepare('SELECT * FROM orders ORDER BY created_at DESC LIMIT 100'):user.role==='worker'?env.DB.prepare("SELECT * FROM orders WHERE customer_id=? OR assigned_to=? OR status='requested' ORDER BY created_at DESC LIMIT 100").bind(user.id,user.id):env.DB.prepare('SELECT * FROM orders WHERE customer_id=? ORDER BY created_at DESC LIMIT 100').bind(user.id);
-  return json({orders:(await query.all()).results});
+  const rows=(await query.all()).results;return json({orders:rows.map(o=>user.role==='worker'&&o.status==='requested'&&o.customer_id!==user.id?{...o,customer_id:null}:o)});
  }
  if(p==='/api/orders'&&m==='POST'){
   const b=await body(r);const order=b&&estimateOrder(b.service_id,b.quantity);if(!order)return err('Layanan atau jumlah tidak valid.',400);
@@ -96,7 +112,7 @@ async function handle(r,env){
   const [_,id,action]=match;const t=now();
   if(action==='claim'){
    if(user.role!=='worker')return err('Akses penjoki diperlukan.',403);
-   const results=await env.DB.batch([env.DB.prepare("UPDATE orders SET status='claimed',assigned_to=?,updated_at=? WHERE id=? AND status='requested' AND assigned_to IS NULL").bind(user.id,t,id),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'claim',?,? WHERE changes()=1").bind(user.id,id,t)]);
+   const results=await env.DB.batch([env.DB.prepare("UPDATE orders SET status='claimed',assigned_to=?,updated_at=? WHERE id=? AND status='requested' AND assigned_to IS NULL AND customer_id<>?").bind(user.id,t,id,user.id),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'claim',?,? WHERE changes()=1").bind(user.id,id,t)]);
    return results[0].meta.changes?json({ok:true}):err('Order tidak tersedia.',409);
   }
   const b=await body(r);const order=await env.DB.prepare('SELECT status,assigned_to FROM orders WHERE id=?').bind(id).first();

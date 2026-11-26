@@ -15,3 +15,6 @@ Buka Codespaces pada main, lalu jalankan `bash v4/scripts/setup.sh`. Script meng
 
 ## Recovery after a successful deploy but failed health check
 Do not recreate D1 or rotate Discord secrets. Pull main, retain your previously generated config values, rebuild with SITE_URL=PUBLIC_ORIGIN, rerun prepare.mjs, then deploy with the same config. Existing encrypted secrets are preserved by Wrangler. Run PUBLIC_ORIGIN=your-origin node v4/scripts/verify.mjs after deployment. Full real OAuth login and D1 order checks are still required.
+
+## Optional Discord Gateway bridge
+The separate Discord.js bot may call /api/bot/orders and its claim/status routes using a dedicated 64-hex-character secret NEXORAID_BOT_API_KEY, Authorization: Bearer ..., x-discord-user-id from the actual interaction, and x-discord-guild-id. Only guild 1487728359482851348 is accepted. Create the secret with a cryptographic random generator, configure it in the Worker dashboard and the bot host; do not use the Discord token as this key. The Worker uses D1 roles, not Discord role names. The key is optional and the bot API fails closed without it. This provides shared website orders, not automatic migration of legacy Discord tickets. Keep legacy data backups. Test with staging users before production.
