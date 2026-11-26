@@ -67,6 +67,10 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.56.1
           npx playwright install --with-deps chromium
           node tests/browser.mjs
+      - name: Guard financial migrations with verified backup evidence
+        env:
+          NEXORAID_FINANCE_BACKUP_EVIDENCE: ${{ secrets.NEXORAID_FINANCE_BACKUP_EVIDENCE }}
+        run: node v4/scripts/financial-migration-gate.mjs
       - name: Apply D1 migrations and deploy
         run: |
           # Manual deployment creates a private export; CI uses Cloudflare-managed recovery.
