@@ -1,3 +1,4 @@
+import {installments} from './installments.mjs';
 import { services } from '../services-data.js';
 import { fixedPriceValue } from '../catalog.js';
 import { operations,listOrders } from './operations.mjs';
@@ -93,8 +94,8 @@ async function handle(r,env){
   return page.ok?new Response(page.body,{status:404,headers:page.headers}):asset;
  }
  if(p==='/api/health'&&m==='GET'){
-  let ready=false;try{if(env.DB){const check=await env.DB.prepare('SELECT (SELECT COUNT(*) FROM users WHERE 0)+(SELECT COUNT(*) FROM order_ticket_links WHERE 0)+(SELECT COUNT(*) FROM rejected_payment_claims WHERE 0)+(SELECT COUNT(*) FROM order_attachments WHERE 0)+(SELECT COUNT(*) FROM order_messages WHERE 0)+(SELECT COUNT(*) FROM order_plans WHERE 0)+(SELECT COUNT(*) FROM checkout_groups WHERE 0)+(SELECT COUNT(*) FROM session_metadata WHERE 0)+(SELECT COUNT(*) FROM completed_refunds WHERE 0)+(SELECT COUNT(*) FROM web_ticket_outbox WHERE 0)+(SELECT COUNT(*) FROM cash_opening WHERE 0)+(SELECT COUNT(*) FROM cash_movements WHERE 0)+(SELECT COUNT(*) FROM rental_reservations WHERE 0)+(SELECT COUNT(*) FROM investor_attestations WHERE 0) AS probe').first();const trigger=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name='web_ticket_order_insert'").first();ready=check?.probe===0&&trigger?.name==='web_ticket_order_insert';}}catch{}
-  return json({status:ready&&oauthReady(env)?'ok':'degraded',version:4,release:env.RELEASE_SHA||null,database_configured:Boolean(env.DB),database_ready:ready,login_configured:oauthReady(env),schema:ready?15:null},ready&&oauthReady(env)?200:503);
+  let ready=false;try{if(env.DB){const check=await env.DB.prepare('SELECT (SELECT COUNT(*) FROM users WHERE 0)+(SELECT COUNT(*) FROM order_ticket_links WHERE 0)+(SELECT COUNT(*) FROM rejected_payment_claims WHERE 0)+(SELECT COUNT(*) FROM order_attachments WHERE 0)+(SELECT COUNT(*) FROM order_messages WHERE 0)+(SELECT COUNT(*) FROM order_plans WHERE 0)+(SELECT COUNT(*) FROM checkout_groups WHERE 0)+(SELECT COUNT(*) FROM session_metadata WHERE 0)+(SELECT COUNT(*) FROM completed_refunds WHERE 0)+(SELECT COUNT(*) FROM web_ticket_outbox WHERE 0)+(SELECT COUNT(*) FROM cash_opening WHERE 0)+(SELECT COUNT(*) FROM cash_movements WHERE 0)+(SELECT COUNT(*) FROM rental_reservations WHERE 0)+(SELECT COUNT(*) FROM investor_attestations WHERE 0)+(SELECT COUNT(*) FROM verified_receipts WHERE 0)+(SELECT COUNT(*) FROM receipt_adjustments WHERE 0) AS probe').first();const trigger=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name='web_ticket_order_insert'").first();ready=check?.probe===0&&trigger?.name==='web_ticket_order_insert';}}catch{}
+  return json({status:ready&&oauthReady(env)?'ok':'degraded',version:4,release:env.RELEASE_SHA||null,database_configured:Boolean(env.DB),database_ready:ready,login_configured:oauthReady(env),schema:ready?16:null},ready&&oauthReady(env)?200:503);
  }
  if(p==='/api/catalog'&&m==='GET'){const response=env.DB?json({services:await memberCatalog(env.DB),catalog_revision:1}):json({services:services.map(({id,name,category,desc,price})=>({id,name,category,desc,price})),baseline:true});response.headers.set('access-control-allow-origin','*');return response;}
  if(!env.DB||!env.PUBLIC_ORIGIN||url.origin!==env.PUBLIC_ORIGIN)return err('Layanan akun belum dikonfigurasi untuk domain ini.',503);
@@ -192,6 +193,7 @@ async function handle(r,env){
   if(['processing','completed'].includes(b.status)&&order.payment_state!=='paid')return err('Pembayaran belum diverifikasi owner.',409);
   if(b.status==='completed'&&(!order.assigned_to||order.evidence_worker!==order.assigned_to))return err('Bukti pengerjaan belum dikirim penjoki.',409);
   if(b.status==='cancelled'&&order.payment_state==='paid')return err('Order sudah dibayar. Memerlukan proses refund manual.',409);
+  if(b.status==='cancelled'&&await env.DB.prepare('SELECT order_id FROM installment_balances WHERE order_id=? AND received>partial_refunded').bind(id).first())return err('Cicilan sudah diterima. Catat refund penuh melalui pemilik.',409);
   if(b.status==='cancelled'&&order.payment_claimed)return err('Laporan pembayaran sedang menunggu pemeriksaan owner.',409);
   const results=await env.DB.batch([env.DB.prepare("UPDATE orders SET status=?,updated_at=? WHERE id=? AND status=? AND assigned_to IS ? AND (?<>'cancelled' OR (NOT EXISTS(SELECT 1 FROM payment_claims WHERE order_id=orders.id) AND NOT EXISTS(SELECT 1 FROM order_finance WHERE order_id=orders.id AND state='paid')))").bind(b.status,t,id,order.status,order.assigned_to,b.status),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,?,?,? WHERE changes()=1").bind(user.id,'status:'+b.status,id,t)]);
   return results[0].meta.changes?json({ok:true}):err('Status sudah berubah.',409);
@@ -199,7 +201,7 @@ async function handle(r,env){
  if(p.endsWith('/ticket')){const linked=await ticketLinks({p,m,user,env,bot,r,readBody:body});if(linked)return linked;}
  if(!bot&&p.startsWith('/api/collaboration/')){const extra=await collaboration({p,m,url,user,env,r,readBody:body});if(extra)return extra;}
  if(!bot&&p==='/api/workspace/cash-ledger')return cashLedger({p,m,user,env,r,readBody:body});
- if(!bot&&p.startsWith('/api/workspace/')){const extra=await workspace({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
+ if(!bot&&p.startsWith('/api/workspace/')){const payment=await installments({p,m,user,env,r,readBody:body});if(payment)return payment;const extra=await workspace({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
  if(!bot||p.endsWith('/evidence')){const extra=await operations({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
  if(p==='/api/team'&&m==='GET'){
   if(user.role!=='owner')return err('Akses owner diperlukan.',403);
