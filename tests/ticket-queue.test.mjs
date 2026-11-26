@@ -58,7 +58,7 @@ test('outbox no backfill; rollback, lease expiry, retry and canonical ack',async
  const close={action:'closure-status',customer_id:user,channel_id:ack.channel_id,ticket_id:ack.ticket_id};
  const checkClose=async()=>await (await call(close)).json();
  const beforeClose=await checkClose();assert.equal(beforeClose.eligible,false);assert.equal(beforeClose.linked,2);assert.equal(beforeClose.active,3);assert.equal(beforeClose.read_only,true);
- sql.prepare("UPDATE orders SET status='completed' WHERE customer_id=?").run(user);
+ sql.prepare("UPDATE orders SET status='cancelled' WHERE customer_id=?").run(user);
  assert.equal((await checkClose()).eligible,true);
  const beforeCounts=sql.prepare('SELECT count(*) n FROM order_ticket_links').get().n;
  assert.equal((await call({...close,customer_id:other})).status,200);assert.equal((await (await call({...close,customer_id:other})).json()).eligible,false);
