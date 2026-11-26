@@ -1,0 +1,4 @@
+.generated/
+.dev.vars*
+.env*
+.wrangler/

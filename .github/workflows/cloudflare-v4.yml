@@ -1,0 +1,43 @@
+name: Deploy NEXORAID V4 (manual)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cloudflare-v4-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: cloudflare-v4
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+      PUBLIC_ORIGIN: ${{ vars.PUBLIC_ORIGIN }}
+      OWNER_DISCORD_ID: ${{ vars.OWNER_DISCORD_ID }}
+      DISCORD_CLIENT_ID: ${{ vars.DISCORD_CLIENT_ID }}
+      DISCORD_CLIENT_SECRET: ${{ secrets.DISCORD_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate and build
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$DISCORD_CLIENT_SECRET"
+          npm test
+          SITE_URL="$PUBLIC_ORIGIN" npm run build
+          node v4/scripts/prepare.mjs
+      - name: Apply D1 migrations and deploy
+        run: |
+          npx --yes wrangler@4 d1 migrations apply nexoraid-v4 --remote --config v4/.generated/wrangler.json
+          npx --yes wrangler@4 deploy --config v4/.generated/wrangler.json
+          printf '%s' "$DISCORD_CLIENT_SECRET" | npx --yes wrangler@4 secret put DISCORD_CLIENT_SECRET --config v4/.generated/wrangler.json
+      - name: Verify deployment
+        run: |
+          curl --fail --retry 5 "$PUBLIC_ORIGIN/api/health" | node --input-type=module -e 'let s="";for await(const c of process.stdin)s+=c;const h=JSON.parse(s);if(!h.database_configured||!h.login_configured)process.exit(1)'
+          curl --fail "$PUBLIC_ORIGIN/portal.html" -o /dev/null
