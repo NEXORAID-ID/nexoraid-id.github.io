@@ -57,3 +57,8 @@ label>input,label>select,label>textarea,form>button{width:100%;min-width:0;max-w
 
 /* Five role cards: keep the final card readable across both columns. */
 .role-grid>div:last-child:nth-child(odd){grid-column:1/-1}.role-grid>div{overflow-wrap:anywhere}
+
+/* A revoked session must not expose stale dashboard or printable invoice content. */
+body.session-expired>:not(#sessionExpired){display:none!important}
+#sessionExpired:not([hidden]){display:grid;gap:14px;max-width:560px;margin:clamp(24px,8vh,90px) auto;padding:24px;background:var(--panel);border:1px solid var(--line);border-radius:18px}
+@media print{body.session-expired>:not(#sessionExpired){display:none!important}body.session-expired #sessionExpired{display:block!important;color:#000;background:#fff}}

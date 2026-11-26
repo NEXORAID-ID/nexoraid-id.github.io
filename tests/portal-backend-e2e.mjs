@@ -123,6 +123,17 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  assert.equal((await (await api('seller','/api/orders')).json()).orders.length,1);
  assert.equal((await (await api('customer','/api/orders')).json()).orders.length,1);
  assert.deepEqual(errors,[]);
+ // Revoke the actual session in the isolated DB while the owner dashboard is open.
+ p=pages.owner;await p.reload();await p.waitForFunction(()=>document.querySelector('#status')?.textContent==='Terhubung.');
+ assert.equal(await p.locator('#account').isVisible(),true);
+ db.prepare('DELETE FROM sessions WHERE user_id=?').run(ids.owner);
+ await p.locator('#refresh').click();
+ await p.locator('#sessionExpired').waitFor({state:'visible'});
+ assert.equal(await p.locator('#account').isVisible(),false);
+ assert.equal(await p.locator('#orderDialog').isVisible(),false);
+ assert.equal(await p.locator('#sessionExpiredLink').getAttribute('href'),'/portal.html');
+ assert.deepEqual(errors,[]);
+ console.log('Revoked session browser E2E passed: actual D1 revocation, stale dashboard hidden, re-login required.');
  console.log('Five-role browser backend E2E passed: customer request and receipt, worker claim and evidence, management quote and completion, owner manual verification, seller isolated order, settlement and closure preflight.');
 
  }finally{for(const c of roleContexts)await c.close();await ctx?.close();db.close();}
