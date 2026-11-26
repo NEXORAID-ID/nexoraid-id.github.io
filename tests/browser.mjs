@@ -62,7 +62,7 @@ try{
    if(['owner','management','worker'].includes(role)){await p.locator('[data-view="performance"]').click();await p.getByText('Belum ada pekerjaan tercatat.').waitFor();}
    await p.locator('[data-view="support"]').click();await p.getByText('Belum ada kasus bantuan.').waitFor();
    if(['owner','worker'].includes(role)){await p.locator('[data-view="workspace"]').click();await p.getByText('Tersedia untuk diajukan: Rp0').waitFor();}
-   if(['owner','management'].includes(role)){await p.locator('[data-view="report"]').click();await p.getByRole('button',{name:'Export CSV laporan ini'}).waitFor();}
+   if(['owner','management'].includes(role)){await p.locator('[data-view="report"]').click();await p.getByRole('button',{name:'Export CSV laporan ini'}).waitFor();const downloaded=p.waitForEvent('download');await p.getByRole('button',{name:'Unduh Excel (.xlsx)'}).click();const dl=await downloaded;assert.equal(dl.suggestedFilename(),'NEXORAID-2026-11.xlsx');const bytes=await readFile(await dl.path());assert.equal(bytes.readUInt32LE(0),0x04034b50);assert.ok(bytes.includes(Buffer.from('xl/worksheets/sheet1.xml')));}
    await p.setViewportSize({width:1440,height:900});assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
    await ctx.close();
   }
