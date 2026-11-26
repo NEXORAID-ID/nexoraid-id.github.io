@@ -8,3 +8,6 @@ Before promotion: recheck production inventory under freeze, integrate finance a
 
 ## Integration checkpoint
 Finance backend and tests from #31 and closure backend and tests from #29 applied using exact matching patch contexts. Portal finance UI requires manual reconciliation with recent modularization; draft remains blocked. No production promotion.
+
+## Release gate alignment
+The portal finance controls and closure-state recovery are integrated. Health requires the full schema 22 and seven named triggers. Backup evidence generation now rejects incomplete baseline, divergent history, gaps and duplicate versions just like the Node deployment gate. The candidate is not yet a production release. Catalog policy PR #45 currently proposes alternative numbering 0016–0018; do not independently merge incompatible migration trees. Coordinate one canonical final sequence and re-run actual read-only inventory before changing any unpublished filename. The existing production backup gate must stay enabled.
