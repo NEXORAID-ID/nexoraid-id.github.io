@@ -11,6 +11,8 @@ test('OAuth requests exact guild membership scope and trusted member endpoint',a
 });
 test('membership failure and wrong role fail closed without granting worker',async()=>{
  assert.equal(discordWorkerRole(await oauthGuildMember(id,'x',async()=>Response.json({roles:['1503411734885568653']}))),false);
+ assert.equal((await oauthGuildMember(id,'x',async()=>Response.json({}))).status,503);
+ assert.equal((await oauthGuildMember(id,'x',async()=>Response.json({roles:[123]}))).status,503);
  assert.equal(discordWorkerRole(await oauthGuildMember(id,'x',async()=>Response.json({user:{id:'555555555555555555'},roles:[role]}))),false);
  assert.equal((await oauthGuildMember(id,'x',async()=>Response.json({code:10007},{status:404}))).status,403);
  assert.equal((await guildMembership({DISCORD_MEMBERSHIP_BOT_TOKEN:'x'},id,async()=>Response.json({},{status:401}))).reason,'UNAUTHORIZED');

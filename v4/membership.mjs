@@ -10,7 +10,7 @@ async function parseMember(r,id,{oauth=false}={}){
  if(!r.ok)return result(503,r.status===401?'UNAUTHORIZED':r.status===403?'FORBIDDEN':r.status===429?'RATE_LIMITED':'UPSTREAM_ERROR',r.status);
  const b=await r.json();
  if((!oauth||b?.user!==undefined)&&(!b?.user||b.user.id!==id||b.user.bot))return result(403,'IDENTITY_MISMATCH',r.status);
- if(!b||typeof b!=='object')return result(503,'INVALID_RESPONSE',r.status);
+ if(!b||typeof b!=='object'||Array.isArray(b)||(oauth&&(!Array.isArray(b.roles)||b.roles.some(x=>!validId(x)))))return result(503,'INVALID_RESPONSE',r.status);
  return {...result(200,'VERIFIED',r.status),roles:Array.isArray(b.roles)?b.roles.filter(validId):[]};
 }
 export async function guildMembership(env,id,request=fetch){
