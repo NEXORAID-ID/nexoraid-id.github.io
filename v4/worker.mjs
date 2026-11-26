@@ -87,8 +87,11 @@ async function handle(r,env){
   const page=await env.ASSETS.fetch(new Request(new URL('/404.html',url),{method:m}));
   return page.ok?new Response(page.body,{status:404,headers:page.headers}):asset;
  }
- if(p==='/api/health'&&m==='GET')return json({status:'ok',version:4,database_configured:Boolean(env.DB),login_configured:oauthReady(env)});
- if(p==='/api/catalog'&&m==='GET')return json({services:services.map(({id,name,category,desc,price})=>({id,name,category,desc,price}))});
+ if(p==='/api/health'&&m==='GET'){
+  let ready=false;try{if(env.DB){const check=await env.DB.prepare('SELECT (SELECT COUNT(*) FROM users WHERE 0)+(SELECT COUNT(*) FROM order_ticket_links WHERE 0)+(SELECT COUNT(*) FROM rejected_payment_claims WHERE 0) AS probe').first();ready=check?.probe===0;}}catch{}
+  return json({status:ready&&oauthReady(env)?'ok':'degraded',version:4,release:env.RELEASE_SHA||null,database_configured:Boolean(env.DB),database_ready:ready,login_configured:oauthReady(env),schema:ready?8:null},ready&&oauthReady(env)?200:503);
+ }
+ if(p==='/api/catalog'&&m==='GET')return env.DB?json({services:await memberCatalog(env.DB)}):json({services:services.map(({id,name,category,desc,price})=>({id,name,category,desc,price})),baseline:true});
  if(!env.DB||!env.PUBLIC_ORIGIN||url.origin!==env.PUBLIC_ORIGIN)return err('Layanan akun belum dikonfigurasi untuk domain ini.',503);
  const bot=p.startsWith('/api/bot/');
  let botUser=null;
@@ -135,18 +138,25 @@ async function handle(r,env){
   await env.DB.prepare('DELETE FROM sessions WHERE token_hash=?').bind(await hash(getCookie(r,'nexo_session'))).run();
   const response=json({ok:true});response.headers.append('set-cookie',cookie('nexo_session','',0));return response;
  }
- if(p==='/api/me'&&m==='GET')return json({user});
+ if(p==='/api/me'&&m==='GET'){const earned=await env.DB.prepare('SELECT order_id FROM order_settlements WHERE worker_id=? LIMIT 1').bind(user.id).first();return json({user:{...user,finance_access:user.role==='owner'||user.role==='worker'||Boolean(earned)}});}
  if(p==='/api/auth/logout-all'&&m==='POST'&&!bot){await env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(user.id).run();const response=json({ok:true});response.headers.append('set-cookie',cookie('nexo_session','',0));return response;}
- if(!bot&&p.startsWith('/api/business/')){if(m==='POST'&&!await rateLimit(env.DB,user.id))return err('Terlalu banyak permintaan.',429);const extra=await business({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
+ if(m==='POST'&&!(p==='/api/team/role'&&user.role!=='owner')&&!await rateLimit(env.DB,user.id))return err('Terlalu banyak permintaan.',429);
+ if(!bot&&p.startsWith('/api/business/')){const extra=await business({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
  if(p==='/api/orders'&&m==='GET')return listOrders(env.DB,user,url);
  if(p==='/api/orders'&&m==='POST'){
   const b=await body(r);const order=b&&estimateOrder(b.service_id,b.quantity);if(!order)return err('Layanan atau jumlah tidak valid.',400);
+  const key=b.request_id;
+  if(key!==undefined&&(typeof key!=='string'||!/^[a-zA-Z0-9_-]{16,80}$/.test(key)))return err('ID permintaan tidak valid.',400);
+  const digest=key?await hash(user.id+':'+key):null;
+  const id=digest?[digest.slice(0,8),digest.slice(8,12),'4'+digest.slice(13,16),'8'+digest.slice(17,20),digest.slice(20,32)].join('-'):crypto.randomUUID();
+  const replay=async()=>{const old=await env.DB.prepare('SELECT id,service_id,quantity,catalog_price,estimate,status FROM orders WHERE id=? AND customer_id=?').bind(id,user.id).first();if(!old)return null;return old.service_id===order.service_id&&old.quantity===order.quantity?json({order:old,replayed:true}):err('ID permintaan sudah dipakai untuk order lain.',409);};
+  if(key){const old=await replay();if(old)return old;}
   const override=await env.DB.prepare('SELECT amount,enabled,promo_percent FROM catalog_overrides WHERE service_id=?').bind(order.service_id).first();
   if(override){const s=applyOverride(services.find(s=>s.id===order.service_id),override);if(!s.enabled)return err('Layanan sedang tidak tersedia.',409);order.catalog_price=s.price;order.estimate=s.unit_amount===null?null:s.unit_amount*order.quantity;}
-  const t=now(),id=crypto.randomUUID();
+  const t=now();
   // Atomic conditional insert: no more than 5 requests per user in any rolling hour.
-  const [result]=await env.DB.batch([env.DB.prepare("INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,estimate,created_at,updated_at) SELECT ?,?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM orders WHERE customer_id=? AND created_at>=?)<5").bind(id,user.id,order.service_id,order.quantity,order.catalog_price,order.estimate,t,t,user.id,t-3600),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'order:create',?,? WHERE changes()=1").bind(user.id,id,t)]);
-  if(!result.meta.changes)return err('Batas permintaan per jam tercapai.',429);
+  const [result]=await env.DB.batch([env.DB.prepare("INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,estimate,created_at,updated_at) SELECT ?,?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM orders WHERE customer_id=? AND created_at>=?)<5 ON CONFLICT(id) DO NOTHING").bind(id,user.id,order.service_id,order.quantity,order.catalog_price,order.estimate,t,t,user.id,t-3600),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'order:create',?,? WHERE changes()=1").bind(user.id,id,t)]);
+  if(!result.meta.changes){if(key){const old=await replay();if(old)return old;}return err('Batas permintaan per jam tercapai.',429);}
   return json({order:{id,...order,status:'requested'}},201);
  }
  const match=p.match(/^\/api\/orders\/([a-f0-9-]{36})\/(claim|status)$/);
@@ -184,7 +194,7 @@ async function handle(r,env){
   if(!target)return err('Pengguna belum terdaftar.',404);
   if(b.role!=='worker'&&await env.DB.prepare("SELECT id FROM orders WHERE assigned_to=? AND status IN ('claimed','confirmed','processing') LIMIT 1").bind(b.user_id).first())return err('Selesaikan atau alihkan pekerjaan aktif sebelum mencabut role penjoki.',409);
   const grant=b.role==='management'?env.DB.prepare('INSERT INTO management_grants(user_id,granted_at) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET granted_at=excluded.granted_at').bind(b.user_id,now()):env.DB.prepare('DELETE FROM management_grants WHERE user_id=?').bind(b.user_id);
-  await env.DB.batch([env.DB.prepare('UPDATE users SET role=? WHERE id=?').bind(b.role==='management'?'customer':b.role,b.user_id),grant,env.DB.prepare('INSERT INTO audit_events(actor_id,action,target_id,created_at) VALUES(?,?,?,?)').bind(user.id,'role:'+b.role,b.user_id,now())]);
+  try{await env.DB.batch([env.DB.prepare('UPDATE users SET role=? WHERE id=?').bind(b.role==='management'?'customer':b.role,b.user_id),grant,env.DB.prepare('INSERT INTO audit_events(actor_id,action,target_id,created_at) VALUES(?,?,?,?)').bind(user.id,'role:'+b.role,b.user_id,now())]);}catch(e){if(String(e.message).includes('worker_has_active_orders'))return err('Penjoki masih memiliki order aktif.',409);throw e;}
   return json({ok:true});
  }
  return err('Endpoint tidak ditemukan.',404);

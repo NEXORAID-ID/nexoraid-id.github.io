@@ -8,7 +8,9 @@ CONFIG=v4/.generated/wrangler.json
 [[ -f "$CONFIG" ]] || { echo 'Config sebelumnya tidak tersedia. Jalankan bash v4/scripts/setup.sh.' >&2; exit 1; }
 export WRANGLER_SEND_METRICS=false
 export PUBLIC_ORIGIN="$(node -e 'const c=require("./"+process.argv[1]);if(c.name!=="nexoraid-v4"||!/^https:\/\/nexoraid-v4\.nexoraid\.workers\.dev$/.test(c.vars?.PUBLIC_ORIGIN||"")||!c.d1_databases?.some(d=>d.binding==="DB"&&d.database_name==="nexoraid-v4"))process.exit(1);console.log(c.vars.PUBLIC_ORIGIN)' "$CONFIG")"
-echo "Deploy existing Worker: $PUBLIC_ORIGIN"
+export RELEASE_SHA="$(git rev-parse HEAD)"
+node -e 'const fs=require("node:fs");const p=process.argv[1],c=JSON.parse(fs.readFileSync(p));c.vars.RELEASE_SHA=process.env.RELEASE_SHA;fs.writeFileSync(p,JSON.stringify(c,null,2))' "$CONFIG"
+echo "Deploy existing Worker: $PUBLIC_ORIGIN ($RELEASE_SHA)"
 npm test
 SITE_URL="$PUBLIC_ORIGIN" npm run build
 for file in portal.html portal.css portal.mjs; do cp "v4/$file" "dist/$file"; done

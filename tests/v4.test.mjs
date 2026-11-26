@@ -10,7 +10,7 @@ test('V4 migration creates order and session tables',async()=>{const {DatabaseSy
 
 test('V4 interactive setup script passes shell syntax check',async()=>{const {spawnSync}=await import('node:child_process');const {fileURLToPath}=await import('node:url');const result=spawnSync('bash',['-n',fileURLToPath(new URL('../v4/scripts/setup.sh',import.meta.url))],{encoding:'utf8'});if(result.error?.code==='ENOENT')return;assert.equal(result.status,0,result.stderr);});
 
-test('V4 serves assets and explicit HTML 404 without swallowing API routes',async()=>{const ASSETS={fetch:async r=>{const p=new URL(r.url).pathname;return new Response(p==='/index.html'?'home':p==='/404.html'?'not found':'missing',{status:['/index.html','/404.html'].includes(p)?200:404,headers:{'content-type':'text/html'}});}};const env={ASSETS};assert.equal(await (await worker.fetch(req('/'),env)).text(),'home');const missing=await worker.fetch(req('/missing'),env);assert.equal(missing.status,404);assert.equal(await missing.text(),'not found');assert.equal((await worker.fetch(req('/api/health',{headers:{'Sec-Fetch-Mode':'navigate'}}),env)).status,200);});
+test('V4 serves assets and explicit HTML 404 without swallowing API routes',async()=>{const ASSETS={fetch:async r=>{const p=new URL(r.url).pathname;return new Response(p==='/index.html'?'home':p==='/404.html'?'not found':'missing',{status:['/index.html','/404.html'].includes(p)?200:404,headers:{'content-type':'text/html'}});}};const env={ASSETS};assert.equal(await (await worker.fetch(req('/'),env)).text(),'home');const missing=await worker.fetch(req('/missing'),env);assert.equal(missing.status,404);assert.equal(await missing.text(),'not found');assert.equal((await worker.fetch(req('/api/health',{headers:{'Sec-Fetch-Mode':'navigate'}}),env)).status,503);});
 
 test('Bot endpoint rejects missing key, invalid key, wrong guild and unauthorized route',async()=>{const env={DB:{},PUBLIC_ORIGIN:'https://nexoraid.example'};assert.equal((await worker.fetch(req('/api/bot/orders'),env)).status,503);env.NEXORAID_BOT_API_KEY='a'.repeat(64);assert.equal((await worker.fetch(req('/api/bot/orders'),env)).status,401);const headers={authorization:'Bearer '+env.NEXORAID_BOT_API_KEY,'x-discord-user-id':'996796760112513127','x-discord-guild-id':'0'};assert.equal((await worker.fetch(req('/api/bot/orders',{headers}),env)).status,403);headers['x-discord-guild-id']='1487728359482851348';assert.equal((await worker.fetch(req('/api/bot/team/role',{method:'POST',headers}),env)).status,404);});
 
@@ -45,7 +45,7 @@ test('Operations scope and seller settlement policy are explicit',async()=>{cons
 test('Four-role API lifecycle with SQLite D1 adapter and real persisted records',async()=>{
  const {DatabaseSync}=await import('node:sqlite');const {readFile}=await import('node:fs/promises');
  const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON');
- for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_workspace.sql','0006_business.sql','0007_ticket_links.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
+ for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_workspace.sql','0006_business.sql','0007_ticket_links.sql','0008_integrity.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
  const ids={owner:'111111111111111111',management:'222222222222222222',worker:'333333333333333333',customer:'444444444444444444',other:'555555555555555555'};
  const cookies={};
  for(const [role,id] of Object.entries(ids)){
@@ -60,7 +60,8 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
  const call=async(role,path,data)=>{const headers={cookie:cookies[role],origin:env.PUBLIC_ORIGIN,'content-type':'application/json'};return worker.fetch(req('/api/'+path,{headers,...(data===undefined?{}:{method:'POST',body:JSON.stringify(data)})}),env);};
  try{
   for(const role of ['owner','management','worker','customer'])assert.equal((await (await call(role,'me')).json()).user.role,role);
-  const created=await call('customer','orders',{service_id:'gta-heist',quantity:1});assert.equal(created.status,201);const {order}=await created.json();const id=order.id;
+  const created=await call('customer','orders',{service_id:'gta-heist',quantity:1,request_id:'test-order-request-001'});assert.equal(created.status,201);const {order}=await created.json();const id=order.id;
+  const replay=await call('customer','orders',{service_id:'gta-heist',quantity:1,request_id:'test-order-request-001'});assert.equal(replay.status,200);assert.equal((await replay.json()).order.id,id);assert.equal((await call('customer','orders',{service_id:'gta-heist',quantity:2,request_id:'test-order-request-001'})).status,409);
   assert.equal((await (await call('other','orders')).json()).orders.length,0);
   assert.equal((await call('other','orders/'+id)).status,404);
   assert.equal((await call('other','orders/'+id+'/ticket')).status,404);
@@ -85,6 +86,7 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await call('other','workspace/orders/'+id+'/receipt',{amount:15000,reference:'claim-001'})).status,404);
   assert.equal((await call('customer','workspace/orders/'+id+'/receipt',{amount:15000,reference:'claim-001'})).status,200);
   assert.equal((await (await call('customer','workspace/orders/'+id+'/timeline')).json()).receipt.reference,'claim-001');
+  assert.equal((await call('management','orders/'+id+'/quote',{amount:20000})).status,409);assert.equal((await call('management','workspace/orders/'+id+'/reject-receipt',{reason:'Not found in provider'})).status,403);assert.equal((await call('owner','workspace/orders/'+id+'/reject-receipt',{reason:'Not found in provider'})).status,200);assert.equal(db.prepare('SELECT COUNT(*) AS n FROM rejected_payment_claims').get().n,1);assert.equal((await call('customer','workspace/orders/'+id+'/receipt',{amount:15000,reference:'claim-002'})).status,200);
   assert.equal((await call('owner','orders/'+id+'/payment',{amount:15000,reference:'transfer-001'})).status,200);
   assert.equal((await call('worker','orders/'+id+'/status',{status:'processing'})).status,200);
   assert.equal((await call('management','orders/'+id+'/status',{status:'completed'})).status,409);
@@ -137,6 +139,6 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await call('customer','business/notifications/read',{last_id:notices.latest})).status,200);
   assert.equal((await (await call('customer','business/notifications')).json()).unread,0);
   assert.equal((await call('owner','team/role',{user_id:ids.worker,role:'customer'})).status,200);
-  assert.equal((await call('worker','settlements')).status,403);
+  assert.equal((await call('worker','settlements')).status,200);assert.equal((await (await call('worker','workspace/payouts')).json()).balance.available,1000);assert.equal((await (await call('worker','me')).json()).user.finance_access,true);
  }finally{db.close();}
 });

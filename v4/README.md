@@ -51,3 +51,6 @@ Owner can override existing portal service prices, disable services and apply pe
 
 ### Discord ticket links (0007)
 Customer can link an active web order using `/weborder ticket id:<order-id>` in the authorized guild. The bot checks ownership before creating/reusing the customer's existing ticket, then registers the channel reference. Links do not synchronize legacy payment, claim or settlement state and are not proof a channel remains open. The dashboard displays the registered channel to customer, assigned worker or staff only. Requires bot bridge configuration and deployment of both repos.
+
+### Integrity gate (0008)
+Health now queries required tables and reports schema and deployed Git SHA; a missing DB or OAuth configuration returns degraded HTTP 503. Public Worker API catalog uses overrides (static Pages HTML still baseline). Optional request_id makes order retries idempotent per customer and same service/quantity. Invoice changes are locked after payment report; owner can reject a verified-not-received claim with a retained reason. Former workers retain access to their own settlement and payout records but no worker permissions. Database triggers prevent active-worker demotion races. Rate limiting applies to authenticated POST routes; public OAuth/GET rate limits require separate infrastructure. No money transfers initiated.

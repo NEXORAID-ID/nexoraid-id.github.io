@@ -7,7 +7,7 @@ const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:
 const err=(error,status)=>json({error},status);
 export function financeKind(serviceId){return serviceId==='seller'?'seller':serviceId.startsWith('gta-')?'joki':'other';}
 export function scopeFor(user){return staff(user.role)?{where:'1=1',args:[]}:user.role==='worker'?{where:"(o.customer_id=? OR o.assigned_to=? OR o.status='requested')",args:[user.id,user.id]}:{where:'o.customer_id=?',args:[user.id]};}
-const orderFields="o.*,f.amount AS invoice_amount,f.kind AS invoice_kind,f.state AS payment_state,f.paid_at,w.submitted_at AS evidence_at,(SELECT amount FROM order_refunds r WHERE r.order_id=o.id) AS refunded_amount";
+const orderFields="o.*,f.amount AS invoice_amount,f.kind AS invoice_kind,f.state AS payment_state,f.paid_at,w.submitted_at AS evidence_at,EXISTS(SELECT 1 FROM payment_claims c WHERE c.order_id=o.id) AS payment_claimed,(SELECT amount FROM order_refunds r WHERE r.order_id=o.id) AS refunded_amount";
 const joins=" FROM orders o LEFT JOIN order_finance f ON f.order_id=o.id LEFT JOIN order_work w ON w.order_id=o.id";
 function redact(o,user){if(user.role==='worker'&&o.status==='requested'&&o.customer_id!==user.id)return {...o,customer_id:null};return o;}
 export async function listOrders(db,user,url){
@@ -27,8 +27,8 @@ export async function dashboardSummary(db,user){
  const counts=(await db.prepare('SELECT o.status,COUNT(*) AS count FROM orders o WHERE '+where+' GROUP BY o.status').bind(...args).all()).results;
  const totals=Object.fromEntries(statuses.map(s=>[s,0]));for(const row of counts)totals[row.status]=row.count;
  const result={counts:totals,total:Object.values(totals).reduce((a,b)=>a+b,0)};
- if(user.role==='owner'||user.role==='worker'){
-  const worker=user.role==='worker';
+ if(user.role==='owner'||user.role==='worker'||await db.prepare('SELECT order_id FROM order_settlements WHERE worker_id=? LIMIT 1').bind(user.id).first()){
+  const worker=user.role!=='owner';
   const row=await db.prepare(worker?'SELECT COUNT(*) AS count,COALESCE(SUM(worker_share),0) AS worker_share FROM order_settlements WHERE worker_id=?':'SELECT COUNT(*) AS count,COALESCE(SUM(gross),0) AS gross,COALESCE(SUM(worker_share),0) AS worker_share,COALESCE(SUM(owner_share),0) AS owner_share FROM order_settlements').bind(...(worker?[user.id]:[])).first();
   result.settlement=row;
  }
@@ -49,8 +49,8 @@ export async function operations({p,m,url,user,env,readBody,r}){
   const events=rows.slice(0,50);return json({events,next:rows.length>50?events.at(-1).id:null});
  }
  if(p==='/api/settlements'&&m==='GET'){
-  if(!['owner','worker'].includes(user.role))return err('Akses keuangan tidak diizinkan.',403);
-  const worker=user.role==='worker',before=url.searchParams.get('before')||'';
+  if(!['owner','worker'].includes(user.role)&&!await db.prepare('SELECT order_id FROM order_settlements WHERE worker_id=? LIMIT 1').bind(user.id).first())return err('Akses keuangan tidak diizinkan.',403);
+  const worker=user.role!=='owner',before=url.searchParams.get('before')||'';
   if(before&&!uuid.test(before))return err('Cursor tidak valid.',400);
   const where=worker?'worker_id=? AND order_id>?':'order_id>?';
   const columns=worker?'order_id,kind,worker_share,created_at':'order_id,worker_id,kind,gross,worker_share,owner_share,created_at';
@@ -77,7 +77,8 @@ export async function operations({p,m,url,user,env,readBody,r}){
   const kind=financeKind(order.service_id),amount=b.amount;
   if(!Number.isSafeInteger(amount)||amount<1||amount>999999999||kind==='other'&&amount<10000)return err('Nominal tidak valid; fee layanan lain minimal Rp10.000.',400);
   if(!['claimed','confirmed','processing'].includes(order.status))return err('Order harus sudah diambil penjoki.',409);
-  return mutate(db,db.prepare("INSERT INTO order_finance(order_id,amount,kind,quoted_by,quoted_at) SELECT id,?,?,?,? FROM orders WHERE id=? AND status IN ('claimed','confirmed','processing') ON CONFLICT(order_id) DO UPDATE SET amount=excluded.amount,quoted_by=excluded.quoted_by,quoted_at=excluded.quoted_at WHERE order_finance.state='quoted'").bind(amount,kind,user.id,t,id),user.id,'invoice:quote',id,t);
+  if(order.payment_claimed)return err('Invoice dikunci karena ada laporan pembayaran. Owner harus meninjau laporan dahulu.',409);
+  return mutate(db,db.prepare("INSERT INTO order_finance(order_id,amount,kind,quoted_by,quoted_at) SELECT id,?,?,?,? FROM orders WHERE id=? AND status IN ('claimed','confirmed','processing') ON CONFLICT(order_id) DO UPDATE SET amount=excluded.amount,quoted_by=excluded.quoted_by,quoted_at=excluded.quoted_at WHERE order_finance.state='quoted' AND NOT EXISTS(SELECT 1 FROM payment_claims WHERE order_id=order_finance.order_id)").bind(amount,kind,user.id,t,id),user.id,'invoice:quote',id,t);
  }
  if(action==='payment'){
   if(user.role!=='owner')return err('Hanya owner dapat memverifikasi pembayaran.',403);

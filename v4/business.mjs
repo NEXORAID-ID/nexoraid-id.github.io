@@ -8,7 +8,7 @@ const err=(error,status=400)=>json({error},status);
 const now=()=>Math.floor(Date.now()/1000);
 export function applyOverride(s,row){
  const n=row?.amount??fixedPriceValue(s.price),pct=row?.promo_percent??0;
- const price=n===null?null:Math.floor(n*(100-pct)/100);
+ const price=n===null?null:Math.max(1,Math.floor(n*(100-pct)/100));
  return {...s,price:price===null?s.price:'Rp'+price.toLocaleString('id-ID'),unit_amount:price,enabled:row?.enabled!==0,promo_percent:pct};
 }
 export async function memberCatalog(db,includeDisabled=false){
@@ -41,7 +41,7 @@ export async function business({p,m,url,user,env,readBody,r}){
   const last=await db.prepare('SELECT last_id FROM notification_reads WHERE user_id=?').bind(user.id).first();
   const seen=last?.last_id??0;
   const rows=(await db.prepare('SELECT a.id,a.action,a.target_id,a.created_at FROM audit_events a WHERE '+scope+' ORDER BY a.id DESC LIMIT 50').bind(...args).all()).results;
-  const unread=rows.filter(x=>x.id>seen).length;
+  const unread=(await db.prepare('SELECT COUNT(*) AS n FROM audit_events a WHERE '+scope+' AND a.id>?').bind(...args,seen).first()).n;
   return json({items:rows,unread,latest:rows[0]?.id??seen});
  }
  if(p==='/api/business/notifications/read'&&post){

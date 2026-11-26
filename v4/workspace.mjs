@@ -19,15 +19,15 @@ async function page(db,url,table,fields,where,args){
 export async function workspace({p,m,url,user,env,readBody,r}){
  const db=env.DB,t=epoch(),get=m==='GET',post=m==='POST';
  if(p==='/api/workspace/payouts'&&(get||post)){
-  if(!owner(user)&&user.role!=='worker')return deny();
+  const entitled=user.role==='worker'||Boolean(await db.prepare('SELECT order_id FROM order_settlements WHERE worker_id=? LIMIT 1').bind(user.id).first());if(!owner(user)&&!entitled)return deny();
   if(get){
-   const w=user.role==='worker',where=w?'worker_id=?':'1=1',args=w?[user.id]:[];
+   const w=!owner(user),where=w?'worker_id=?':'1=1',args=w?[user.id]:[];
    const earned=await db.prepare('SELECT COALESCE(SUM(worker_share),0) AS earned FROM order_settlements WHERE '+where).bind(...args).first();
    const spent=await db.prepare("SELECT COALESCE(SUM(CASE WHEN state='paid' THEN amount ELSE 0 END),0) AS paid,COALESCE(SUM(CASE WHEN state='pending' THEN amount ELSE 0 END),0) AS pending FROM payout_requests WHERE "+where).bind(...args).first();
    const res=await page(db,url,'payout_requests','id,worker_id,amount,state,created_at,reviewed_at',where,args);if(!res.ok)return res;
    return json({...await res.json(),balance:{...earned,...spent,available:earned.earned-spent.paid-spent.pending}});
   }
-  if(user.role!=='worker')return deny();
+  if(owner(user)||!entitled)return deny();
   const b=await readBody(r);if(!amount(b?.amount))return err('Nominal pencairan tidak valid.');
   const id=crypto.randomUUID();
   return write(db,db.prepare("INSERT INTO payout_requests(id,worker_id,amount,created_at) SELECT ?,?,?,? WHERE ? <= (SELECT COALESCE(SUM(worker_share),0) FROM order_settlements WHERE worker_id=?) - (SELECT COALESCE(SUM(amount),0) FROM payout_requests WHERE worker_id=? AND state IN ('pending','paid'))").bind(id,user.id,b.amount,t,b.amount,user.id,user.id),user,'payout:request',id,t);
@@ -80,7 +80,7 @@ export async function workspace({p,m,url,user,env,readBody,r}){
   if(!staff(user))return deny();const b=await readBody(r),note=str(b?.resolution,10,500),id=support[1];if(!note)return err('Resolusi 10–500 karakter.');
   return write(db,db.prepare("UPDATE support_cases SET state='resolved',resolution=?,resolved_by=?,resolved_at=? WHERE id=? AND state='open'").bind(note,user.id,t,id),user,'support:resolve',id,t);
  }
- const orderRoute=p.match(/^\/api\/workspace\/orders\/([a-f0-9-]{36})\/(receipt|support|review|refund|timeline)$/);
+ const orderRoute=p.match(/^\/api\/workspace\/orders\/([a-f0-9-]{36})\/(receipt|support|review|refund|timeline|reject-receipt)$/);
  if(!orderRoute||!idRe.test(orderRoute[1]))return null;
  const [,id,action]=orderRoute;
  const order=await db.prepare('SELECT o.id,o.customer_id,o.assigned_to,o.status,f.amount,f.state AS payment_state FROM orders o LEFT JOIN order_finance f ON f.order_id=o.id WHERE o.id=?').bind(id).first();
@@ -88,7 +88,7 @@ export async function workspace({p,m,url,user,env,readBody,r}){
  const owns=order.customer_id===user.id,assigned=user.role==='worker'&&order.assigned_to===user.id;
  if(!owns&&!staff(user)&&!assigned)return err('Order tidak ditemukan.',404);
  if(action==='timeline'&&get){
-  const events=(await db.prepare("SELECT action,created_at FROM audit_events WHERE target_id=? AND (action LIKE 'status:%' OR action IN ('order:create','claim','order:assign','invoice:quote','payment:verified','work:evidence','order:customer_cancel','payment:claim','refund:record')) ORDER BY id DESC LIMIT 100").bind(id).all()).results;
+  const events=(await db.prepare("SELECT action,created_at FROM audit_events WHERE target_id=? AND (action LIKE 'status:%' OR action IN ('order:create','claim','order:assign','invoice:quote','payment:verified','work:evidence','order:customer_cancel','payment:claim','payment:claim_rejected','refund:record','ticket:link')) ORDER BY id DESC LIMIT 100").bind(id).all()).results;
   const receipt=owns||owner(user)?await db.prepare('SELECT amount,reference,submitted_at FROM payment_claims WHERE order_id=?').bind(id).first():null;
   const review=owns||staff(user)||assigned?await db.prepare('SELECT rating,note,created_at FROM order_reviews WHERE order_id=?').bind(id).first():null;
   const refund=await db.prepare('SELECT amount,created_at FROM order_refunds WHERE order_id=?').bind(id).first();
@@ -96,6 +96,12 @@ export async function workspace({p,m,url,user,env,readBody,r}){
  }
  if(!post)return err('Metode tidak diizinkan.',405);
  const b=await readBody(r);
+ if(action==='reject-receipt'){
+  if(!owner(user))return deny();const reason=str(b?.reason,10,300);if(!reason)return err('Alasan 10–300 karakter wajib.');
+  const claimId=crypto.randomUUID();
+  const results=await db.batch([db.prepare("INSERT INTO rejected_payment_claims SELECT ?,c.order_id,c.amount,c.reference,c.submitted_at,?,?,? FROM payment_claims c JOIN order_finance f ON f.order_id=c.order_id WHERE c.order_id=? AND f.state='quoted'").bind(claimId,reason,user.id,t,id),db.prepare("DELETE FROM payment_claims WHERE order_id=? AND EXISTS(SELECT 1 FROM rejected_payment_claims WHERE id=?)").bind(id,claimId),db.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'payment:claim_rejected',?,? WHERE changes()=1").bind(user.id,id,t)]);
+  return results[0].meta.changes?json({ok:true}):err('Tidak ada laporan pembayaran yang dapat ditolak.',409);
+ }
  if(action==='receipt'){
   if(!owns)return deny();const ref=str(b?.reference,4,80);
   if(!ref||!amount(b?.amount)||b.amount!==order.amount)return err('Nominal dan referensi harus sesuai invoice.');
