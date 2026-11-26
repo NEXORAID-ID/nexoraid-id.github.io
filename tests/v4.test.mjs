@@ -148,7 +148,7 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await call('owner','business/catalog',{service_id:'gta-heist',amount:20000,enabled:true,promo_percent:0})).status,200);
   const at=Math.floor(Date.now()/1000);assert.equal((await call('owner','business/policies',{service_id:'gta-heist',warranty_days:7,warranty_terms:'Fixture terms only',promo_percent:10,promo_start:at-60,promo_end:at+3600,promo_terms:'Fixture promotion',promo_min_quantity:1,eligibility_confirmed:true})).status,200);
   const adjusted=await (await call('customer','orders',{service_id:'gta-heist',quantity:2})).json();assert.equal(adjusted.order.estimate,36000);
-  const detail=await (await call('customer','orders/'+adjusted.order.id)).json();assert.equal(detail.policy.warranty_days,7);assert.equal(detail.policy.promo_percent,10);assert.equal(detail.policy.unit_cost,undefined);
+  const adjustedDetail=await (await call('customer','orders/'+adjusted.order.id)).json();assert.equal(adjustedDetail.policy.warranty_days,7);assert.equal(adjustedDetail.policy.promo_percent,10);assert.equal(adjustedDetail.policy.unit_cost,undefined);
   const supplier=(await (await call('owner','business/suppliers',{name:'Test supplier'})).json()).id;
   assert.equal((await call('owner','business/suppliers/'+supplier,{kind:'deposit',amount:500000,reference:'dep-01',note:'Initial deposit'})).status,200);
   assert.equal((await call('owner','business/suppliers/'+supplier,{kind:'usage',amount:600000,reference:'use-01',note:'Too much'})).status,409);
