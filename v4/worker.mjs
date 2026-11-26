@@ -11,7 +11,9 @@ const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:
 const redirect=(path,cookies=[])=>{const h=new Headers({'location':path,'cache-control':'no-store','referrer-policy':'no-referrer'});for(const c of cookies)h.append('set-cookie',c);return new Response(null,{status:303,headers:h});};
 const err=(message,status)=>json({error:message},status);
 const validId=s=>typeof s==='string'&&/^\d{17,20}$/.test(s);
-export function roleFor(user,env){return user.id===env.OWNER_DISCORD_ID&&validId(env.OWNER_DISCORD_ID)?'owner':user.role;}
+export function roleFor(user,env){return user.id===env.OWNER_DISCORD_ID&&validId(env.OWNER_DISCORD_ID)?'owner':user.role==='owner'?'customer':user.role;}
+const teamRoleSql="CASE WHEN EXISTS(SELECT 1 FROM management_grants g WHERE g.user_id=u.id) THEN 'management' ELSE u.role END AS role";
+export const overseesOrders=role=>role==='owner'||role==='management';
 export function estimateOrder(id,quantity){
  const service=services.find(s=>s.id===id);
  if(!service||!Number.isInteger(quantity)||quantity<1||quantity>99)return null;
@@ -19,13 +21,13 @@ export function estimateOrder(id,quantity){
  return {service_id:id,quantity,catalog_price:service.price,estimate:fixed===null?null:fixed*quantity};
 }
 export function mayTransition(role,assigned,actor,from,to){
- if(role==='owner')return ({requested:['cancelled'],claimed:['confirmed','cancelled'],confirmed:['processing','cancelled'],processing:['completed','cancelled']})[from]?.includes(to)||false;
+ if(overseesOrders(role))return ({requested:['cancelled'],claimed:['confirmed','cancelled'],confirmed:['processing','cancelled'],processing:['completed','cancelled']})[from]?.includes(to)||false;
  return role==='worker'&&assigned===actor&&((from==='confirmed'&&to==='processing')||(from==='processing'&&to==='completed'));
 }
 async function session(r,env){
  const token=getCookie(r,'nexo_session');
  if(!/^[a-f0-9-]{72}$/.test(token))return null;
- const user=await env.DB.prepare('SELECT u.id,u.display_name,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?').bind(await hash(token),now()).first();
+ const user=await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+' FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?').bind(await hash(token),now()).first();
  return user?{...user,role:roleFor(user,env)}:null;
 }
 async function body(r){
@@ -62,7 +64,7 @@ async function handle(r,env){
   p=p.replace('/api/bot/','/api/');
   if(!((p==='/api/orders'&&['GET','POST'].includes(m))||(m==='POST'&&/^\/api\/orders\/[a-f0-9-]{36}\/(claim|status)$/.test(p))))return err('Endpoint bot tidak diizinkan.',404);
   await env.DB.prepare("INSERT INTO users(id,display_name,created_at) VALUES(?,?,?) ON CONFLICT(id) DO NOTHING").bind(actor,'Discord '+actor,now()).run();
-  const u=await env.DB.prepare('SELECT id,display_name,role FROM users WHERE id=?').bind(actor).first();
+  const u=await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+' FROM users u WHERE u.id=?').bind(actor).first();
   botUser=u?{...u,role:roleFor(u,env)}:null;
  }else if(m!=='GET'&&r.headers.get('origin')!==env.PUBLIC_ORIGIN)return err('Origin tidak diizinkan.',403);
  if(p==='/api/auth/login'&&m==='GET'){
@@ -96,7 +98,7 @@ async function handle(r,env){
  }
  if(p==='/api/me'&&m==='GET')return json({user});
  if(p==='/api/orders'&&m==='GET'){
-  const query=user.role==='owner'?env.DB.prepare('SELECT * FROM orders ORDER BY created_at DESC LIMIT 100'):user.role==='worker'?env.DB.prepare("SELECT * FROM orders WHERE customer_id=? OR assigned_to=? OR status='requested' ORDER BY created_at DESC LIMIT 100").bind(user.id,user.id):env.DB.prepare('SELECT * FROM orders WHERE customer_id=? ORDER BY created_at DESC LIMIT 100').bind(user.id);
+  const query=overseesOrders(user.role)?env.DB.prepare('SELECT * FROM orders ORDER BY created_at DESC LIMIT 100'):user.role==='worker'?env.DB.prepare("SELECT * FROM orders WHERE customer_id=? OR assigned_to=? OR status='requested' ORDER BY created_at DESC LIMIT 100").bind(user.id,user.id):env.DB.prepare('SELECT * FROM orders WHERE customer_id=? ORDER BY created_at DESC LIMIT 100').bind(user.id);
   const rows=(await query.all()).results;return json({orders:rows.map(o=>user.role==='worker'&&o.status==='requested'&&o.customer_id!==user.id?{...o,customer_id:null}:o)});
  }
  if(p==='/api/orders'&&m==='POST'){
@@ -120,11 +122,22 @@ async function handle(r,env){
   const results=await env.DB.batch([env.DB.prepare('UPDATE orders SET status=?,updated_at=? WHERE id=? AND status=?').bind(b.status,t,id,order.status),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,?,?,? WHERE changes()=1").bind(user.id,'status:'+b.status,id,t)]);
   return results[0].meta.changes?json({ok:true}):err('Status sudah berubah.',409);
  }
+ if(p==='/api/team'&&m==='GET'){
+  if(user.role!=='owner')return err('Akses owner diperlukan.',403);
+  const after=url.searchParams.get('after')||'';
+  if(after&&!validId(after))return err('Cursor tidak valid.',400);
+  const rows=(await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+' FROM users u WHERE u.id>? ORDER BY u.id LIMIT 101').bind(after).all()).results;
+  const page=rows.slice(0,100).map(u=>({...u,role:roleFor(u,env)}));
+  return json({members:page,next:rows.length>100?page.at(-1).id:null});
+ }
  if(p==='/api/team/role'&&m==='POST'){
   if(user.role!=='owner')return err('Akses owner diperlukan.',403);
-  const b=await body(r);if(!b||!validId(b.user_id)||!['customer','worker','seller'].includes(b.role)||b.user_id===env.OWNER_DISCORD_ID)return err('Peran atau pengguna tidak valid.',400);
-  const results=await env.DB.batch([env.DB.prepare('UPDATE users SET role=? WHERE id=?').bind(b.role,b.user_id),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,?,?,? WHERE changes()=1").bind(user.id,'role:'+b.role,b.user_id,now())]);
-  return results[0].meta.changes?json({ok:true}):err('Pengguna belum terdaftar.',404);
+  const b=await body(r);if(!b||!validId(b.user_id)||!['customer','worker','seller','management'].includes(b.role)||b.user_id===env.OWNER_DISCORD_ID)return err('Peran atau pengguna tidak valid.',400);
+  const target=await env.DB.prepare('SELECT id FROM users WHERE id=?').bind(b.user_id).first();
+  if(!target)return err('Pengguna belum terdaftar.',404);
+  const grant=b.role==='management'?env.DB.prepare('INSERT INTO management_grants(user_id,granted_at) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET granted_at=excluded.granted_at').bind(b.user_id,now()):env.DB.prepare('DELETE FROM management_grants WHERE user_id=?').bind(b.user_id);
+  await env.DB.batch([env.DB.prepare('UPDATE users SET role=? WHERE id=?').bind(b.role==='management'?'customer':b.role,b.user_id),grant,env.DB.prepare('INSERT INTO audit_events(actor_id,action,target_id,created_at) VALUES(?,?,?,?)').bind(user.id,'role:'+b.role,b.user_id,now())]);
+  return json({ok:true});
  }
  return err('Endpoint tidak ditemukan.',404);
 }
