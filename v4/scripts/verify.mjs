@@ -39,7 +39,7 @@ for(const [path,key,method,body,extra] of [
  // A fixed result code is safe to log; never emit upstream responses or secrets.
  const membership=await fetch(origin+'/api/bot/health?membership=1',{headers:{authorization:'Bearer '+process.env.NEXORAID_BOT_API_KEY,'x-discord-user-id':process.env.OWNER_DISCORD_ID,'x-discord-guild-id':'1487728359482851348'},redirect:'error',signal:AbortSignal.timeout(20000)});
  const checkMembership=await membership.json().catch(()=>null);
- const knownReasons=['VERIFIED','NOT_MEMBER','GUILD_LOOKUP_FAILED','UNAUTHORIZED','FORBIDDEN','RATE_LIMITED','UPSTREAM_ERROR','IDENTITY_MISMATCH','INVALID_RESPONSE','NOT_CONFIGURED','TRANSPORT'];
+ const knownReasons=['VERIFIED','NOT_MEMBER','GUILD_LOOKUP_FAILED','UNAUTHORIZED','FORBIDDEN','RATE_LIMITED','UPSTREAM_ERROR','IDENTITY_MISMATCH','INVALID_RESPONSE','NOT_CONFIGURED','TRANSPORT','UNEXPECTED_REDIRECT'];
  const safeReason=knownReasons.includes(checkMembership?.reason)?checkMembership.reason:'UNKNOWN';
  console.log('Worker membership diagnostic: '+JSON.stringify({ok:membership.ok&&checkMembership?.ok===true,reason:safeReason,upstream_status:Number.isInteger(checkMembership?.upstream_status)?checkMembership.upstream_status:0}));
  if(!membership.ok||checkMembership?.ok!==true)throw Error('Worker membership verification failed: '+safeReason);
