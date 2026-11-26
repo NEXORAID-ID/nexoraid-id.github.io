@@ -41,9 +41,9 @@ Status: candidate development, not stable. Source: owner-approved 26 Nov 2026 au
 | A36 | P1 | Catalog price freshness | C |
 | A37 | P0 | Server-side variants | C |
 | A38 | P0 | Atomic rental inventory | C |
-| A39 | P1 | Warranty snapshots | O |
-| A40 | P1 | Promotion dates and eligibility | O |
-| A41 | P1 | Bot catalog sync | O |
+| A39 | P1 | Warranty snapshots | C |
+| A40 | P1 | Promotion dates and eligibility | C |
+| A41 | P1 | Bot catalog sync | C |
 | A42 | P2 | Global search | TEST PASSED |
 | A43 | P2 | Skeleton and empty states | TEST PASSED |
 | A44 | P2 | Central toast | TEST PASSED |
@@ -158,3 +158,5 @@ Railway deployment `fec51821-590e-4393-9db9-8a590c6ba0e5` reports SUCCESS for bo
 | A64 | Transcript bounds PR 33 and moderation log privacy PR 40 | 138fbb34 / 1b96b8d9 | [passed 45878381508](https://github.com/NEXORAID-ID/nexoraid-bot/actions/runs/45878381508) | Live transcript privacy, retention, PR 47 pending |
 
 All thirteen remain open for final acceptance, not Closed. This registry does not authorize enabling the queue, applying production migrations, or creating a second bot replica. PR CI evidence is tied to tested PR heads; deployment is tied to the stated merge commit.
+
+- A39/A40 PR #45: atomic warranty and promo snapshots; A41 bot PR #46 merged (d03c393). Production inventory in run 45879214639 proves only 0001–0015 applied. Unapplied rental/variant guards renumbered 0016/0017, policy 0018. Other open migration branches must coordinate unique consecutive versions; no changes to applied migrations, no invented owner terms and no backup gate bypass.

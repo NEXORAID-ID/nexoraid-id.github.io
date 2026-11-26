@@ -47,9 +47,9 @@ export async function createCheckout({env,user,items,key,single=false}){
   statements.push(db.prepare(`INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,estimate,created_at,updated_at)
    SELECT ?,?,?,?,CASE WHEN unit IS NULL THEN ? ELSE 'Rp'||replace(printf('%,d',unit),',','.') END,unit*?,?,?
    FROM (SELECT CASE WHEN COALESCE(c.amount,base.amount) IS NULL THEN NULL
-    ELSE MAX(1,COALESCE(c.amount,base.amount)*(100-COALESCE(c.promo_percent,0))/100) END AS unit
-    FROM (SELECT ? AS amount) base LEFT JOIN catalog_overrides c ON c.service_id=?)`)
-   .bind(orderId,user.id,item.service_id,item.quantity,service.price,item.quantity,t,t,fixedPriceValue(service.price),item.service_id),
+    ELSE MAX(1,COALESCE(c.amount,base.amount)*(100-CASE WHEN p.service_id IS NULL THEN COALESCE(c.promo_percent,0) WHEN p.promo_start<=base.at AND base.at<p.promo_end AND base.quantity>=p.promo_min_quantity THEN p.promo_percent ELSE 0 END)/100) END AS unit
+    FROM (SELECT ? AS amount,? AS at,? AS quantity,? AS service_id) base LEFT JOIN catalog_overrides c ON c.service_id=base.service_id LEFT JOIN service_policies p ON p.service_id=base.service_id)`)
+   .bind(orderId,user.id,item.service_id,item.quantity,service.price,item.quantity,t,t,fixedPriceValue(service.price),t,item.quantity,item.service_id),
    db.prepare('INSERT INTO checkout_items VALUES(?,?)').bind(id,orderId),
    db.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) VALUES(?,'order:create',?,?)").bind(user.id,orderId,t));
  }

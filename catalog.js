@@ -9,7 +9,7 @@ export function searchTerms(query) { return String(query ?? '').normalize('NFKC'
 export function matchesSearch(text, terms) { const normalized = text.normalize('NFKC').toLocaleLowerCase('id'); return terms.every(t=>normalized.includes(t) || (Object.hasOwn(synonyms,t) && normalized.includes(synonyms[t]))); }
 export function safeSelection(raw, services, limit = 50) { const ids = Array.isArray(raw) ? raw : []; return [...new Set(ids.filter(id=>typeof id==='string' && services.some(s=>s.id===id)))].slice(0,limit); }
 export function safeBasket(raw, services) { if (!Array.isArray(raw)) return []; const out=[]; for (const row of raw) { if (!row || !services.some(s=>s.id===row.id&&s.orderable!==false) || out.some(s=>s.id===row.id)) continue; const quantity=Number(row.quantity); if (Number.isInteger(quantity) && quantity>=1 && quantity<=99) out.push({id:row.id,quantity}); } return out.slice(0,50); }
-export function basketTotals(rows, services) { let total=0,needsQuote=0; for (const row of safeBasket(rows,services)) { const price=fixedPriceValue(services.find(s=>s.id===row.id).price); if(price===null) needsQuote++; else total+=price*row.quantity; } return {total,needsQuote}; }
+export function basketTotals(rows, services) { let total=0,needsQuote=0; for (const row of safeBasket(rows,services)) { const s=services.find(s=>s.id===row.id),price=effectiveCatalogUnit(s,row.quantity); if(price===null) needsQuote++; else total+=price*row.quantity; } return {total,needsQuote}; }
 export function basketText(rows, services, note='') { const items=safeBasket(rows,services); const sums=basketTotals(items,services); return ['Halo tim NEXORAID!', '', 'Saya ingin meminta konfirmasi layanan:', ...items.map(row=>{const s=services.find(s=>s.id===row.id);return '- '+s.name+' × '+row.quantity+' — '+s.price;}),'','Subtotal harga tetap (indikatif): Rp'+sums.total.toLocaleString('id-ID'), 'Layanan yang memerlukan penawaran: '+sums.needsQuote, 'Catatan: '+String(note).slice(0,500), '', 'Mohon konfirmasi ketersediaan, rincian, harga final dan estimasi sebelum pembayaran.'].join('\n'); }
 
 export const escapeHTML = value => String(value).replace(/[&<>"']/g, char => ({
@@ -27,6 +27,13 @@ export function fixedPriceValue(price) {
   return match ? Number(match[1].replaceAll('.', '')) : null;
 }
 
+export function effectiveCatalogUnit(service,quantity=1,at=Math.floor(Date.now()/1000)){
+ if(!service||service.orderable===false)return null;
+ const n=service.base_unit_amount,p=service.policy?.promo;
+ if(!Number.isSafeInteger(n))return fixedPriceValue(service.price);
+ const pct=p&&(p.legacy||p.start<=at&&at<p.end&&quantity>=p.min_quantity)?p.percent:0;
+ return Math.max(1,Math.floor(n*(100-pct)/100));
+}
 export function pricingInfo(price) {
  const value=String(price).trim();const fixed=fixedPriceValue(value);
  if(fixed!==null)return {type:'fixed',min:fixed,max:fixed};
