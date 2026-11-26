@@ -13,7 +13,7 @@ let favorites = safeSelection(readStore('nexoraid-favorites',[]), services);
 let basket = safeBasket(readStore('nexoraid-basket',[]), services);
 const basketNav=$('#basketNav');
 function updateBasketNav(){if(basketNav)basketNav.textContent='Keranjang ('+basket.reduce((n,r)=>n+r.quantity,0)+')';}
-function updateFavorites(){ $('[data-favorite]').forEach(b=>{const selected=favorites.includes(b.dataset.favorite);b.setAttribute('aria-pressed',String(selected));b.textContent=selected?'♥ Tersimpan':'♡ Favorit';}); }
+function updateFavorites(){ $$('[data-favorite]').forEach(b=>{const selected=favorites.includes(b.dataset.favorite);b.setAttribute('aria-pressed',String(selected));b.textContent=selected?'♥ Tersimpan':'♡ Favorit';}); }
 function addBasket(id){if(!services.some(s=>s.id===id))return;const row=basket.find(s=>s.id===id);if(row){if(row.quantity>=99){showToast('Jumlah maksimal 99.');return;}row.quantity++;}else{if(basket.length>=50){showToast('Keranjang sudah penuh.');return;}basket.push({id,quantity:1});}const saved=saveStore('nexoraid-basket',basket);updateBasketNav();renderBasket();showToast(saved?'Ditambahkan ke keranjang.':'Ditambahkan untuk sesi halaman ini; penyimpanan browser tidak tersedia.');}
 updateBasketNav();
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -51,7 +51,7 @@ $$('[data-icon]').forEach(element => { element.innerHTML = icon(element.dataset.
 $$('[data-year]').forEach(element => { element.textContent = new Date().getFullYear(); });
 
 // Route generic ticket CTAs through the access instructions; preserve the actual channel on contact page.
-if(!location.pathname.endsWith('/kontak.html')) $('[data-discord-link]').forEach(link=>{link.href='kontak.html';link.removeAttribute('target');link.removeAttribute('rel');});
+if(!location.pathname.endsWith('/kontak.html')) $$('[data-discord-link]').forEach(link=>{link.href='kontak.html';link.removeAttribute('target');link.removeAttribute('rel');});
 const menuButton = $('#navToggle'), menu = $('#navMenu');
 if(menuButton && menu) document.documentElement.classList.add('nav-ready');
 function closeMenu() { menu?.classList.remove('open'); menuButton?.setAttribute('aria-expanded', 'false'); menuButton?.setAttribute('aria-label', 'Buka menu'); }
