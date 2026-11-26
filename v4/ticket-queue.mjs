@@ -26,7 +26,7 @@ export async function ticketQueue({db,r,m,readBody,clock=()=>Math.floor(Date.now
   return json({ok:true,read_only:true,maintenance:Boolean(maintenance),...counts});
  }
  if(maintenance)return err('Antrean dalam pemeliharaan.',503);
- if(['closure-begin','closure-finish'].includes(b?.action)){
+ if(['closure-begin','closure-finish','closure-state'].includes(b?.action)){
   const result=await closureFence(db,b,guild,t);
   return json(result.body,result.status);
  }

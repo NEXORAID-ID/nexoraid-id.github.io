@@ -10,6 +10,9 @@ export async function closureFence(db,b,guild,t){
  const args=[b.closure_id,b.customer_id,guild,b.channel_id,b.ticket_id];
  const read=()=>db.prepare('SELECT closed_at,transcript_channel_id,transcript_message_id FROM ticket_closure_fences WHERE closure_id=? AND customer_id=? AND guild_id=? AND channel_id=? AND ticket_id=?').bind(...args).first();
  const state=row=>result({ok:true,state:row.closed_at==null?'closing':'closed',closure_id:b.closure_id});
+ if(b.action==='closure-state'){
+  const row=await read();return row?result({...state(row).body,read_only:true,transcript_channel_id:row.transcript_channel_id??null,transcript_message_id:row.transcript_message_id??null}):conflict();
+ }
  if(b.action==='closure-begin'){
   const prior=await read();if(prior)return state(prior);
   // All eligibility conditions and the insert run in a single SQLite write statement.

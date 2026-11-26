@@ -74,11 +74,16 @@ test('outbox no backfill; rollback, lease expiry, retry and canonical ack',async
  // Durable closure requires exact mapping, terminal orders and confirmed delivery.
  const closure_id='00000000-0000-4000-8000-000000000099';
  const begin={...close,action:'closure-begin',closure_id};
+ const state={...begin,action:'closure-state'};
+ assert.equal((await call(state)).status,409);
+ assert.equal(sql.prepare('SELECT COUNT(*) n FROM ticket_closure_fences').get().n,0);
  assert.equal((await call(begin)).status,409); // uncertain delivery
  sql.prepare('UPDATE web_ticket_outbox SET delivered_at=?,channel_id=?,message_id=? WHERE order_id=?').run(time,ack.channel_id,sameAck.message_id,id3);
  assert.equal((await call({...begin,customer_id:other})).status,409);
  assert.equal((await(await call(begin)).json()).state,'closing');
  assert.equal((await(await call(begin)).json()).state,'closing');
+ assert.deepEqual(await(await call(state)).json(),{ok:true,state:'closing',closure_id,read_only:true,transcript_channel_id:null,transcript_message_id:null});
+ assert.equal((await call({...state,customer_id:other})).status,409);
  assert.throws(()=>add('00000000-0000-4000-8000-000000000008'),/ticket_closure_pending/);
  assert.equal((await call({...begin,closure_id:'00000000-0000-4000-8000-000000000098'})).status,409);
  const finish={...begin,action:'closure-finish',transcript_channel_id:'1524898826903752880',transcript_message_id:'1524898826903752881'};
@@ -86,6 +91,7 @@ test('outbox no backfill; rollback, lease expiry, retry and canonical ack',async
  assert.equal((await(await call(finish)).json()).state,'closed');
  assert.equal((await(await call(finish)).json()).state,'closed');
  assert.equal((await call({...finish,transcript_message_id:'1524898826903752882'})).status,409);
+ assert.deepEqual(await(await call(state)).json(),{ok:true,state:'closed',closure_id,read_only:true,transcript_channel_id:finish.transcript_channel_id,transcript_message_id:finish.transcript_message_id});
  add('00000000-0000-4000-8000-000000000008');
  const reopened=await(await call({action:'lease'})).json();
  assert.equal(reopened.order.id,'00000000-0000-4000-8000-000000000008');
