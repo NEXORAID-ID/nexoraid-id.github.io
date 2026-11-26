@@ -63,6 +63,10 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   for(const role of ['owner','management','worker','customer'])assert.equal((await (await call(role,'me')).json()).user.role,role);
   const created=await call('customer','orders',{service_id:'gta-heist',quantity:1,request_id:'test-order-request-001'});assert.equal(created.status,201);const {order}=await created.json();const id=order.id;
   const replay=await call('customer','orders',{service_id:'gta-heist',quantity:1,request_id:'test-order-request-001'});assert.equal(replay.status,200);assert.equal((await replay.json()).order.id,id);assert.equal((await call('customer','orders',{service_id:'gta-heist',quantity:2,request_id:'test-order-request-001'})).status,409);
+  const cartReplay=await call('customer','customer/checkout',{request_id:'test-order-request-001',items:[{service_id:'gta-heist',quantity:1}]});assert.equal(cartReplay.status,200);assert.equal((await cartReplay.json()).orders[0].id,id);
+  const botReplay=await worker.fetch(req('/api/bot/orders',{method:'POST',headers:{authorization:'Bearer '+env.NEXORAID_BOT_API_KEY,'x-discord-user-id':ids.customer,'x-discord-guild-id':'1487728359482851348','content-type':'application/json'},body:JSON.stringify({service_id:'gta-heist',quantity:1,request_id:'test-order-request-001'})}),env);assert.equal(botReplay.status,200);assert.equal((await botReplay.json()).order.id,id);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM web_ticket_outbox WHERE order_id=?').get(id).n,1);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE action='order:create' AND target_id=?").get(id).n,1);
   assert.equal((await (await call('other','orders')).json()).orders.length,0);
   assert.equal((await call('other','orders/'+id)).status,404);
   assert.equal((await call('other','orders/'+id+'/ticket')).status,404);
@@ -164,7 +168,8 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   const again=await call('other','customer/checkout',basket);assert.equal(again.status,200);assert.equal((await again.json()).checkout_id,result.checkout_id);
   assert.equal((await call('other','customer/checkout',{...basket,items:[{service_id:'gta-heist',quantity:2}]})).status,409);
   assert.equal((await call('other','customer/checkout',{...basket,request_id:'checkout-test-002',items:[...basket.items,{service_id:'cherax',quantity:1}]})).status,429);
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM checkout_groups').get().n,1);
+  assert.equal((await call('other','orders',{request_id:basket.request_id,service_id:'gta-heist',quantity:1})).status,409);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM checkout_groups WHERE customer_id=? AND request_id=?").get(ids.other,basket.request_id).n,1);
   const refundData={amount:3000,reference:'refund-completed-1',reason:'Customer agreed partial refund',owner_bears_cost:true};
   assert.equal((await call('management','workspace/orders/'+id+'/completed-refund',refundData)).status,403);
   assert.equal((await call('owner','workspace/orders/'+id+'/completed-refund',{...refundData,owner_bears_cost:false})).status,400);
