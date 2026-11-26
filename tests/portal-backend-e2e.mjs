@@ -13,7 +13,7 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  DISCORD_OAUTH_FETCH:async()=>Response.json(++oauth===1?{access_token:'fixture'}:oauth===2?{id,username:'Browser fixture'}:{roles:[]}),
  DISCORD_MEMBERSHIP_FETCH:async()=>member?Response.json({user:{id},roles:[]}):Response.json({code:10007},{status:404})};
  const state='a'.repeat(72),verifier='b'.repeat(43);
- let ctx;
+ let ctx;const roleContexts=[];
  try{
  const login=await worker.fetch(new Request(origin+'/api/auth/callback?code=fixture&state='+state,{headers:{cookie:'nexo_state='+state+'; nexo_pkce='+verifier}}),env);
  assert.equal(login.headers.get('location'),'/portal.html');
@@ -45,5 +45,61 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  await page.locator('#request button').click();await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('Gabung server Discord'));
  assert.equal(db.prepare('SELECT COUNT(*) n FROM orders').get().n,1);assert.deepEqual(errors,[]);
  console.log('Portal backend E2E passed: OAuth fixture, browser checkout, persistent D1/outbox, replay, machine lease/ACK and nonmember rejection. No real Discord side effects.');
- }finally{await ctx?.close();db.close();}
+
+ // Five real API-backed role dashboards and cross-role financial lifecycle.
+ // Discord itself and payment provider remain synthetic; never touch production.
+ member=true;
+ const ids={owner,management:'555555555555555555',worker:'333333333333333333',seller:'888888888888888888'};
+ db.prepare('INSERT INTO users VALUES(?,?,?,?)').run(ids.management,'Fixture manager','customer',1);
+ db.prepare('INSERT INTO management_grants VALUES(?,?)').run(ids.management,1);
+ db.prepare('INSERT INTO users VALUES(?,?,?,?)').run(ids.seller,'Fixture seller','seller',1);
+ const pages={customer:page},cookies={customer:cookie};
+ const labels={owner:'Pemilik',management:'Manajemen',worker:'Penjoki',seller:'Penjual',customer:'Pelanggan'};
+ for(const [role,actor] of Object.entries(ids)){
+  let n=0;const config={...env,DISCORD_OAUTH_FETCH:async()=>Response.json(++n===1?{access_token:'fixture'}:n===2?{id:actor,username:'Fixture '+role}:{roles:role==='worker'?['1511392414516903966']:[]})};
+  const login=await worker.fetch(new Request(origin+'/api/auth/callback?code=fixture&state='+state,{headers:{cookie:'nexo_state='+state+'; nexo_pkce='+verifier}}),config);
+  assert.equal(login.headers.get('location'),'/portal.html',role+' OAuth callback');const session=login.headers.getSetCookie().find(x=>x.startsWith('nexo_session=')).split(';')[0];cookies[role]=session;
+  const context=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce',serviceWorkers:'block'});roleContexts.push(context);
+  const p=await context.newPage();pages[role]=p;p.on('pageerror',e=>errors.push(e.message));p.on('dialog',d=>d.accept());
+  for(const [name,body] of Object.entries(portalFiles))await p.route('**/'+name,r=>r.fulfill({contentType:name.endsWith('.html')?'text/html':name.endsWith('.css')?'text/css':'text/javascript',body}));
+  await p.route('**/api/**',async route=>{const req=route.request(),u=new URL(req.url()),method=req.method(),body=req.postData();
+   const response=await worker.fetch(new Request(origin+u.pathname+u.search,{method,headers:{cookie:session,origin,'content-type':'application/json'},...(body?{body}:{})}),{...env,DISCORD_MEMBERSHIP_FETCH:async url=>Response.json({user:{id:url.split('/').at(-1)},roles:url.endsWith(ids.worker)?['1511392414516903966']:[]})});
+   await route.fulfill({status:response.status,contentType:response.headers.get('content-type')||'application/json',body:await response.text()});
+  });
+  await p.goto(url+'portal.html');await p.waitForFunction(()=>document.querySelector('#status')?.textContent==='Terhubung.');
+  assert.equal(await p.locator('#roleBadge').innerText(),labels[role]);
+  assert.equal(await p.locator('[data-view="team"]').isVisible(),role==='owner');
+  assert.equal(await p.locator('[data-view="finance"]').isVisible(),['owner','worker'].includes(role));
+ }
+ const api=(role,path,data)=>worker.fetch(new Request(origin+path,{headers:{cookie:cookies[role],origin,'content-type':'application/json'},...(data===undefined?{}:{method:'POST',body:JSON.stringify(data)})}),env);
+ assert.equal((await api('seller','/api/orders/'+order.id)).status,404);
+ assert.equal((await api('seller','/api/team')).status,403);
+ assert.equal((await api('seller','/api/orders/'+order.id+'/claim',{})).status,403);
+ const open=async role=>{const p=pages[role];await p.reload();await p.waitForFunction(()=>document.querySelector('#status')?.textContent==='Terhubung.');await p.getByRole('button',{name:'Detail & tindakan'}).first().click();await p.locator('#orderDialog[open]').waitFor();return p;};
+ const submit=async(p,locator,endpoint)=>{const done=p.waitForResponse(r=>new URL(r.url()).pathname===endpoint&&r.request().method()==='POST');await locator.click();const response=await done;assert.equal(response.status(),200,endpoint+' '+await response.text());};
+ const endpoint='/api/orders/'+order.id;
+ let p=await open('worker');await submit(p,p.getByRole('button',{name:'Ambil order',exact:true}),endpoint+'/claim');
+ assert.equal(db.prepare('SELECT assigned_to FROM orders WHERE id=?').get(order.id).assigned_to,ids.worker);
+ p=await open('management');let form=p.locator('form').filter({has:p.getByRole('heading',{name:'Tetapkan invoice',exact:true})});await form.getByLabel('Nominal rupiah').fill('150000');await submit(p,form.getByRole('button',{name:'Simpan'}),endpoint+'/quote');
+ p=await open('management');await submit(p,p.getByRole('button',{name:'Konfirmasi order',exact:true}),endpoint+'/status');
+ p=await open('customer');assert.ok(await p.locator('.qris-payment').isVisible());
+ form=p.locator('form').filter({has:p.getByRole('heading',{name:'Laporkan pembayaran',exact:true})});await form.getByLabel('Referensi pembayaran (bukan PIN/OTP)').fill('fixture-ui-receipt');await submit(p,form.getByRole('button',{name:'Simpan'}),'/api/workspace/orders/'+order.id+'/receipt');
+ p=await open('management');assert.equal(await p.getByRole('heading',{name:'Verifikasi pembayaran manual',exact:true}).count(),0);
+ assert.equal((await api('management',endpoint+'/payment',{amount:150000,reference:'fixture-forbidden'})).status,403);
+ p=await open('owner');form=p.locator('form').filter({has:p.getByRole('heading',{name:'Verifikasi pembayaran manual',exact:true})});await form.getByLabel('Referensi transaksi (bukan data rekening)').fill('fixture-ui-payment');await submit(p,form.getByRole('button',{name:'Simpan'}),endpoint+'/payment');
+ p=await open('worker');await submit(p,p.getByRole('button',{name:'Mulai pengerjaan',exact:true}),endpoint+'/status');
+ p=await open('worker');form=p.locator('form').filter({has:p.getByRole('heading',{name:'Kirim bukti pengerjaan',exact:true})});await form.getByLabel('Catatan hasil / referensi bukti. Jangan kirim password atau OTP.').fill('Synthetic browser work evidence');await submit(p,form.getByRole('button',{name:'Simpan'}),endpoint+'/evidence');
+ p=await open('management');await submit(p,p.getByRole('button',{name:'Setujui hasil & selesaikan',exact:true}),endpoint+'/status');
+ const settlement=db.prepare('SELECT worker_share,owner_share,gross FROM order_settlements WHERE order_id=?').get(order.id);
+ assert.equal(settlement.gross,150000);assert.equal(settlement.worker_share,10000);assert.equal(settlement.owner_share,140000);
+ assert.equal(db.prepare('SELECT status FROM orders WHERE id=?').get(order.id).status,'completed');
+ const closure=await queue({action:'closure-status',customer_id:id,channel_id:'666666666666666666',ticket_id:'0001'});assert.equal(closure.status,200);assert.equal((await closure.json()).eligible,true);
+ p=pages.seller;await p.locator('#service').selectOption('optiwindows');await p.locator('#request button').click();await p.waitForFunction(()=>document.querySelector('#status')?.textContent.startsWith('Permintaan tercatat:'));
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM orders WHERE customer_id=?').get(ids.seller).n,1);
+ assert.equal((await (await api('seller','/api/orders')).json()).orders.length,1);
+ assert.equal((await (await api('customer','/api/orders')).json()).orders.length,1);
+ assert.deepEqual(errors,[]);
+ console.log('Five-role browser backend E2E passed: customer request and receipt, worker claim and evidence, management quote and completion, owner manual verification, seller isolated order, settlement and closure preflight.');
+
+ }finally{for(const c of roleContexts)await c.close();await ctx?.close();db.close();}
 }
