@@ -66,6 +66,9 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await (await call('worker','orders')).json()).orders[0].customer_id,null);
   assert.equal((await call('management','team')).status,403);
   assert.equal((await call('customer','orders/'+id+'/claim',{})).status,403);
+  assert.equal((await call('worker','workspace/presence',{available:false})).status,200);
+  assert.equal((await call('worker','orders/'+id+'/claim',{})).status,409);
+  assert.equal((await call('worker','workspace/presence',{available:true})).status,200);
   assert.equal((await call('worker','orders/'+id+'/claim',{})).status,200);
   assert.equal((await call('worker','orders/'+id+'/claim',{})).status,409);
   assert.equal((await call('owner','team/role',{user_id:ids.worker,role:'customer'})).status,409);
@@ -74,6 +77,9 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await call('worker','orders/'+id+'/status',{status:'processing'})).status,409);
   assert.equal((await call('management','orders/'+id+'/payment',{amount:15000,reference:'transfer-001'})).status,403);
   assert.equal((await call('owner','orders/'+id+'/payment',{amount:14000,reference:'transfer-001'})).status,400);
+  assert.equal((await call('other','workspace/orders/'+id+'/receipt',{amount:15000,reference:'claim-001'})).status,404);
+  assert.equal((await call('customer','workspace/orders/'+id+'/receipt',{amount:15000,reference:'claim-001'})).status,200);
+  assert.equal((await (await call('customer','workspace/orders/'+id+'/timeline')).json()).receipt.reference,'claim-001');
   assert.equal((await call('owner','orders/'+id+'/payment',{amount:15000,reference:'transfer-001'})).status,200);
   assert.equal((await call('worker','orders/'+id+'/status',{status:'processing'})).status,200);
   assert.equal((await call('management','orders/'+id+'/status',{status:'completed'})).status,409);
@@ -100,7 +106,15 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await call('management','workspace/support/'+cases.items[0].id,{resolution:'Checked and resolved'})).status,200);
   assert.equal((await call('worker','workspace/expenses',{category:'hosting',amount:500,note:'Hosting',reference:'exp-1'})).status,403);
   assert.equal((await call('owner','workspace/expenses',{category:'hosting',amount:500,note:'Hosting',reference:'exp-1'})).status,200);
-  const report=await (await call('owner','workspace/report')).json();assert.equal(report.finance.recorded_margin,5500);
+  const second=(await (await call('other','orders',{service_id:'gta-heist',quantity:1})).json()).order.id;
+  assert.equal((await call('worker','orders/'+second+'/claim',{})).status,200);
+  assert.equal((await call('management','orders/'+second+'/quote',{amount:20000})).status,200);
+  assert.equal((await call('owner','orders/'+second+'/payment',{amount:20000,reference:'transfer-002'})).status,200);
+  assert.equal((await call('management','workspace/orders/'+second+'/refund',{amount:20000,reference:'refund-001'})).status,403);
+  assert.equal((await call('owner','workspace/orders/'+second+'/refund',{amount:20000,reference:'refund-001'})).status,200);
+  const refunded=(await (await call('other','orders/'+second)).json()).order;assert.equal(refunded.status,'cancelled');assert.equal(refunded.refunded_amount,20000);
+  assert.equal((await call('owner','workspace/orders/'+second+'/refund',{amount:20000,reference:'refund-002'})).status,409);
+  const report=await (await call('owner','workspace/report')).json();assert.equal(report.finance.refunded,20000);assert.equal(report.finance.recorded_margin,5500);
   assert.equal((await (await call('management','workspace/report')).json()).finance,undefined);
   assert.equal((await call('owner','team/role',{user_id:ids.worker,role:'customer'})).status,200);
   assert.equal((await call('worker','settlements')).status,403);
