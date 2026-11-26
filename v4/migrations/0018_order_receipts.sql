@@ -16,7 +16,7 @@ CREATE TABLE receipt_refunds (
 CREATE INDEX receipt_refunds_order ON receipt_refunds(order_id);
 CREATE VIEW order_payment_totals AS
  SELECT f.order_id,f.amount AS invoice_amount,
- CASE WHEN EXISTS(SELECT 1 FROM order_receipts r WHERE r.order_id=f.order_id) THEN (SELECT SUM(r.amount) FROM order_receipts r WHERE r.order_id=f.order_id) WHEN f.state='paid' THEN f.amount ELSE 0 END AS received,
+ COALESCE((SELECT SUM(r.amount) FROM order_receipts r WHERE r.order_id=f.order_id),0)+CASE WHEN f.state='paid' AND NOT EXISTS(SELECT 1 FROM order_receipts r WHERE r.order_id=f.order_id AND r.reference=f.payment_ref) THEN f.amount ELSE 0 END AS received,
  COALESCE((SELECT SUM(amount) FROM receipt_refunds r WHERE r.order_id=f.order_id AND kind='overpayment'),0) AS excess_returned,
  COALESCE((SELECT SUM(amount) FROM receipt_refunds r WHERE r.order_id=f.order_id AND kind='partial_cancel'),0) AS partial_returned
  FROM order_finance f;
@@ -25,7 +25,7 @@ CREATE VIEW cash_receipt_movements AS
  SELECT 'receipt:'||id AS id,'payment' AS kind,amount AS delta,reference,created_at AS event_at FROM order_receipts
  UNION ALL SELECT 'receipt-refund:'||id,'refund',-amount,reference,created_at FROM receipt_refunds;
 CREATE VIEW cash_order_movements AS
- SELECT 'payment:'||order_id AS id,'payment' AS kind,amount AS delta,payment_ref AS reference,paid_at AS event_at FROM order_finance f WHERE state='paid' AND NOT EXISTS(SELECT 1 FROM order_receipts r WHERE r.order_id=f.order_id)
+ SELECT 'payment:'||order_id AS id,'payment' AS kind,amount AS delta,payment_ref AS reference,paid_at AS event_at FROM order_finance f WHERE state='paid' AND NOT EXISTS(SELECT 1 FROM order_receipts r WHERE r.order_id=f.order_id AND r.reference=f.payment_ref)
  UNION ALL SELECT 'refund:'||order_id,'refund',-amount,reference,created_at FROM order_refunds
  UNION ALL SELECT 'completed-refund:'||id,'refund',-amount,reference,created_at FROM completed_refunds
  UNION ALL SELECT 'payout:'||id,'payout',-amount,reference,reviewed_at FROM payout_requests WHERE state='paid'
@@ -42,10 +42,10 @@ CREATE TRIGGER receipt_invoice_lock BEFORE UPDATE OF amount,kind ON order_financ
 WHEN (OLD.amount<>NEW.amount OR OLD.kind<>NEW.kind) AND EXISTS(SELECT 1 FROM order_receipts WHERE order_id=OLD.order_id)
 BEGIN SELECT RAISE(ABORT,'receipt_invoice_locked'); END;
 CREATE TRIGGER receipt_guard BEFORE INSERT ON order_receipts BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM order_finance f JOIN orders o ON o.id=f.order_id WHERE f.order_id=NEW.order_id AND f.state='quoted' AND o.status IN ('claimed','confirmed','processing')) THEN RAISE(ABORT,'receipt_not_allowed') END;
+ SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM order_finance f JOIN orders o ON o.id=f.order_id WHERE f.order_id=NEW.order_id AND ((f.state='quoted' AND o.status IN ('claimed','confirmed','processing')) OR (f.state='paid' AND o.status IN ('claimed','confirmed','processing','completed')))) THEN RAISE(ABORT,'receipt_not_allowed') END;
  SELECT CASE WHEN NEW.created_at<=COALESCE((SELECT MAX(end_at) FROM cash_period_closes),-1) THEN RAISE(ABORT,'cash_period_closed') END;
  SELECT CASE WHEN EXISTS(SELECT 1 FROM cash_movements WHERE trim(reference)=trim(NEW.reference)) THEN RAISE(ABORT,'cash_reference_conflict') END;
- SELECT CASE WHEN NEW.amount+COALESCE((SELECT SUM(amount) FROM order_receipts WHERE order_id=NEW.order_id),0)>999999999 THEN RAISE(ABORT,'receipt_limit') END;
+ SELECT CASE WHEN NEW.amount+COALESCE((SELECT received FROM order_payment_totals WHERE order_id=NEW.order_id),0)>999999999 THEN RAISE(ABORT,'receipt_limit') END;
 END;
 CREATE TRIGGER receipt_apply AFTER INSERT ON order_receipts BEGIN
  UPDATE order_finance SET state='paid',paid_by=NEW.actor_id,paid_at=NEW.created_at,payment_ref=NEW.reference

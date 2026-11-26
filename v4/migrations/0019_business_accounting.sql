@@ -50,6 +50,12 @@ CREATE TABLE investor_post_policies (
 CREATE TRIGGER investor_post_policy_guard BEFORE INSERT ON investor_post_policies
 WHEN NOT EXISTS(SELECT 1 FROM investor_capital c JOIN investor_attestations a ON a.capital_id=c.id WHERE c.id=NEW.capital_id AND c.amount=(SELECT COALESCE(SUM(principal_return),0) FROM investor_distributions WHERE capital_id=c.id))
 BEGIN SELECT RAISE(ABORT,'investor_not_repaid'); END;
+CREATE TRIGGER investor_policy_conflict BEFORE INSERT ON investor_post_policies
+WHEN NEW.investor_percent>0 AND (EXISTS(SELECT 1 FROM investor_post_policies WHERE capital_id<>NEW.capital_id AND investor_percent>0) OR EXISTS(SELECT 1 FROM investor_capital c WHERE c.id<>NEW.capital_id AND c.amount>(SELECT COALESCE(SUM(principal_return),0) FROM investor_distributions WHERE capital_id=c.id)))
+BEGIN SELECT RAISE(ABORT,'investor_policy_conflict'); END;
+CREATE TRIGGER investor_capital_policy_conflict BEFORE INSERT ON investor_capital
+WHEN EXISTS(SELECT 1 FROM investor_post_policies WHERE investor_percent>0)
+BEGIN SELECT RAISE(ABORT,'investor_policy_conflict'); END;
 CREATE TRIGGER investor_post_policy_no_update BEFORE UPDATE ON investor_post_policies BEGIN SELECT RAISE(ABORT,'policy_immutable'); END;
 CREATE TRIGGER investor_post_policy_no_delete BEFORE DELETE ON investor_post_policies BEGIN SELECT RAISE(ABORT,'policy_immutable'); END;
 CREATE TRIGGER investor_distribution_post_guard BEFORE INSERT ON investor_distributions
