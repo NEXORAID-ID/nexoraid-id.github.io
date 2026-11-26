@@ -29,7 +29,7 @@ jobs:
           set -eu
           localdb="$(mktemp -d)"
           trap 'rm -rf "$localdb"' EXIT
-          npx --yes wrangler@4.168.0 d1 migrations apply nexoraid-v4 --local --persist-to "$localdb" --config v4/.generated/wrangler.json
-          npx --yes wrangler@4.168.0 d1 execute nexoraid-v4 --local --persist-to "$localdb" --config v4/.generated/wrangler.json --command "SELECT COUNT(*) AS rows_in_empty_ledger FROM cash_movements;"
-          npx --yes wrangler@4.168.0 d1 export nexoraid-v4 --local --persist-to "$localdb" --config v4/.generated/wrangler.json --output "$localdb/fixture.sql"
+          npx --yes wrangler@4.168.0 d1 migrations apply nexoraid-v4 --local --config v4/.generated/wrangler.json
+          npx --yes wrangler@4.168.0 d1 execute nexoraid-v4 --local --config v4/.generated/wrangler.json --command "SELECT COUNT(*) AS rows_in_empty_ledger FROM cash_movements;"
+          npx --yes wrangler@4.168.0 d1 export nexoraid-v4 --local --config v4/.generated/wrangler.json --output "$localdb/fixture.sql"
           python3 v4/scripts/restore-check.py < "$localdb/fixture.sql"
