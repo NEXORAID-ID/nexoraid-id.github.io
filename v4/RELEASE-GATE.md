@@ -31,3 +31,5 @@ Cloudflare environment configuration, isolated production-like restore and live 
 - Migration 0013 permits owner-recorded full refund of a paid in-progress order. No automatic transfer, no settlement on cancelled orders. Test actual review flow with dummy transactions only.
 
 - Cash ledger 0014 is a read-only reconciliation view with owner-attested opening cash and duplicate-reference warnings. Do not report it as a finalized general ledger; verify opening balance cut-off, cash vs noncash, double-entry/reversals, cross-ledger duplicates and real merchant reconciliation.
+
+- Approved pricebook adds 22 fixed GTA heist method SKUs and separate Cherax rental SKUs, Joki Coding and VPN. Rental availability remains manual until atomic stock reservation is implemented; do not claim a slot is guaranteed. HyperBoostX remains free standalone, not a paid order. Do not publish top-up prices or activate Christmas promo without actual owner-supplied rates/date/inclusions.

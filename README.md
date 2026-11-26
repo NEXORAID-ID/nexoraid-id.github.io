@@ -5,8 +5,8 @@ Website statis multipage bertema biru neon dengan aksen pink, tampilan terminal 
 ## Halaman
 
 - `index.html` — Beranda bertema terminal dengan pencarian instan, shortcut keyboard, direktori kategori dinamis, preview ilustrasi layanan, local activity feed, animasi orbit, dan program seller.
-- `layanan.html` — Katalog 32 layanan, pencarian isi detail, filter kategori, pembanding hingga tiga layanan, subtotal indikatif untuk harga pasti, urutan nama/harga, pagination, dan kondisi hasil kosong.
-- `detail.html?id=akun-game-premium` — Detail yang bisa dibagikan, pricelist lengkap, salin format pesanan, salin tautan, dan layanan terkait. Semua 32 ID layanan bisa dibuka langsung.
+- `layanan.html` — Katalog 58 layanan, pencarian isi detail, filter kategori, pembanding hingga tiga layanan, subtotal indikatif untuk harga pasti, urutan nama/harga, pagination, dan kondisi hasil kosong.
+- `detail.html?id=akun-game-premium` — Detail yang bisa dibagikan, pricelist lengkap, salin format pesanan, salin tautan, dan layanan terkait. Semua 58 ID layanan bisa dibuka langsung.
 - `cara-order.html` — Alur pemesanan serta catatan GTA, akun game, dan lisensi.
 - `seller.html` — Program seller Rp1.500.000 dan langkah pendaftaran.
 - `faq.html` — Pencarian pertanyaan dan accordion yang bisa dibuka lewat keyboard.
@@ -115,7 +115,7 @@ Font Inter dan Space Grotesk dimuat dari Google Fonts; fallback sans-serif terse
 
 ## Storefront V3
 
-Build menghasilkan 32 halaman detail statis, 13 halaman umum termasuk 404, sitemap, daftar harga CSV, dan layout bersama. URL detail lama tetap didukung. Keranjang, favorit, filter lanjutan, perbandingan tersimpan, dan ringkasan pesanan berjalan lokal. Tidak ada akun, pembayaran, invoice, tracking atau status stok live yang diklaim. Undangan publik Discord mengikuti tautan resmi yang sebelumnya diberikan pemilik; status aktifnya perlu verifikasi eksternal. Kebijakan bisnis spesifik belum dikonfirmasi. Harga reseller mengikuti katalog saat ini (Rp1.500.000). Jalankan npm run check sebelum rilis. Untuk pengujian browser gunakan deployment preview; jangan masukkan kredensial ke formulir.
+Build menghasilkan 58 halaman detail statis, 13 halaman umum termasuk 404, sitemap, daftar harga CSV, dan layout bersama. URL detail lama tetap didukung. Keranjang, favorit, filter lanjutan, perbandingan tersimpan, dan ringkasan pesanan berjalan lokal. Tidak ada akun, pembayaran, invoice, tracking atau status stok live yang diklaim. Undangan publik Discord mengikuti tautan resmi yang sebelumnya diberikan pemilik; status aktifnya perlu verifikasi eksternal. Kebijakan bisnis spesifik belum dikonfirmasi. Harga reseller mengikuti katalog saat ini (Rp1.500.000). Jalankan npm run check sebelum rilis. Untuk pengujian browser gunakan deployment preview; jangan masukkan kredensial ke formulir.
 
 V3 includes optional browser smoke tests: `npm install --no-save --package-lock=false playwright@1.56.1`, `npx playwright install chromium`, `npm run build`, `node tests/browser.mjs`. Browser test checks mobile navigation, comparison persistence, favorites, cart, package estimates, legacy route, and static fallback. Prices are indicative; checkout is not a payment gateway.
 
@@ -123,4 +123,4 @@ CI browser gate runs Chromium smoke tests before publishing the Pages artifact. 
 
 ### Deployment dan validasi
 
-Gunakan **Settings → Pages → Source: GitHub Actions** untuk publikasi artifact `dist/` (45 halaman termasuk 32 detail statis, katalog tanpa JS, metadata SEO dan sitemap). Publishing langsung dari branch hanya merupakan fallback untuk browser dengan JavaScript: tautan detail menggunakan URL legacy, daftar harga dan CSV dibentuk di browser; fitur SEO statis lengkap membutuhkan artifact. Jangan menyatakan rilis stable sebelum workflow Chromium dan deploy berhasil. Tarif serta kebijakan refund/garansi tetap mengikuti konfirmasi pemilik, bukan asumsi teknis.
+Gunakan **Settings → Pages → Source: GitHub Actions** untuk publikasi artifact `dist/` (71 halaman termasuk 58 detail statis, katalog tanpa JS, metadata SEO dan sitemap). Publishing langsung dari branch hanya merupakan fallback untuk browser dengan JavaScript: tautan detail menggunakan URL legacy, daftar harga dan CSV dibentuk di browser; fitur SEO statis lengkap membutuhkan artifact. Jangan menyatakan rilis stable sebelum workflow Chromium dan deploy berhasil. Tarif serta kebijakan refund/garansi tetap mengikuti konfirmasi pemilik, bukan asumsi teknis.
