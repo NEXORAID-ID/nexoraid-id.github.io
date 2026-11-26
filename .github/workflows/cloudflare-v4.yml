@@ -41,6 +41,4 @@ jobs:
           node --input-type=module -e 'process.stdout.write(JSON.stringify({DISCORD_CLIENT_SECRET:process.env.DISCORD_CLIENT_SECRET}))' > "$secret_file"
           npx --yes wrangler@4 deploy --config v4/.generated/wrangler.json --secrets-file "$secret_file"
       - name: Verify deployment
-        run: |
-          curl --fail --retry 5 "$PUBLIC_ORIGIN/api/health" | node --input-type=module -e 'let s="";for await(const c of process.stdin)s+=c;const h=JSON.parse(s);if(!h.database_configured||!h.login_configured)process.exit(1)'
-          curl --fail "$PUBLIC_ORIGIN/portal.html" -o /dev/null
+        run: node v4/scripts/verify.mjs

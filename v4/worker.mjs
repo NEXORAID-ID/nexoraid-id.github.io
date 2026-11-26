@@ -39,7 +39,12 @@ function oauthReady(env){return Boolean(env.PUBLIC_ORIGIN&&env.DISCORD_CLIENT_ID
 async function handle(r,env){
  const url=new URL(r.url),p=url.pathname,m=r.method;
  if(p==='/'&&(m==='GET'||m==='HEAD')){const home=new URL('/index.html',url);return env.ASSETS.fetch(new Request(home,r));}
- if(!p.startsWith('/api/'))return env.ASSETS.fetch(r);
+ if(!p.startsWith('/api/')){
+  const asset=await env.ASSETS.fetch(r);
+  if(asset.status!==404||!['GET','HEAD'].includes(m))return asset;
+  const page=await env.ASSETS.fetch(new Request(new URL('/404.html',url),{method:m}));
+  return page.ok?new Response(page.body,{status:404,headers:page.headers}):asset;
+ }
  if(p==='/api/health'&&m==='GET')return json({status:'ok',version:4,database_configured:Boolean(env.DB),login_configured:oauthReady(env)});
  if(p==='/api/catalog'&&m==='GET')return json({services:services.map(({id,name,category,desc,price})=>({id,name,category,desc,price}))});
  if(!env.DB||!env.PUBLIC_ORIGIN||url.origin!==env.PUBLIC_ORIGIN)return err('Layanan akun belum dikonfigurasi untuk domain ini.',503);

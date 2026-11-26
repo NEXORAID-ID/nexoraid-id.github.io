@@ -98,8 +98,6 @@ STEP='Worker deployment'
 wr deploy --config "$CONFIG" --secrets-file "$SECRET_FILE"
 rm -f -- "$SECRET_FILE"
 STEP='Live health check'
-curl --fail --silent --show-error --retry 5 "$PUBLIC_ORIGIN/api/health" | node --input-type=module -e 'let s="";for await(const c of process.stdin)s+=c;const h=JSON.parse(s);if(!h.database_configured||!h.login_configured)throw Error("Health check failed");console.log("API health: OK");'
-curl --fail --silent --show-error "$PUBLIC_ORIGIN/" -o /dev/null
-curl --fail --silent --show-error "$PUBLIC_ORIGIN/portal.html" -o /dev/null
+node v4/scripts/verify.mjs
 echo "Portal staging: $PUBLIC_ORIGIN/portal.html"
 echo 'Uji login Discord, order uji, dan role sebelum digunakan pelanggan. Belum final stable.'
