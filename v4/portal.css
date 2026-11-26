@@ -54,3 +54,6 @@ label>input,label>select,label>textarea,form>button{width:100%;min-width:0;max-w
 @media(prefers-reduced-motion:no-preference){.loading-skeleton{animation:nexo-load 1.3s ease-in-out infinite}@keyframes nexo-load{to{background-position:-200% 0}}}
 
 @media print{.print-invoice table{width:100%;border-collapse:collapse}.print-invoice td{border:1px solid #888;padding:6px;vertical-align:top;overflow-wrap:anywhere}}
+
+/* Five role cards: keep the final card readable across both columns. */
+.role-grid>div:last-child:nth-child(odd){grid-column:1/-1}.role-grid>div{overflow-wrap:anywhere}
