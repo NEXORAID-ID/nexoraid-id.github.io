@@ -19,9 +19,9 @@ Status: candidate development, not stable. Source: owner-approved 26 Nov 2026 au
 | A14 | P1 | Order claim button to D1 | C |
 | A15 | P1 | Portal ticket sync state | C |
 | A16 | P0 | Persistent retry key across reload | C |
-| A17 | P0 | Idempotency across all order routes | O |
-| A18 | P1 | Checkout quotas business verification | O |
-| A19 | P0 | Atomic price snapshot | O |
+| A17 | P0 | Shared D1 web/bot/cart request namespace; legacy single replay; manual Discord ticket path still separate | IN PROGRESS |
+| A18 | P1 | Common D1 checkout quota, membership, catalog and configured inventory guards; production verification pending | C |
+| A19 | P0 | Effective override and integer price calculated within order batch; CI and production evidence pending | C |
 | A20 | P1 | Order message ID | C |
 | A21 | P0 | Category capacity recovery | C |
 | A22 | P1 | Canonical closure after all orders terminal | IN PROGRESS |
