@@ -25,3 +25,7 @@ Cloudflare environment configuration, isolated production-like restore and live 
 ## Ticket queue rollout
 - Keep WEB_TICKET_ENABLED=false until both candidates pass integration and live permissions checks. A distinct machine key is required; never reuse or expose the actor key.
 - Validate membership before checkout, crash-safe channel and message recovery, duplicate prevention, and terminal-order closure. This remains an open gate.
+
+## Mandatory membership verification
+- Before promoting, configure DISCORD_MEMBERSHIP_BOT_TOKEN only in Cloudflare Worker secrets (never commit or disclose it); verify API access to the exact guild, member and non-member cases, rate limits and transport failures. Both create paths fail closed if unavailable; already committed idempotent requests remain retrievable. Verify the production Worker secret persists through deployment. Do not deploy this candidate without the credential and controlled staging checks.
+- Migration 0013 permits owner-recorded full refund of a paid in-progress order. No automatic transfer, no settlement on cancelled orders. Test actual review flow with dummy transactions only.

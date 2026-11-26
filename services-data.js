@@ -1340,24 +1340,24 @@ export const services = [
     "name": "Cherax — Sell & Rent",
     "badge": "READY",
     "desc": "Jual dan sewa Cherax Basic / Premium. Ketersediaan slot dikonfirmasi sebelum pembayaran.",
-    "price": "Mulai Rp100.000",
+    "price": "Sesuai Request",
     "accent": "rgba(92,129,255,.18)",
     "details": [
       [
-        "Basic / Standard",
-        "Tersedia"
+        "Jual Basic / Standard",
+        "Hubungi tim untuk penawaran"
       ],
       [
-        "Premium",
-        "Tersedia"
+        "Jual Premium",
+        "Hubungi tim untuk penawaran"
       ],
       [
         "Sewa Standard",
-        "Harga promo lama Rp220.000/bulan; konfirmasi tarif saat ini"
+        "Rp220.000 / 30 hari; konfirmasi slot"
       ],
       [
         "Sewa Premium",
-        "Harga promo lama Rp420.000/bulan; konfirmasi tarif saat ini"
+        "Rp420.000 / 30 hari; konfirmasi slot"
       ]
     ]
   },
@@ -1493,9 +1493,9 @@ export const services = [
     "id": "imei",
     "category": "mobile",
     "icon": "📡",
-    "name": "Unblock IMEI",
+    "name": "Bantuan IMEI Resmi",
     "badge": "MOBILE",
-    "desc": "Layanan unblock IMEI. Harga menyesuaikan device, kondisi, dan jenis penanganan.",
+    "desc": "Bantuan koreksi atau pendaftaran IMEI melalui jalur resmi untuk perangkat milik sendiri. Harga menyesuaikan kondisi.",
     "price": "Rp300.000 — Rp550.000",
     "accent": "rgba(83,243,163,.14)",
     "details": [
@@ -1549,7 +1549,7 @@ export const services = [
     "id": "ios",
     "category": "mobile",
     "icon": "",
-    "name": "iOS Service / Bypass",
+    "name": "Pemulihan iOS Resmi",
     "badge": "MOBILE",
     "desc": "Layanan iOS dengan harga menyesuaikan model, kondisi perangkat, dan jenis pengerjaan.",
     "price": "Rp100.000 — Rp1.000.000",

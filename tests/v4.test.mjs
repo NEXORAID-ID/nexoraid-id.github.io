@@ -45,7 +45,7 @@ test('Operations scope and seller settlement policy are explicit',async()=>{cons
 test('Four-role API lifecycle with SQLite D1 adapter and real persisted records',async()=>{
  const {DatabaseSync}=await import('node:sqlite');const {readFile}=await import('node:fs/promises');
  const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON');
- for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_workspace.sql','0006_business.sql','0007_ticket_links.sql','0008_integrity.sql','0009_order_collaboration.sql','0010_checkout.sql','0011_refund_ledger.sql','0012_web_ticket_outbox.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
+ for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_workspace.sql','0006_business.sql','0007_ticket_links.sql','0008_integrity.sql','0009_order_collaboration.sql','0010_checkout.sql','0011_refund_ledger.sql','0012_web_ticket_outbox.sql','0013_processing_refund.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
  const ids={owner:'111111111111111111',management:'222222222222222222',worker:'333333333333333333',customer:'444444444444444444',other:'555555555555555555'};
  const cookies={};
  for(const [role,id] of Object.entries(ids)){
@@ -56,8 +56,9 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   db.prepare('INSERT INTO sessions VALUES(?,?,?)').run(hash,id,Math.floor(Date.now()/1000)+3600);
  }
  const DB={prepare(sql){return {args:[],bind(...args){this.args=args;return this;},async first(){return db.prepare(sql).get(...this.args)||null;},async all(){return {results:db.prepare(sql).all(...this.args)};},async run(){return {meta:{changes:Number(db.prepare(sql).run(...this.args).changes)}};}};},async batch(statements){db.exec('BEGIN');try{const out=[];for(const stmt of statements)out.push(await stmt.run());db.exec('COMMIT');return out;}catch(e){db.exec('ROLLBACK');throw e;}}};
- const env={DB,PUBLIC_ORIGIN:'https://nexoraid.example',OWNER_DISCORD_ID:ids.owner,NEXORAID_BOT_API_KEY:'b'.repeat(64)};
- const call=async(role,path,data)=>{const headers={cookie:cookies[role],origin:env.PUBLIC_ORIGIN,'content-type':'application/json'};return worker.fetch(req('/api/'+path,{headers,...(data===undefined?{}:{method:'POST',body:JSON.stringify(data)})}),env);};
+ const env={DB,PUBLIC_ORIGIN:'https://nexoraid.example',OWNER_DISCORD_ID:ids.owner,NEXORAID_BOT_API_KEY:'b'.repeat(64),DISCORD_MEMBERSHIP_BOT_TOKEN:'fixture',DISCORD_MEMBERSHIP_FETCH:async url=>Response.json({user:{id:url.split('/').at(-1)}})};
+ let fixtureRequest=0;
+ const call=async(role,path,data)=>{if(path==='orders'&&data&&data.request_id===undefined)data={...data,request_id:'fixture-order-'+String(++fixtureRequest).padStart(8,'0')};const headers={cookie:cookies[role],origin:env.PUBLIC_ORIGIN,'content-type':'application/json'};return worker.fetch(req('/api/'+path,{headers,...(data===undefined?{}:{method:'POST',body:JSON.stringify(data)})}),env);};
  try{
   for(const role of ['owner','management','worker','customer'])assert.equal((await (await call(role,'me')).json()).user.role,role);
   const created=await call('customer','orders',{service_id:'gta-heist',quantity:1,request_id:'test-order-request-001'});assert.equal(created.status,201);const {order}=await created.json();const id=order.id;

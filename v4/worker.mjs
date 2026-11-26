@@ -8,6 +8,7 @@ import { collaboration } from './collaboration.mjs';
 import { customer,deviceLabel } from './customer.mjs';
 
 import { ticketQueue } from './ticket-queue.mjs';
+import { membershipStatus,membershipMessage } from './membership.mjs';
 const DAY=86400;
 const cookie=(name,value,age)=>name+'='+value+'; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age='+age;
 const getCookie=(r,name)=>r.headers.get('Cookie')?.split(';').map(s=>s.trim()).find(s=>s.startsWith(name+'='))?.slice(name.length+1)||'';
@@ -160,11 +161,13 @@ async function handle(r,env){
  if(p==='/api/orders'&&m==='POST'){
   const b=await body(r);const order=b&&estimateOrder(b.service_id,b.quantity);if(!order)return err('Layanan atau jumlah tidak valid.',400);
   const key=b.request_id;
-  if(key!==undefined&&(typeof key!=='string'||!/^[a-zA-Z0-9_-]{16,80}$/.test(key)))return err('ID permintaan tidak valid.',400);
+  if(typeof key!=='string'||!/^[a-zA-Z0-9_-]{16,80}$/.test(key))return err('ID permintaan tidak valid.',400);
   const digest=key?await hash(user.id+':'+key):null;
   const id=digest?[digest.slice(0,8),digest.slice(8,12),'4'+digest.slice(13,16),'8'+digest.slice(17,20),digest.slice(20,32)].join('-'):crypto.randomUUID();
   const replay=async()=>{const old=await env.DB.prepare('SELECT id,service_id,quantity,catalog_price,estimate,status FROM orders WHERE id=? AND customer_id=?').bind(id,user.id).first();if(!old)return null;return old.service_id===order.service_id&&old.quantity===order.quantity?json({order:old,replayed:true}):err('ID permintaan sudah dipakai untuk order lain.',409);};
   if(key){const old=await replay();if(old)return old;}
+  const membership=await membershipStatus(env,user.id,env.DISCORD_MEMBERSHIP_FETCH||fetch);
+  if(membership!==200)return err(membershipMessage(membership),membership);
   const override=await env.DB.prepare('SELECT amount,enabled,promo_percent FROM catalog_overrides WHERE service_id=?').bind(order.service_id).first();
   if(override){const s=applyOverride(services.find(s=>s.id===order.service_id),override);if(!s.enabled)return err('Layanan sedang tidak tersedia.',409);order.catalog_price=s.price;order.estimate=s.unit_amount===null?null:s.unit_amount*order.quantity;}
   const t=now();

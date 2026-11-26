@@ -1,5 +1,6 @@
 import {services} from '../services-data.js';
 import {memberCatalog} from './business.mjs';
+import {membershipStatus,membershipMessage} from './membership.mjs';
 const json=(d,s=200)=>new Response(JSON.stringify(d),{status:s,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'}});
 const err=(error,s=400)=>json({error},s);
 export function normalizeCart(items){
@@ -21,6 +22,8 @@ export async function customer({p,m,user,env,r,readBody,sessionHash}){
  const signature=JSON.stringify(items);
  const replay=async()=>{const g=await db.prepare('SELECT id,signature FROM checkout_groups WHERE customer_id=? AND request_id=?').bind(user.id,b.request_id).first();if(!g)return null;if(g.signature!==signature)return err('ID checkout sudah digunakan.',409);const rows=(await db.prepare('SELECT o.id,o.service_id,o.quantity,o.estimate,o.status FROM orders o JOIN checkout_items i ON i.order_id=o.id WHERE i.checkout_id=? ORDER BY o.service_id').bind(g.id).all()).results;return json({checkout_id:g.id,orders:rows,replayed:true});};
  const old=await replay();if(old)return old;
+ const membership=await membershipStatus(env,user.id,env.DISCORD_MEMBERSHIP_FETCH||fetch);
+ if(membership!==200)return err(membershipMessage(membership),membership);
  const catalog=new Map((await memberCatalog(db)).map(s=>[s.id,s]));if(items.some(i=>!catalog.has(i.service_id)))return err('Layanan tidak tersedia.',409);
  const id=crypto.randomUUID(),rows=items.map(i=>{const s=catalog.get(i.service_id);return {...i,id:crypto.randomUUID(),catalog_price:s.price,estimate:s.unit_amount===null?null:s.unit_amount*i.quantity,status:'requested'};});
  const statements=[db.prepare('INSERT INTO checkout_groups VALUES(?,?,?,?,?,?)').bind(id,user.id,b.request_id,signature,items.length,t)];
