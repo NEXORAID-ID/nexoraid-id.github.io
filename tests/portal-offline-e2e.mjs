@@ -5,7 +5,8 @@ import {once} from 'node:events';
 export async function runPortalOfflineE2E(browser){
  const types={'portal.html':'text/html','portal-offline.html':'text/html','portal-sw.js':'text/javascript','portal.webmanifest':'application/manifest+json','portal.mjs':'text/javascript','portal-ui.mjs':'text/javascript','portal.css':'text/css'};
  const assets=Object.fromEntries(await Promise.all(Object.keys(types).map(async name=>[name,await readFile(new URL('../v4/'+name,import.meta.url))])));
- let mutations=0;const server=createServer((req,res)=>{
+ let mutations=0,networkAvailable=true;const server=createServer((req,res)=>{
+  if(!networkAvailable){req.socket.destroy();return;}
   const path=new URL(req.url,'http://localhost').pathname.slice(1);
   if(req.method!=='GET')mutations++;
   if(assets[path]){res.writeHead(200,{'content-type':types[path],'cache-control':'no-store'});res.end(assets[path]);return;}
@@ -22,8 +23,8 @@ export async function runPortalOfflineE2E(browser){
   await page.waitForFunction(()=>Boolean(navigator.serviceWorker.controller));
   const cache=await page.evaluate(async()=>{const c=await caches.open('nexo-portal-offline-v2');return (await c.keys()).map(r=>new URL(r.url).pathname);});
   assert.deepEqual(cache,['/portal-offline.html']);
-  await ctx.setOffline(true);await page.reload();await page.getByRole('heading',{name:'Koneksi terputus'}).waitFor();assert.equal(await page.locator('#account').count(),0);
+  networkAvailable=false;await page.goto(origin+'/portal.html?offline-check=1');await page.getByRole('heading',{name:'Koneksi terputus'}).waitFor({timeout:10000});assert.equal(await page.locator('#account').count(),0);
   assert.equal(await page.evaluate(async()=>{try{await fetch('/api/me');return false;}catch{return true;}}),true);
-  await ctx.setOffline(false);await page.getByRole('link',{name:'Coba lagi'}).click();await page.locator('#login').waitFor();assert.equal(mutations,0);
+  networkAvailable=true;await page.getByRole('link',{name:'Coba lagi'}).click();await page.locator('#login').waitFor();assert.equal(mutations,0);
  }finally{await ctx.close();await new Promise(resolve=>server.close(resolve));}
 }
