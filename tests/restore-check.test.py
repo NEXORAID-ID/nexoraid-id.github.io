@@ -28,6 +28,8 @@ class RestoreTests(unittest.TestCase):
         INSERT INTO order_work(order_id,worker_id,evidence,submitted_at) VALUES('fixture-order','w','synthetic evidence only',3);
         UPDATE orders SET status='completed',updated_at=4 WHERE id='fixture-order';
         """)
+        self.db.execute("INSERT INTO order_attachments VALUES(?,?,?,?,?,?,?)",
+                        ("fixture-attachment","fixture-order","c","payment","image/png",b"synthetic-attachment-bytes",5))
         self.db.commit()
         self.expected = restore.snapshot(self.db)
         self.dump = "\n".join(self.db.iterdump())
@@ -40,6 +42,10 @@ class RestoreTests(unittest.TestCase):
         self.assertEqual(restore.verify(self.dump,self.expected)["orders"],1)
     def test_source_mismatch(self):
         self.expected["totals"]["verified_invoice_amount"] += 1
+        with self.assertRaisesRegex(ValueError,"Source snapshot mismatch"):
+            restore.verify(self.dump,self.expected)
+    def test_attachment_content_mismatch(self):
+        self.expected["attachments"]["fixture-attachment"] = "0" * 64
         with self.assertRaisesRegex(ValueError,"Source snapshot mismatch"):
             restore.verify(self.dump,self.expected)
     def test_malformed_export(self):
