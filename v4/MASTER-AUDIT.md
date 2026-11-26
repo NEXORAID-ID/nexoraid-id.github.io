@@ -138,3 +138,5 @@ Do not mark VERIFIED or Final Stable without current main CI, deployment evidenc
 See [FINAL-STABLE-EVIDENCE.md](FINAL-STABLE-EVIDENCE.md). Scoped historical CI and deployment evidence is not blanket production certification. Production finance migration is blocked pending valid encrypted backup/restore evidence. Cloud staging and live drift monitoring still require dedicated configuration.
 
 - A39/A40 PR #45: atomic warranty/promo snapshots; A41 bot #46 merged (d03c393). Production inventory from run 45879214639 proves only 0001–0015 applied. Backup/restore evidence remains required, no owner terms invented.
+
+- Migration sequencing correction: production inventory shows 0001–0015 applied only. Unapplied rental and variant guards move to 0016/0017; policy snapshot is 0018. Other open migration branches must coordinate unique subsequent numbers before merge. No change to applied migration content or backup verification.
