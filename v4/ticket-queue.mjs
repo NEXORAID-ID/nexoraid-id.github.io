@@ -4,10 +4,11 @@ const err=(error,status)=>json({error},status);
 const uuid=x=>typeof x==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(x);
 const snow=x=>typeof x==='string'&&/^\d{17,20}$/.test(x);
 const guild='1487728359482851348';
-export async function ticketQueue({db,r,m,readBody,clock=()=>Math.floor(Date.now()/1000),token=()=>crypto.randomUUID()}){
+export async function ticketQueue({db,r,m,readBody,clock=()=>Math.floor(Date.now()/1000),token=()=>crypto.randomUUID(),maintenance=false}){
  if(m!=='POST')return err('Metode tidak diizinkan.',405);
  const b=await readBody(r),t=clock();
  if(b?.action==='health'){const probe=await db.prepare('SELECT COUNT(*) AS probe FROM web_ticket_outbox WHERE 0').first();return probe?.probe===0?json({ok:true}):err('Queue tidak siap.',503);}
+ if(maintenance)return err('Antrean dalam pemeliharaan.',503);
  if(b?.action==='lease'){
   const lease=token();
   const result=await db.prepare("UPDATE web_ticket_outbox SET lease_token=?,lease_until=?,attempts=attempts+1 WHERE order_id=(SELECT q.order_id FROM web_ticket_outbox q JOIN orders o ON o.id=q.order_id WHERE q.delivered_at IS NULL AND q.next_attempt<=? AND (q.lease_until IS NULL OR q.lease_until<=?) AND o.status NOT IN ('completed','cancelled') ORDER BY q.next_attempt,o.created_at,o.id LIMIT 1) RETURNING order_id").bind(lease,t+180,t,t).first();
@@ -16,6 +17,10 @@ export async function ticketQueue({db,r,m,readBody,clock=()=>Math.floor(Date.now
   return json({order:{...o,service_name:services.find(s=>s.id===o.service_id)?.name||o.service_id},lease_token:lease,lease_until:t+180});
  }
  if(!uuid(b?.order_id)||!uuid(b?.lease_token))return err('Order atau lease tidak valid.',400);
+ if(b.action==='renew'){
+  const result=await db.prepare("UPDATE web_ticket_outbox SET lease_until=?+180 WHERE order_id=? AND lease_token=? AND lease_until>? AND delivered_at IS NULL AND EXISTS(SELECT 1 FROM orders o WHERE o.id=web_ticket_outbox.order_id AND o.status NOT IN ('completed','cancelled')) RETURNING lease_until").bind(t,b.order_id,b.lease_token,t).first();
+  return result?json({ok:true,lease_until:result.lease_until}):err('Lease sudah berakhir.',409);
+ }
  if(b.action==='check'){
   const active=await db.prepare("SELECT q.order_id FROM web_ticket_outbox q JOIN orders o ON o.id=q.order_id WHERE q.order_id=? AND q.lease_token=? AND q.lease_until>? AND q.delivered_at IS NULL AND o.status NOT IN ('completed','cancelled')").bind(b.order_id,b.lease_token,t).first();
   return active?json({ok:true}):err('Order atau lease tidak aktif.',409);
