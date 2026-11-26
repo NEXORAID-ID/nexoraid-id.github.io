@@ -38,9 +38,9 @@ Status: candidate development, not stable. Source: owner-approved 26 Nov 2026 au
 | A33 | P0 | Cross-ledger reference reconciliation | O |
 | A34 | P1 | Cost basis and margin | O |
 | A35 | P2 | Noncash bonus gear | O |
-| A36 | P1 | Catalog price freshness | O |
-| A37 | P0 | Server-side variants | O |
-| A38 | P0 | Atomic rental inventory | O |
+| A36 | P1 | Catalog price freshness | C |
+| A37 | P0 | Server-side variants | C |
+| A38 | P0 | Atomic rental inventory | C |
 | A39 | P1 | Warranty snapshots | O |
 | A40 | P1 | Promotion dates and eligibility | O |
 | A41 | P1 | Bot catalog sync | O |
@@ -113,3 +113,5 @@ Website PR #4: initial commit 070f7f00, migration 0012 and ticket-queue tests; s
 | A84 | Seeded financial restore, independent reconciliation, rejection of mismatch, invalid SQL and ATTACH, copied session cleanup; isolated D1 migration/export/restore passed. | f66cb96d, [local gate 45866262430](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45866262430) | No evidence of encrypted off-volume production backup or production-derived isolated restore. Do not promote finance migrations on this alone. |
 
 The labels RUNTIME PROBE PASSED, ISOLATED E2E PASSED and ISOLATED RESTORE PASSED describe only the named evidence. None is full production acceptance. Earlier evidence rows are historical records, not current release clearance. No change to production data or Discord channels.
+
+- A36–A38 candidate PR #33: 79 explicit package SKUs, official Rockstar Support assistance price, canonical variant amounts, parent disable guard and rental capacity required. Current CI and deployment evidence required. HyperBoostX free distribution, final top-up prices, owner attestation of complete catalog, and overlapping finance/price snapshot PRs remain outstanding; do not mark closed. A41 bot candidate PR #32 uses live public catalog; production registration and end-to-end parity not yet verified.

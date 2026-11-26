@@ -14,3 +14,9 @@ test('parent disabling blocks new variant orders in D1',async()=>{
  db.exec("INSERT INTO users(id,display_name,created_at) VALUES('o','owner',1),('c','customer',1); INSERT INTO catalog_overrides VALUES('gta-rank',NULL,0,0,'o',1)");
  assert.throws(()=>db.exec("INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,created_at,updated_at) VALUES('x','c','gta-rank-v-100-rank',1,'Rp12.999',1,1)"),/catalog_disabled/);db.close();
 });
+
+test('live parent details use current child price and omit disabled children',async()=>{
+ const {mergeLiveCatalog}=await import('../live-catalog.js');const p=services.find(s=>s.id==='gta-rank'),children=services.filter(s=>s.parent_id===p.id);
+ const v=children[0];const merged=mergeLiveCatalog([p,...children],{catalog_revision:1,services:[{id:p.id,price:'Mulai Rp10.000',enabled:true},{id:v.id,price:'Rp10.000',enabled:true}]});
+ assert.equal(merged.length,2);assert.equal(merged[0].details[0][1],'Rp10.000');assert.ok(!merged[0].details.some(([k])=>k===children[1].details[0][0]));
+});
