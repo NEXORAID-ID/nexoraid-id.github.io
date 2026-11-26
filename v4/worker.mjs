@@ -27,7 +27,7 @@ const teamRoleSql="CASE WHEN EXISTS(SELECT 1 FROM management_grants g WHERE g.us
 export const overseesOrders=role=>role==='owner'||role==='management';
 export function estimateOrder(id,quantity){
  const service=services.find(s=>s.id===id);
- if(!service||!Number.isInteger(quantity)||quantity<1||quantity>99)return null;
+ if(!service||service.orderable===false||!Number.isInteger(quantity)||quantity<1||quantity>99)return null;
  const fixed=fixedPriceValue(service.price);
  return {service_id:id,quantity,catalog_price:service.price,estimate:fixed===null?null:fixed*quantity};
 }

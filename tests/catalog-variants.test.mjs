@@ -20,3 +20,10 @@ test('live parent details use current child price and omit disabled children',as
  const v=children[0];const merged=mergeLiveCatalog([p,...children],{catalog_revision:1,services:[{id:p.id,price:'Mulai Rp10.000',enabled:true},{id:v.id,price:'Rp10.000',enabled:true}]});
  assert.equal(merged.length,2);assert.equal(merged[0].details[0][1],'Rp10.000');assert.ok(!merged[0].details.some(([k])=>k===children[1].details[0][0]));
 });
+
+test('free HyperBoostX and pending topup are visible but cannot be invoiced or ordered',async()=>{
+ const {safeBasket}=await import('../catalog.js');const {applyOverride}=await import('../v4/business.mjs');
+ for(const id of ['hyperboostx','top-up-game']){
+ const s=services.find(x=>x.id===id);assert.equal(s.orderable,false);assert.equal(estimateOrder(id,1),null);assert.equal(normalizeCart([{service_id:id,quantity:1}]),null);assert.deepEqual(safeBasket([{id,quantity:1}],services),[]);assert.equal(applyOverride(s,{amount:100,enabled:1,promo_percent:0}).price,s.price);}
+ assert.equal(services.find(s=>s.id==='hyperboostx').download_url,'https://github.com/jxxzy/HyperBoostX/releases');
+});
