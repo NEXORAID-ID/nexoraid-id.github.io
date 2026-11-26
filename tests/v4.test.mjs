@@ -68,8 +68,8 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await call('other','orders/'+id+'/ticket')).status,404);
   assert.equal((await call('customer','orders/'+id+'/ticket',{guild_id:'1487728359482851348',channel_id:'666666666666666666',ticket_id:'0001'})).status,403);
   const ticketBridge=await worker.fetch(req('/api/bot/orders/'+id+'/ticket',{method:'POST',headers:{authorization:'Bearer '+env.NEXORAID_BOT_API_KEY,'x-discord-user-id':ids.customer,'x-discord-guild-id':'1487728359482851348','content-type':'application/json'},body:JSON.stringify({guild_id:'1487728359482851348',channel_id:'666666666666666666',ticket_id:'0001'})}),env);
-  assert.equal(ticketBridge.status,200);
-  assert.equal((await (await call('customer','orders/'+id+'/ticket')).json()).ticket.ticket_id,'0001');
+  assert.equal(ticketBridge.status,403);
+  const noLink=await (await call('customer','orders/'+id+'/ticket')).json();assert.equal(noLink.ticket,null);assert.equal(noLink.sync,'queued');
   assert.equal((await (await call('worker','orders')).json()).orders[0].customer_id,null);
   assert.equal((await call('management','team')).status,403);
   assert.equal((await call('customer','orders/'+id+'/claim',{})).status,403);
