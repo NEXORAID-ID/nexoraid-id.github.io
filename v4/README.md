@@ -66,3 +66,5 @@ Atomic checkout of up to five distinct services creates separate order/invoice r
 
 ### Completed-order refund (0011)
 Owner can record actual partial/full post-completion refunds with explicit owner-borne-cost confirmation. Amount capped at verified payment; unique refund references across both ledgers. Historical worker earnings are unchanged, completed status is retained, and report margin deducts these refunds at the recorded date. This is an opt-in policy per refund, not an automatic deduction or transfer. Refund during processing remains a separate review case. The private manual redeploy script now exports D1 before applying migrations; no recovery exercise has been performed. See RELEASE-GATE.md.
+
+Kanban is a visual grouping of the loaded, scoped order page, not a complete drag-and-drop workflow. Deadline badges flag overdue active work. Team performance is staff-only; current workers see their own all-time counts and ratings, with former assigned workers retained in staff historical results. No arbitrary score or financial ranking is inferred. Browser fixtures exercise new navigation, cart, session and Kanban views.

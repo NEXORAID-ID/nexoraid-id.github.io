@@ -169,6 +169,7 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await (await call('customer','orders/'+id)).json()).order.refunded_amount,3000);
   assert.equal((await (await call('worker','workspace/payouts')).json()).balance.available,1000);
   assert.equal((await (await call('owner','workspace/report')).json()).finance.recorded_margin,2500);
+  assert.equal((await call('customer','performance')).status,403);const perf=await (await call('management','performance')).json();assert.equal(perf.items[0].completed,1);assert.equal(perf.items[0].rating,5);
   const hashes=db.prepare('SELECT token_hash,user_id FROM sessions').all();for(const x of hashes)db.prepare('INSERT INTO session_metadata VALUES(?,?,?,?)').run(x.token_hash,crypto.randomUUID(),'Test',1);
   const sessions=await (await call('customer','customer/sessions')).json();assert.equal(sessions.sessions.length,1);assert.equal(sessions.sessions[0].current,true);assert.equal('token_hash' in sessions.sessions[0],false);
   const otherSessions=await (await call('other','customer/sessions')).json();assert.equal((await call('customer','customer/sessions/revoke',{id:otherSessions.sessions[0].public_id})).status,404);

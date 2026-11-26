@@ -7,8 +7,8 @@ const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:
 const err=(error,status)=>json({error},status);
 export function financeKind(serviceId){return serviceId==='seller'?'seller':serviceId.startsWith('gta-')?'joki':'other';}
 export function scopeFor(user){return staff(user.role)?{where:'1=1',args:[]}:user.role==='worker'?{where:"(o.customer_id=? OR o.assigned_to=? OR o.status='requested')",args:[user.id,user.id]}:{where:'o.customer_id=?',args:[user.id]};}
-const orderFields="o.*,f.amount AS invoice_amount,f.kind AS invoice_kind,f.state AS payment_state,f.paid_at,w.submitted_at AS evidence_at,EXISTS(SELECT 1 FROM payment_claims c WHERE c.order_id=o.id) AS payment_claimed,(COALESCE((SELECT amount FROM order_refunds r WHERE r.order_id=o.id),0)+COALESCE((SELECT SUM(amount) FROM completed_refunds r WHERE r.order_id=o.id),0)) AS refunded_amount";
-const joins=" FROM orders o LEFT JOIN order_finance f ON f.order_id=o.id LEFT JOIN order_work w ON w.order_id=o.id";
+const orderFields="o.*,p.priority,p.due_at,f.amount AS invoice_amount,f.kind AS invoice_kind,f.state AS payment_state,f.paid_at,w.submitted_at AS evidence_at,EXISTS(SELECT 1 FROM payment_claims c WHERE c.order_id=o.id) AS payment_claimed,(COALESCE((SELECT amount FROM order_refunds r WHERE r.order_id=o.id),0)+COALESCE((SELECT SUM(amount) FROM completed_refunds r WHERE r.order_id=o.id),0)) AS refunded_amount";
+const joins=" FROM orders o LEFT JOIN order_finance f ON f.order_id=o.id LEFT JOIN order_work w ON w.order_id=o.id LEFT JOIN order_plans p ON p.order_id=o.id";
 function redact(o,user){if(user.role==='worker'&&o.status==='requested'&&o.customer_id!==user.id)return {...o,customer_id:null};return o;}
 export async function listOrders(db,user,url){
  const {where,args}=scopeFor(user);
@@ -41,6 +41,12 @@ async function mutate(db,statement,actor,action,id,time){
 export async function operations({p,m,url,user,env,readBody,r}){
  const db=env.DB;
  if(p==='/api/dashboard'&&m==='GET')return dashboardSummary(db,user);
+ if(p==='/api/performance'&&m==='GET'){
+  if(user.role!=='worker'&&!staff(user.role))return err('Akses tim diperlukan.',403);
+  const mine=user.role==='worker',where=mine?'o.assigned_to=?':'o.assigned_to IS NOT NULL',args=mine?[user.id]:[],t=now();
+  const rows=(await db.prepare("SELECT o.assigned_to AS worker_id,u.display_name,SUM(CASE WHEN o.status='completed' THEN 1 ELSE 0 END) AS completed,SUM(CASE WHEN o.status IN ('claimed','confirmed','processing') THEN 1 ELSE 0 END) AS active,SUM(CASE WHEN o.status IN ('claimed','confirmed','processing') AND p.due_at<? THEN 1 ELSE 0 END) AS overdue,ROUND(AVG(CASE WHEN o.status='completed' THEN r.rating END),2) AS rating,COUNT(CASE WHEN o.status='completed' THEN r.rating END) AS reviews FROM orders o JOIN users u ON u.id=o.assigned_to LEFT JOIN order_plans p ON p.order_id=o.id LEFT JOIN order_reviews r ON r.order_id=o.id WHERE "+where+" GROUP BY o.assigned_to,u.display_name ORDER BY completed DESC,worker_id LIMIT 100").bind(t,...args).all()).results;
+  return json({items:rows,scope:mine?'personal':'team',period:'all_time',limit:100});
+ }
  if(p==='/api/audit'&&m==='GET'){
   if(user.role!=='owner')return err('Akses owner diperlukan.',403);
   const before=url.searchParams.get('before')||'';
