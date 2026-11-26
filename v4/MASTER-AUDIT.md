@@ -45,15 +45,15 @@ Status: candidate development, not stable. Source: owner-approved 26 Nov 2026 au
 | A40 | P1 | Promotion dates and eligibility | O |
 | A41 | P1 | Bot catalog sync | O |
 | A42 | P2 | Global search | TEST PASSED |
-| A43 | P2 | Skeleton and empty states | IN PROGRESS |
-| A44 | P2 | Central toast | IN PROGRESS |
+| A43 | P2 | Skeleton and empty states | TEST PASSED |
+| A44 | P2 | Central toast | TEST PASSED |
 | A45 | P2 | Calendar | TEST PASSED |
 | A46 | P1 | Excel/PDF export | TEST PASSED |
 | A47 | P2 | PWA offline | TEST PASSED |
 | A48 | P1 | Persistent cart | C |
-| A49 | P1 | Portal modularization | IN PROGRESS |
+| A49 | P1 | Portal modularization | TEST PASSED |
 | A50 | P1 | Real responsive E2E | IN PROGRESS |
-| A51 | P2 | Language consistency | IN PROGRESS |
+| A51 | P2 | Language consistency | TEST PASSED |
 | A52 | P0 | Logging channel ID mapping | IN PROGRESS |
 | A53 | P1 | Legacy role names | IN PROGRESS |
 | A54 | P0 | Role permissions mapping | IN PROGRESS |
