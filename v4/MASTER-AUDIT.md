@@ -45,15 +45,15 @@ Status: candidate development, not stable. Source: owner-approved 26 Nov 2026 au
 | A40 | P1 | Promotion dates and eligibility | O |
 | A41 | P1 | Bot catalog sync | O |
 | A42 | P2 | Global search | TEST PASSED |
-| A43 | P2 | Skeleton and empty states | IN PROGRESS |
-| A44 | P2 | Central toast | IN PROGRESS |
+| A43 | P2 | Skeleton and empty states | TEST PASSED |
+| A44 | P2 | Central toast | TEST PASSED |
 | A45 | P2 | Calendar | TEST PASSED |
 | A46 | P1 | Excel/PDF export | TEST PASSED |
 | A47 | P2 | PWA offline | TEST PASSED |
 | A48 | P1 | Persistent cart | C |
-| A49 | P1 | Portal modularization | IN PROGRESS |
+| A49 | P1 | Portal modularization | TEST PASSED |
 | A50 | P1 | Real responsive E2E | IN PROGRESS |
-| A51 | P2 | Language consistency | IN PROGRESS |
+| A51 | P2 | Language consistency | TEST PASSED |
 | A52 | P0 | Logging channel ID mapping | O |
 | A53 | P1 | Legacy role names | O |
 | A54 | P0 | Role permissions mapping | O |
@@ -133,3 +133,11 @@ Merged implementation: [9729838](https://github.com/NEXORAID-ID/nexoraid-id.gith
 | A51 | Indonesian portal action labels and related browser selectors updated. | Complete public/storefront/dashboard copy and backend error localization review. |
 
 Do not mark VERIFIED or Final Stable without current main CI, deployment evidence and remaining acceptance tests.
+
+
+### Section D follow-up evidence (PR #42 and #43)
+
+- PR #42 merged as d7ac0ae6d38a7be10343d12a563a740a394a2c2b. [Chromium and unit CI](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45878793659) passed 78/78 tests, including five-role loading/error/retry/empty states and toast deduplication; [security](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45878793682) and [isolated D1](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45878793687) passed. API/navigation extracted into portal-core.mjs and explicit unauthorized navigation/session tests added.
+- PR #43 merged as 210efc380467725d91c770a53f91833dc1d00bca. [Build/Chromium CI](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45879119375) passed 82/82 tests, 0 failures; [security](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45879119487) passed. Public storefront and support wording localized; CSV filename restored and build verified. Product names and established industry terms retained.
+- All eight Section D rows now have candidate implementations and automated test evidence. TEST PASSED does not mean exhaustive coverage or production verification. The outstanding acceptance items in the preceding table still apply where not covered by these follow-up tests; particularly live deployed version, real device installation, representative report visual review, populated deadline workflows and full role/error/copy review.
+- Final Stable requires current main and deployed release evidence. The PR CI deploy job is skipped by design; its success is not production deployment proof.
