@@ -4,10 +4,20 @@ import {execFileSync} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
 const filePattern=/^\d{4}_[a-z0-9_]+\.sql$/;
 const sha=x=>typeof x==='string'&&/^[a-f0-9]{64}$/.test(x);
+export function migrationInventory(files,applied){
+ if(!Array.isArray(files)||!Array.isArray(applied)||[...files,...applied].some(x=>typeof x!=='string'||!filePattern.test(x)))throw Error('Invalid migration inventory');
+ return {local:[...files].sort(),applied:[...applied].sort(),pending:files.filter(x=>!applied.includes(x)).sort(),unknown:applied.filter(x=>!files.includes(x)).sort()};
+}
 export function pendingFinancialMigrations(files,applied){
- if(!Array.isArray(applied)||applied.some(x=>typeof x!=='string'||!filePattern.test(x)))throw Error('Invalid migration inventory');
- if(new Set(applied).size!==applied.length||applied.some(x=>!files.includes(x)))throw Error('Migration inventory diverged');
- return files.filter(x=>Number(x.slice(0,4))>=16&&!applied.includes(x));
+ if(!Array.isArray(files)||!Array.isArray(applied)||[...files,...applied].some(x=>typeof x!=='string'||!filePattern.test(x)))throw Error('Invalid migration inventory');
+ const ordered=[...files].sort();
+ const versions=ordered.map(x=>Number(x.slice(0,4)));
+ if(versions.some((v,i)=>v<1||(i>0&&v!==versions[i-1]+1)))throw Error('Migration sequence has a gap or duplicate version');
+ const actual=[...applied].sort();
+ if(actual.length>ordered.length||actual.some((name,i)=>name!==ordered[i]))throw Error('Migration inventory diverged: applied history must be an exact prefix');
+ // Never attest new schema against an incomplete pre-0016 baseline.
+ if(ordered.some(x=>Number(x.slice(0,4))>=16)&&ordered.some(x=>Number(x.slice(0,4))<16&&!actual.includes(x)))throw Error('Migration inventory diverged: baseline not applied');
+ return ordered.slice(actual.length).filter(x=>Number(x.slice(0,4))>=16);
 }
 export function verifyEvidence(evidence,{databaseId,pending,digest,now=Date.now()}){
  if(!pending.length)return;
@@ -23,7 +33,8 @@ export function verifyEvidence(evidence,{databaseId,pending,digest,now=Date.now(
 }
 async function main(){
  const dir=new URL('../migrations/',import.meta.url);
- const files=(await readdir(dir)).filter(x=>filePattern.test(x)).sort();
+ const files=(await readdir(dir)).filter(x=>x.endsWith('.sql')).sort();
+ if(files.length===0||!files[0].startsWith('0001_')||files.some(x=>!filePattern.test(x)))throw Error('Invalid local migration inventory');
  if(!files.some(x=>Number(x.slice(0,4))>=16)){console.log('No new financial migration files; existing deploy gate unchanged.');return;}
  const config=JSON.parse(await readFile('v4/.generated/wrangler.json','utf8'));
  const databases=config.d1_databases?.filter(x=>x.binding==='DB'&&x.database_name==='nexoraid-v4');
@@ -33,7 +44,10 @@ async function main(){
  // Never print remote response, credentials, database ID or raw errors.
  const response=JSON.parse(execFileSync('npx',['--yes','wrangler@4.168.0','d1','execute','nexoraid-v4','--remote','--config','v4/.generated/wrangler.json','--json','--command','SELECT name FROM d1_migrations ORDER BY name'],{encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:120000,maxBuffer:1024*1024}));
  if(!Array.isArray(response)||response.length!==1||response[0].success!==true||!Array.isArray(response[0].results))throw Error('Migration inventory unavailable');
- const pending=pendingFinancialMigrations(files,response[0].results.map(x=>x.name));
+ const applied=response[0].results.map(x=>x.name);
+ // Only validated migration filenames are printed, never the remote response or business data.
+ console.log('Migration inventory (read-only): '+JSON.stringify(migrationInventory(files,applied)));
+ const pending=pendingFinancialMigrations(files,applied);
  if(!pending.length){console.log('No pending financial migrations.');return;}
  const hash=createHash('sha256');
  for(const name of pending){hash.update(name+'\0');hash.update(await readFile(new URL(name,dir)));hash.update('\0');}

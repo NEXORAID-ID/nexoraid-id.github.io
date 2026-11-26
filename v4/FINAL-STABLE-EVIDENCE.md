@@ -11,3 +11,5 @@
 | A85 | This evidence index links exact historical tests, merged commits and deployment. | Exact final combined SHA, live UAT, recovery evidence, complete A01–A85 registry, explicit release approval. |
 
 Do not declare stable while any required acceptance is missing. Concurrent main changes invalidate assumptions about the latest release: re-check both repositories and deployment identifiers, never infer live success from a previous SHA. See RELEASE-GATE.md, CLOUD-STAGING.md and bot docs/railway-drift.md. Never copy production secrets or data into staging.
+
+Latest deployment blocker: [run 45878587510](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45878587510) passed security, local staging and five-role browser E2E, then correctly blocked pending 0019 and 0020 due to missing valid backup/restore evidence. No remote migration was attempted on this run. Recompute exact pending migrations for current main. Railway deployment 5a24c51e-fc55-421f-82dd-f1d602ef95da succeeded for 6831111ac7fe8b04a9595b5a194d9e895778051e; both main CI and audit passed. Do not mark latest combined release stable.

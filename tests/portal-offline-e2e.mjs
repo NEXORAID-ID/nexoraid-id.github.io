@@ -3,7 +3,7 @@ import {createServer} from 'node:http';
 import {readFile} from 'node:fs/promises';
 import {once} from 'node:events';
 export async function runPortalOfflineE2E(browser){
- const types={'portal.html':'text/html','portal-offline.html':'text/html','portal-sw.js':'text/javascript','portal.webmanifest':'application/manifest+json','portal.mjs':'text/javascript','portal-ui.mjs':'text/javascript','portal.css':'text/css'};
+ const types={'portal.html':'text/html','portal-offline.html':'text/html','portal-sw.js':'text/javascript','portal.webmanifest':'application/manifest+json','portal.mjs':'text/javascript','portal-ui.mjs':'text/javascript','portal-core.mjs':'text/javascript','portal.css':'text/css'};
  const assets=Object.fromEntries(await Promise.all(Object.keys(types).map(async name=>[name,await readFile(new URL('../v4/'+name,import.meta.url))])));
  let mutations=0,networkAvailable=true;const server=createServer((req,res)=>{
   if(!networkAvailable){req.socket.destroy();return;}

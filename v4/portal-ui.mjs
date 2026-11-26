@@ -38,12 +38,14 @@ export function deadlineLabel(order,now=Date.now()){
  const priority=({normal:'Normal',high:'Tinggi',urgent:'Mendesak'})[order.priority]||'Normal';
  return (late?'Terlambat · ':'')+new Date(order.due_at*1000).toLocaleString('id-ID',{timeZone:'Asia/Jakarta'})+' WIB · '+priority;
 }
-export function createToast(host,{limit=3,duration=6000}={}){
+export function createToast(host,{limit=3,duration=6000,schedule=setTimeout}={}){
  return (message,error=false)=>{
-  const text=String(message);if([...host.children].some(el=>el.textContent===text))return;
-  const t=document.createElement('p');t.textContent=text;t.className=error?'toast toast-error':'toast';
+  const text=String(message);if(!text.trim())return;
+  const kind=error?'error':'info';
+  if([...host.children].some(el=>el.textContent===text&&el.dataset.kind===kind))return;
+  const t=document.createElement('p');t.textContent=text;t.className=error?'toast toast-error':'toast';t.dataset.kind=kind;
   while(host.children.length>=limit)host.firstElementChild.remove();
-  host.append(t);setTimeout(()=>t.remove(),duration);
+  host.append(t);schedule(()=>t.remove(),duration);
  };
 }
 export function loading(host){
@@ -53,4 +55,18 @@ export function finishLoading(host){host.removeAttribute('aria-busy');}
 export function showLoadError(host,retry){
  finishLoading(host);const p=document.createElement('p');p.className='action-error';p.textContent='Data belum dapat dimuat. Periksa koneksi dan coba lagi.';
  const b=document.createElement('button');b.type='button';b.textContent='Coba lagi';b.onclick=()=>retry();host.replaceChildren(p,b);
+}
+
+export function createViewData({isExpired,onError}){
+ const pending=new WeakMap();
+ return async function viewData(host,read,retry,append=false){
+  // Coalesce repeated requests to the same view; prevent stale writes and duplicated rows.
+  if(pending.has(host)){const e=Error('Data sedang dimuat.');e.busy=true;throw e;}
+  if(!append)loading(host);
+  const work=(async()=>{try{const data=await read();if(isExpired())throw Error('Sesi sudah berakhir.');
+   if(!append){finishLoading(host);host.replaceChildren();}return data;
+  }catch(e){if(!append){finishLoading(host);if(!isExpired())showLoadError(host,()=>retry().catch(onError));}throw e;}
+  finally{pending.delete(host);}})();
+  pending.set(host,work);return work;
+ };
 }
