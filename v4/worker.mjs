@@ -4,6 +4,7 @@ import { operations,listOrders } from './operations.mjs';
 import { workspace } from './workspace.mjs';
 import { business,memberCatalog,applyOverride,rateLimit } from './business.mjs';
 import { ticketLinks } from './ticket-links.mjs';
+import { collaboration } from './collaboration.mjs';
 
 const DAY=86400;
 const cookie=(name,value,age)=>name+'='+value+'; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age='+age;
@@ -88,8 +89,8 @@ async function handle(r,env){
   return page.ok?new Response(page.body,{status:404,headers:page.headers}):asset;
  }
  if(p==='/api/health'&&m==='GET'){
-  let ready=false;try{if(env.DB){const check=await env.DB.prepare('SELECT (SELECT COUNT(*) FROM users WHERE 0)+(SELECT COUNT(*) FROM order_ticket_links WHERE 0)+(SELECT COUNT(*) FROM rejected_payment_claims WHERE 0) AS probe').first();ready=check?.probe===0;}}catch{}
-  return json({status:ready&&oauthReady(env)?'ok':'degraded',version:4,release:env.RELEASE_SHA||null,database_configured:Boolean(env.DB),database_ready:ready,login_configured:oauthReady(env),schema:ready?8:null},ready&&oauthReady(env)?200:503);
+  let ready=false;try{if(env.DB){const check=await env.DB.prepare('SELECT (SELECT COUNT(*) FROM users WHERE 0)+(SELECT COUNT(*) FROM order_ticket_links WHERE 0)+(SELECT COUNT(*) FROM rejected_payment_claims WHERE 0)+(SELECT COUNT(*) FROM order_attachments WHERE 0)+(SELECT COUNT(*) FROM order_messages WHERE 0)+(SELECT COUNT(*) FROM order_plans WHERE 0) AS probe').first();ready=check?.probe===0;}}catch{}
+  return json({status:ready&&oauthReady(env)?'ok':'degraded',version:4,release:env.RELEASE_SHA||null,database_configured:Boolean(env.DB),database_ready:ready,login_configured:oauthReady(env),schema:ready?9:null},ready&&oauthReady(env)?200:503);
  }
  if(p==='/api/catalog'&&m==='GET')return env.DB?json({services:await memberCatalog(env.DB)}):json({services:services.map(({id,name,category,desc,price})=>({id,name,category,desc,price})),baseline:true});
  if(!env.DB||!env.PUBLIC_ORIGIN||url.origin!==env.PUBLIC_ORIGIN)return err('Layanan akun belum dikonfigurasi untuk domain ini.',503);
@@ -177,6 +178,7 @@ async function handle(r,env){
   return results[0].meta.changes?json({ok:true}):err('Status sudah berubah.',409);
  }
  if(p.endsWith('/ticket')){const linked=await ticketLinks({p,m,user,env,bot,r,readBody:body});if(linked)return linked;}
+ if(!bot&&p.startsWith('/api/collaboration/')){const extra=await collaboration({p,m,url,user,env,r,readBody:body});if(extra)return extra;}
  if(!bot&&p.startsWith('/api/workspace/')){const extra=await workspace({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
  if(!bot||p.endsWith('/evidence')){const extra=await operations({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
  if(p==='/api/team'&&m==='GET'){

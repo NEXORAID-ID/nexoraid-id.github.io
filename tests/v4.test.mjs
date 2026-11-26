@@ -45,7 +45,7 @@ test('Operations scope and seller settlement policy are explicit',async()=>{cons
 test('Four-role API lifecycle with SQLite D1 adapter and real persisted records',async()=>{
  const {DatabaseSync}=await import('node:sqlite');const {readFile}=await import('node:fs/promises');
  const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON');
- for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_workspace.sql','0006_business.sql','0007_ticket_links.sql','0008_integrity.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
+ for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_workspace.sql','0006_business.sql','0007_ticket_links.sql','0008_integrity.sql','0009_order_collaboration.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
  const ids={owner:'111111111111111111',management:'222222222222222222',worker:'333333333333333333',customer:'444444444444444444',other:'555555555555555555'};
  const cookies={};
  for(const [role,id] of Object.entries(ids)){
@@ -77,6 +77,13 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await call('worker','workspace/presence',{available:true})).status,200);
   assert.equal((await call('worker','orders/'+id+'/claim',{})).status,200);
   assert.equal((await call('worker','orders/'+id+'/claim',{})).status,409);
+  const deadline=Math.floor(Date.now()/1000)+3600;
+  assert.equal((await call('management','collaboration/orders/'+id+'/plan',{priority:'high',due_at:deadline})).status,200);
+  assert.equal((await call('customer','collaboration/orders/'+id+'/message',{visibility:'internal',message:'Private'})).status,403);
+  assert.equal((await call('management','collaboration/orders/'+id+'/message',{visibility:'internal',message:'Internal note'})).status,200);
+  assert.equal((await call('customer','collaboration/orders/'+id+'/message',{visibility:'shared',message:'Hello team'})).status,200);
+  const cv=await (await call('customer','collaboration/orders/'+id+'/overview')).json();assert.equal(cv.messages.length,1);assert.equal(cv.plan.priority,'high');
+  assert.equal((await call('other','collaboration/orders/'+id+'/overview')).status,404);
   assert.equal((await call('owner','team/role',{user_id:ids.worker,role:'customer'})).status,409);
   assert.equal((await call('management','orders/'+id+'/quote',{amount:15000})).status,200);
   assert.equal((await call('management','orders/'+id+'/status',{status:'confirmed'})).status,200);
@@ -87,6 +94,11 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await call('customer','workspace/orders/'+id+'/receipt',{amount:15000,reference:'claim-001'})).status,200);
   assert.equal((await (await call('customer','workspace/orders/'+id+'/timeline')).json()).receipt.reference,'claim-001');
   assert.equal((await call('management','orders/'+id+'/quote',{amount:20000})).status,409);assert.equal((await call('management','workspace/orders/'+id+'/reject-receipt',{reason:'Not found in provider'})).status,403);assert.equal((await call('owner','workspace/orders/'+id+'/reject-receipt',{reason:'Not found in provider'})).status,200);assert.equal(db.prepare('SELECT COUNT(*) AS n FROM rejected_payment_claims').get().n,1);assert.equal((await call('customer','workspace/orders/'+id+'/receipt',{amount:15000,reference:'claim-002'})).status,200);
+  const bytes=Uint8Array.from([137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,1]);
+  const upload=async(role)=>worker.fetch(req('/api/collaboration/orders/'+id+'/attachment/payment',{method:'POST',headers:{cookie:cookies[role],origin:env.PUBLIC_ORIGIN,'content-type':'image/png'},body:bytes}),env);
+  assert.equal((await upload('other')).status,404);assert.equal((await upload('customer')).status,200);
+  const attached=(await (await call('customer','collaboration/orders/'+id+'/overview')).json()).attachments[0];
+  const download=await call('owner','collaboration/orders/'+id+'/attachment/'+attached.id);assert.equal(download.status,200);assert.equal(download.headers.get('content-type'),'application/octet-stream');assert.equal((await call('worker','collaboration/orders/'+id+'/attachment/'+attached.id)).status,404);
   assert.equal((await call('owner','orders/'+id+'/payment',{amount:15000,reference:'transfer-001'})).status,200);
   assert.equal((await call('worker','orders/'+id+'/status',{status:'processing'})).status,200);
   assert.equal((await call('management','orders/'+id+'/status',{status:'completed'})).status,409);
