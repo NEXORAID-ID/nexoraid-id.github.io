@@ -2,13 +2,13 @@ import { services } from '../services-data.js';
 import { fixedPriceValue } from '../catalog.js';
 import { operations,listOrders } from './operations.mjs';
 import { workspace } from './workspace.mjs';
-import { business,memberCatalog,applyOverride,rateLimit } from './business.mjs';
+import { business,memberCatalog,rateLimit } from './business.mjs';
 import { ticketLinks } from './ticket-links.mjs';
 import { collaboration } from './collaboration.mjs';
-import { customer,deviceLabel } from './customer.mjs';
+import { customer,deviceLabel,createCheckout } from './customer.mjs';
 
 import { ticketQueue } from './ticket-queue.mjs';
-import { membershipStatus,membershipMessage,discordWorkerRole,oauthGuildMember,workerRoleSyncStatements,guildMembership } from './membership.mjs';
+import { membershipMessage,discordWorkerRole,oauthGuildMember,workerRoleSyncStatements,guildMembership } from './membership.mjs';
 import { cashLedger } from './cash-ledger.mjs';
 const DAY=86400;
 const cookie=(name,value,age)=>name+'='+value+'; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age='+age;
@@ -198,22 +198,9 @@ async function handle(r,env){
  if(!bot&&p.startsWith('/api/business/')){const extra=await business({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
  if(p==='/api/orders'&&m==='GET')return listOrders(env.DB,user,url);
  if(p==='/api/orders'&&m==='POST'){
-  const b=await body(r);const order=b&&!Object.keys(b).some(k=>!['service_id','quantity','request_id'].includes(k))&&estimateOrder(b.service_id,b.quantity);if(!order)return err('Layanan atau jumlah tidak valid.',400);
-  const key=b.request_id;
-  if(typeof key!=='string'||!/^[a-zA-Z0-9_-]{16,80}$/.test(key))return err('ID permintaan tidak valid.',400);
-  const digest=key?await hash(user.id+':'+key):null;
-  const id=digest?[digest.slice(0,8),digest.slice(8,12),'4'+digest.slice(13,16),'8'+digest.slice(17,20),digest.slice(20,32)].join('-'):crypto.randomUUID();
-  const replay=async()=>{const old=await env.DB.prepare('SELECT id,service_id,quantity,catalog_price,estimate,status FROM orders WHERE id=? AND customer_id=?').bind(id,user.id).first();if(!old)return null;return old.service_id===order.service_id&&old.quantity===order.quantity?json({order:old,replayed:true}):err('ID permintaan sudah dipakai untuk order lain.',409);};
-  if(key){const old=await replay();if(old)return old;}
-  const membership=await membershipStatus(env,user.id,env.DISCORD_MEMBERSHIP_FETCH||fetch);
-  if(membership!==200)return err(membershipMessage(membership),membership);
-  const override=await env.DB.prepare('SELECT amount,enabled,promo_percent FROM catalog_overrides WHERE service_id=?').bind(order.service_id).first();
-  if(override){const s=applyOverride(services.find(s=>s.id===order.service_id),override);if(!s.enabled)return err('Layanan sedang tidak tersedia.',409);order.catalog_price=s.price;order.estimate=s.unit_amount===null?null:s.unit_amount*order.quantity;}
-  const t=now();
-  // Atomic conditional insert: no more than 5 requests per user in any rolling hour.
-  let result;try{[result]=await env.DB.batch([env.DB.prepare("INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,estimate,created_at,updated_at) SELECT ?,?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM orders WHERE customer_id=? AND created_at>=?)<5 ON CONFLICT(id) DO NOTHING").bind(id,user.id,order.service_id,order.quantity,order.catalog_price,order.estimate,t,t,user.id,t-3600),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'order:create',?,? WHERE changes()=1").bind(user.id,id,t)]);}catch(e){const old=await replay();if(old)return old;if(String(e.message).includes('rental_stock_unavailable'))return err('Stok sewa tidak tersedia.',409);if(String(e.message).includes('catalog_disabled'))return err('Layanan sedang tidak tersedia.',409);throw e;}
-  if(!result.meta.changes){if(key){const old=await replay();if(old)return old;}return err('Batas permintaan per jam tercapai.',429);}
-  return json({order:{id,...order,status:'requested'}},201);
+  const b=await body(r);
+  if(!b||Object.keys(b).some(k=>!['service_id','quantity','request_id'].includes(k)))return err('Layanan, jumlah atau ID permintaan tidak valid.',400);
+  return createCheckout({env,user,items:[{service_id:b.service_id,quantity:b.quantity}],key:b.request_id,single:true});
  }
  const match=p.match(/^\/api\/orders\/([a-f0-9-]{36})\/(claim|status)$/);
  if(match&&m==='POST'){

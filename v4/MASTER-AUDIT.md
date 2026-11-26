@@ -19,9 +19,9 @@ Status: candidate development, not stable. Source: owner-approved 26 Nov 2026 au
 | A14 | P1 | Order claim button to D1 | C |
 | A15 | P1 | Portal ticket sync state | C |
 | A16 | P0 | Persistent retry key across reload | C |
-| A17 | P0 | Idempotency across all order routes | O |
-| A18 | P1 | Checkout quotas business verification | O |
-| A19 | P0 | Atomic price snapshot | O |
+| A17 | P0 | Shared D1 web/bot/cart request namespace; legacy single replay; manual Discord ticket path still separate | IN PROGRESS |
+| A18 | P1 | Common D1 checkout quota, membership, catalog and configured inventory guards; production verification pending | C |
+| A19 | P0 | Effective override and integer price calculated within order batch; CI and production evidence pending | C |
 | A20 | P1 | Order message ID | C |
 | A21 | P0 | Category capacity recovery | C |
 | A22 | P1 | Canonical closure after all orders terminal | IN PROGRESS |
@@ -114,4 +114,4 @@ Website PR #4: initial commit 070f7f00, migration 0012 and ticket-queue tests; s
 
 The labels RUNTIME PROBE PASSED, ISOLATED E2E PASSED and ISOLATED RESTORE PASSED describe only the named evidence. None is full production acceptance. Earlier evidence rows are historical records, not current release clearance. No change to production data or Discord channels.
 
-- A36–A38 candidate PR #33: 79 explicit package SKUs, official Rockstar Support assistance price, canonical variant amounts, parent disable guard and rental capacity required. Current CI and deployment evidence required. HyperBoostX free distribution, final top-up prices, owner attestation of complete catalog, and overlapping finance/price snapshot PRs remain outstanding; do not mark closed. A41 bot candidate PR #32 uses live public catalog; production registration and end-to-end parity not yet verified.
+- A36–A38 candidate PR #33: 79 explicit package SKUs, official Rockstar Support assistance price, canonical variant amounts, parent disable guard and rental capacity required. Preserves merged A17–A19 atomic checkout. Current CI and deployment evidence required. HyperBoostX free distribution, final top-up prices and owner attestation of complete catalog remain outstanding. A41 bot PR #32 merged; production registration and end-to-end parity not yet verified.
