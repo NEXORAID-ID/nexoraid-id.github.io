@@ -73,7 +73,7 @@ jobs:
           umask 077
           secret_file="$(mktemp)"
           trap 'rm -f -- "$secret_file"' EXIT
-          node --input-type=module -e 'process.stdout.write(JSON.stringify(Object.fromEntries(['DISCORD_CLIENT_SECRET','DISCORD_MEMBERSHIP_BOT_TOKEN','NEXORAID_TICKET_MACHINE_KEY','NEXORAID_BOT_API_KEY'].map(k=>[k,process.env[k]]))))' > "$secret_file"
+          node --input-type=module -e 'process.stdout.write(JSON.stringify({DISCORD_CLIENT_SECRET:process.env.DISCORD_CLIENT_SECRET,DISCORD_MEMBERSHIP_BOT_TOKEN:process.env.DISCORD_MEMBERSHIP_BOT_TOKEN,NEXORAID_TICKET_MACHINE_KEY:process.env.NEXORAID_TICKET_MACHINE_KEY,NEXORAID_BOT_API_KEY:process.env.NEXORAID_BOT_API_KEY}))' > "$secret_file"
           npx --yes wrangler@4 deploy --config v4/.generated/wrangler.json --secrets-file "$secret_file"
       - name: Verify deployment
         run: node v4/scripts/verify.mjs
