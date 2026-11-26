@@ -34,7 +34,7 @@ try{
   await desktopPage.goto(url+'login.html');assert.ok(await desktopPage.locator('#login').isVisible());assert.ok(await desktopPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   // Exercise the authenticated portal with controlled API fixtures, never production user data.
   const {readFile}=await import('node:fs/promises');
-  const portalFiles=Object.fromEntries(await Promise.all(['portal.html','portal.css','portal.mjs','portal-ui.mjs'].map(async name=>[name,await readFile(new URL('../v4/'+name,import.meta.url),'utf8')])));
+  const portalFiles=Object.fromEntries(await Promise.all(['portal.html','portal.css','portal.mjs','portal-ui.mjs','portal-core.mjs'].map(async name=>[name,await readFile(new URL('../v4/'+name,import.meta.url),'utf8')])));
   for(const role of ['owner','management','worker','seller','customer']){
    const ctx=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce'});
    const p=await ctx.newPage();p.on('pageerror',e=>errors.push(e.message));
@@ -42,6 +42,7 @@ try{
    await p.route('**/portal.css',r=>r.fulfill({contentType:'text/css',body:portalFiles['portal.css']}));
    await p.route('**/portal.mjs',r=>r.fulfill({contentType:'text/javascript',body:portalFiles['portal.mjs']}));
    await p.route('**/portal-ui.mjs',r=>r.fulfill({contentType:'text/javascript',body:portalFiles['portal-ui.mjs']}));
+   await p.route('**/portal-core.mjs',r=>r.fulfill({contentType:'text/javascript',body:portalFiles['portal-core.mjs']}));
    const order={id:'11111111-1111-4111-8111-111111111111',service_id:'gta-heist',quantity:1,status:'requested',customer_id:role==='seller'?'seller-id':'customer-id',created_at:1,estimate:15000,invoice_amount:null,payment_state:null};
    await p.route('**/api/**',r=>{const path=new URL(r.request().url()).pathname;let data;
     if(path==='/api/health')data={login_configured:true};else if(path==='/api/me')data={user:{id:role+'-id',role,display_name:'Test '+role}};else if(path==='/api/catalog'||path==='/api/business/catalog')data={services:[{id:'gta-heist',name:'Heist',price:'Rp15.000'}]};else if(path==='/api/orders')data={orders:[order],next:null};else if(path==='/api/customer/saved')data={saved:[]};else if(path==='/api/customer/sessions')data={sessions:[{public_id:'session-1',device:'Windows · Chrome',current:true,expires_at:1900000000}]};else if(path==='/api/performance')data={items:[],scope:role==='worker'?'personal':'team'};else if(path==='/api/business/notifications')data={items:[],unread:0,latest:0};else if(path==='/api/dashboard')data={counts:{requested:1},total:1};else if(path==='/api/orders/'+order.id)data={order,evidence:null};else if(path.endsWith('/overview'))data={messages:[],attachments:[],plan:null};else if(path.endsWith('/ticket'))data={ticket:null,can_link:['customer','seller'].includes(role)};else if(path.endsWith('/timeline'))data={events:[{action:'order:create',created_at:1}],receipt:null,review:null,refund:null};else if(path==='/api/workspace/support')data={items:[],next:null};else if(path==='/api/workspace/payouts')data={items:[],next:null,balance:{earned:0,pending:0,paid:0,available:0}};else if(path==='/api/workspace/presence')data={available:true};else if(path==='/api/workspace/cash-ledger')data={opening:null,incoming:0,outgoing:0,estimated_balance:null,items:[],duplicate_references:[],requires_reconciliation:true};else if(path==='/api/workspace/expenses')data={items:[],next:null};else if(path==='/api/collaboration/calendar')data={items:[],truncated:false};else if(path==='/api/workspace/report')data={month:'2026-11',counts:[],workers:[],...(role==='owner'?{finance:{daily:[],received:0,refunded:0,paid_out:0,gross:0,owner_share:0,expenses:0,recorded_margin:0}}:{})};else return r.fulfill({status:404,json:{error:'Missing fixture'}});return r.fulfill({json:data});});
@@ -66,6 +67,19 @@ try{
    await p.locator('[data-view="account"]').click();await p.getByText('Windows · Chrome · Sesi ini').waitFor();
    if(['owner','management','worker'].includes(role)){await p.locator('[data-view="performance"]').click();await p.getByText('Belum ada pekerjaan tercatat.').waitFor();}
    await p.locator('[data-view="support"]').click();await p.getByText('Belum ada kasus bantuan.').waitFor();
+   // Explicit loading/error/retry/empty and toast deduplication against the live DOM.
+   let failSupport=true;await p.route('**/api/workspace/support',async route=>{
+    if(failSupport){await new Promise(resolve=>setTimeout(resolve,350));await route.fulfill({status:503,json:{error:'Uji gangguan layanan'}});}
+    else await route.fulfill({json:{items:[],next:null}});
+   });
+   await p.locator('[data-view="support"]').click();await p.locator('#supportBody[aria-busy="true"] .loading-skeleton').waitFor();
+   await p.getByRole('button',{name:'Coba lagi',exact:true}).waitFor();assert.equal(await p.locator('#supportBody').getAttribute('aria-busy'),null);
+   await p.locator('#toastRegion .toast-error').filter({hasText:'Uji gangguan layanan'}).waitFor();
+   await p.getByRole('button',{name:'Coba lagi',exact:true}).click();await p.getByRole('button',{name:'Coba lagi',exact:true}).waitFor();
+   assert.equal(await p.locator('#toastRegion .toast-error').filter({hasText:'Uji gangguan layanan'}).count(),1);
+   failSupport=false;await p.getByRole('button',{name:'Coba lagi',exact:true}).click();await p.getByText('Belum ada kasus bantuan.').waitFor();
+   assert.equal(await p.locator('#supportBody').getAttribute('aria-busy'),null);
+   await p.unroute('**/api/workspace/support');
    if(['owner','worker'].includes(role)){await p.locator('[data-view="workspace"]').click();await p.getByText('Tersedia untuk diajukan: Rp0').waitFor();}
    if(['owner','management'].includes(role)){await p.locator('[data-view="report"]').click();await p.getByRole('button',{name:'Unduh CSV laporan ini'}).waitFor();const downloaded=p.waitForEvent('download');await p.getByRole('button',{name:'Unduh Excel (.xlsx)'}).click();const dl=await downloaded;assert.equal(dl.suggestedFilename(),'NEXORAID-2026-11.xlsx');const bytes=await readFile(await dl.path());assert.equal(bytes.readUInt32LE(0),0x04034b50);assert.ok(bytes.includes(Buffer.from('xl/worksheets/sheet1.xml')));await p.evaluate(()=>{window.print=()=>{window.__printedReport=document.querySelector('.print-invoice')?.textContent;window.__printedReportHTML=document.querySelector('.print-invoice')?.outerHTML;};});await p.getByRole('button',{name:'Cetak / simpan PDF'}).click();assert.match(await p.evaluate(()=>window.__printedReport),/NEXORAID — Laporan 2026-11/);await p.evaluate(()=>{const tmp=document.createElement('template');tmp.innerHTML=window.__printedReportHTML;document.body.append(tmp.content);});const pdf=await p.pdf({format:'A4'});assert.equal(pdf.subarray(0,5).toString(),'%PDF-');await p.locator('.print-invoice').evaluate(el=>el.remove());}
    await p.setViewportSize({width:1440,height:900});assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
