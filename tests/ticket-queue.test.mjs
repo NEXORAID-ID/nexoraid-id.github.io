@@ -39,8 +39,23 @@ test('outbox no backfill; rollback, lease expiry, retry and canonical ack',async
  sql.prepare("UPDATE orders SET status='requested' WHERE id=?").run(id);
  assert.equal((await call(ack)).status,200);assert.equal((await(await call(ack)).json()).replayed,true);
  assert.equal((await call({...ack,message_id:'1524898826903752866'})).status,409);
+ assert.equal((await call({...ack,ticket_id:'9999'})).status,409);
  assert.equal(sql.prepare('SELECT channel_id FROM order_ticket_links WHERE order_id=?').get(id).channel_id,ack.channel_id);
- assert.equal((await(await call({action:'lease'})).json()).order,null);sql.close();
+ assert.equal((await(await call({action:'lease'})).json()).order,null);
+ const other='555555555555555555',id2='00000000-0000-4000-8000-000000000003';
+ sql.prepare('INSERT INTO users(id,display_name,created_at) VALUES(?,?,?)').run(other,'Other',1);
+ sql.prepare("INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,created_at,updated_at) VALUES(?,?,'optiwindows',1,'Rp150000',2,2)").run(id2,other);
+ const otherLease=await(await call({action:'lease'})).json();
+ const otherAck={...ack,order_id:id2,lease_token:otherLease.lease_token,message_id:'1524898826903752867'};
+ assert.equal((await call(otherAck)).status,409);
+ assert.equal((await call({...otherAck,channel_id:'1524898826903752868'})).status,409);
+ assert.equal((await call({...otherAck,channel_id:'1524898826903752868',ticket_id:'0002'})).status,200);
+ const id3='00000000-0000-4000-8000-000000000004';add(id3);
+ const sameLease=await(await call({action:'lease'})).json();
+ const sameAck={...ack,order_id:id3,lease_token:sameLease.lease_token,message_id:'1524898826903752869'};
+ assert.equal((await call({...sameAck,channel_id:'1524898826903752870',ticket_id:'0003'})).status,409);
+ assert.equal((await call(sameAck)).status,200);
+ sql.close();
 });
 test('machine route rejects missing, reused, wrong key and actor impersonation',async()=>{
  const origin='https://nexoraid.example',key='a'.repeat(64),other='b'.repeat(64);
