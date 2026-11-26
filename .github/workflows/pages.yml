@@ -15,6 +15,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  security:
+    uses: ./.github/workflows/release-security.yml
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -51,8 +53,8 @@ jobs:
         with:
           path: dist
   deploy:
-    if: github.event_name != 'pull_request'
-    needs: build
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    needs: [build, security]
     runs-on: ubuntu-latest
     permissions:
       pages: write

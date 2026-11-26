@@ -12,6 +12,7 @@ export RELEASE_SHA="$(git rev-parse HEAD)"
 node -e 'const fs=require("node:fs");const p=process.argv[1],c=JSON.parse(fs.readFileSync(p));c.vars.RELEASE_SHA=process.env.RELEASE_SHA;fs.writeFileSync(p,JSON.stringify(c,null,2))' "$CONFIG"
 echo "Deploy existing Worker: $PUBLIC_ORIGIN ($RELEASE_SHA)"
 npm test
+bash v4/scripts/release-security.sh
 SITE_URL="$PUBLIC_ORIGIN" npm run build
 for file in portal.html portal.css portal.mjs portal.webmanifest portal-sw.js portal-offline.html; do cp "v4/$file" "dist/$file"; done
 npm install --no-save --package-lock=false playwright@1.56.1
