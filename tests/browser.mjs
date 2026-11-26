@@ -66,6 +66,9 @@ try{
    await p.setViewportSize({width:1440,height:900});assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
    await ctx.close();
   }
+  // Browser calls the actual Worker and isolated database, not fabricated API responses.
+  const {runPortalBackendE2E}=await import('./portal-backend-e2e.mjs');
+  await runPortalBackendE2E({browser,url,portalFiles});
   // Check every public page at phone, tablet and desktop widths. No real login or live order.
   for(const name of ['index.html','layanan.html','detail.html?id=optiwindows','cara-order.html','seller.html','faq.html','tentang.html','kontak.html','kebijakan.html','promo.html','harga.html','keranjang.html','login.html']){
    const response=await desktopPage.goto(url+name);assert.ok(response.ok(),name);await desktopPage.locator('h1').first().waitFor();

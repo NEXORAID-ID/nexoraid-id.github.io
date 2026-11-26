@@ -127,6 +127,12 @@ async function handle(r,env){
   if(diff!==0)return err('Bot tidak terotorisasi.',401);
   const actor=r.headers.get('x-discord-user-id'),guild=r.headers.get('x-discord-guild-id');
   if(!validId(actor)||guild!=='1487728359482851348')return err('Identitas bot tidak valid.',403);
+  if(m==='GET'&&p==='/api/bot/health'&&url.searchParams.get('membership')==='1'){
+   // Fixed owner-only diagnostic: never accept an arbitrary target or return roles/IDs.
+   if(!validId(env.OWNER_DISCORD_ID)||actor!==env.OWNER_DISCORD_ID)return err('Akses owner diperlukan.',403);
+   const check=await guildMembership(env,actor,env.DISCORD_MEMBERSHIP_FETCH||fetch);
+   return json({ok:check.status===200,reason:check.reason,upstream_status:check.upstreamStatus},check.status===200?200:503);
+  }
   if(m==='GET'&&(p==='/api/bot/health'||p==='/api/bot/orders'&&url.searchParams.get('probe')==='1'))return json({ok:true});
   p=p.replace('/api/bot/','/api/');
   if(!((p==='/api/orders'&&['GET','POST'].includes(m))||(m==='POST'&&/^\/api\/orders\/[a-f0-9-]{36}\/(claim|status|evidence)$/.test(p))||(['GET','POST'].includes(m)&&/^\/api\/orders\/[a-f0-9-]{36}\/ticket$/.test(p))))return err('Endpoint bot tidak diizinkan.',404);
