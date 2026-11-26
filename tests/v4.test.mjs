@@ -119,7 +119,7 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await call('worker','workspace/payouts',{amount:1001})).status,409);
   assert.equal((await call('management','workspace/payouts/'+payoutId,{state:'paid',reference:'bank-001'})).status,403);
   assert.equal((await call('owner','workspace/payouts/'+payoutId,{state:'paid',reference:'bank-001',confirmed:true})).status,409);
-  assert.throws(()=>db.prepare("UPDATE payout_requests SET state='paid',reviewed_at=1,reviewed_by=?,reference='direct-bypass' WHERE id=?").run(owner,payoutId),/payout_approval_required/);
+  assert.throws(()=>db.prepare("UPDATE payout_requests SET state='paid',reviewed_at=1,reviewed_by=?,reference='direct-bypass' WHERE id=?").run(ids.owner,payoutId),/payout_approval_required/);
   assert.equal((await call('management','workspace/payouts/'+payoutId,{state:'approved',reference:'review-001'})).status,403);
   assert.equal((await call('owner','workspace/payouts/'+payoutId,{state:'approved',reference:'review-001'})).status,200);
   assert.equal((await call('owner','workspace/payouts/'+payoutId,{state:'approved',reference:'review-002'})).status,409);
