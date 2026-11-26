@@ -1,5 +1,6 @@
 import { services } from '../services-data.js';
 import { fixedPriceValue } from '../catalog.js';
+import { operations,listOrders } from './operations.mjs';
 
 const DAY=86400;
 const cookie=(name,value,age)=>name+'='+value+'; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age='+age;
@@ -22,7 +23,7 @@ export function estimateOrder(id,quantity){
 }
 export function mayTransition(role,assigned,actor,from,to){
  if(overseesOrders(role))return ({requested:['cancelled'],claimed:['confirmed','cancelled'],confirmed:['processing','cancelled'],processing:['completed','cancelled']})[from]?.includes(to)||false;
- return role==='worker'&&assigned===actor&&((from==='confirmed'&&to==='processing')||(from==='processing'&&to==='completed'));
+ return role==='worker'&&assigned===actor&&from==='confirmed'&&to==='processing';
 }
 async function session(r,env){
  const token=getCookie(r,'nexo_session');
@@ -132,15 +133,12 @@ async function handle(r,env){
   const response=json({ok:true});response.headers.append('set-cookie',cookie('nexo_session','',0));return response;
  }
  if(p==='/api/me'&&m==='GET')return json({user});
- if(p==='/api/orders'&&m==='GET'){
-  const query=overseesOrders(user.role)?env.DB.prepare('SELECT * FROM orders ORDER BY created_at DESC LIMIT 100'):user.role==='worker'?env.DB.prepare("SELECT * FROM orders WHERE customer_id=? OR assigned_to=? OR status='requested' ORDER BY created_at DESC LIMIT 100").bind(user.id,user.id):env.DB.prepare('SELECT * FROM orders WHERE customer_id=? ORDER BY created_at DESC LIMIT 100').bind(user.id);
-  const rows=(await query.all()).results;return json({orders:rows.map(o=>user.role==='worker'&&o.status==='requested'&&o.customer_id!==user.id?{...o,customer_id:null}:o)});
- }
+ if(p==='/api/orders'&&m==='GET')return listOrders(env.DB,user,url);
  if(p==='/api/orders'&&m==='POST'){
   const b=await body(r);const order=b&&estimateOrder(b.service_id,b.quantity);if(!order)return err('Layanan atau jumlah tidak valid.',400);
   const t=now(),id=crypto.randomUUID();
   // Atomic conditional insert: no more than 5 requests per user in any rolling hour.
-  const result=await env.DB.prepare("INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,estimate,created_at,updated_at) SELECT ?,?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM orders WHERE customer_id=? AND created_at>=?)<5").bind(id,user.id,order.service_id,order.quantity,order.catalog_price,order.estimate,t,t,user.id,t-3600).run();
+  const [result]=await env.DB.batch([env.DB.prepare("INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,estimate,created_at,updated_at) SELECT ?,?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM orders WHERE customer_id=? AND created_at>=?)<5").bind(id,user.id,order.service_id,order.quantity,order.catalog_price,order.estimate,t,t,user.id,t-3600),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'order:create',?,? WHERE changes()=1").bind(user.id,id,t)]);
   if(!result.meta.changes)return err('Batas permintaan per jam tercapai.',429);
   return json({order:{id,...order,status:'requested'}},201);
  }
@@ -152,11 +150,15 @@ async function handle(r,env){
    const results=await env.DB.batch([env.DB.prepare("UPDATE orders SET status='claimed',assigned_to=?,updated_at=? WHERE id=? AND status='requested' AND assigned_to IS NULL AND customer_id<>?").bind(user.id,t,id,user.id),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'claim',?,? WHERE changes()=1").bind(user.id,id,t)]);
    return results[0].meta.changes?json({ok:true}):err('Order tidak tersedia.',409);
   }
-  const b=await body(r);const order=await env.DB.prepare('SELECT status,assigned_to FROM orders WHERE id=?').bind(id).first();
+  const b=await body(r);const order=await env.DB.prepare('SELECT o.status,o.assigned_to,f.state AS payment_state,w.worker_id AS evidence_worker FROM orders o LEFT JOIN order_finance f ON f.order_id=o.id LEFT JOIN order_work w ON w.order_id=o.id WHERE o.id=?').bind(id).first();
   if(!order||!b||!mayTransition(user.role,order.assigned_to,user.id,order.status,b.status))return err('Perubahan status tidak diizinkan.',403);
-  const results=await env.DB.batch([env.DB.prepare('UPDATE orders SET status=?,updated_at=? WHERE id=? AND status=?').bind(b.status,t,id,order.status),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,?,?,? WHERE changes()=1").bind(user.id,'status:'+b.status,id,t)]);
+  if(['processing','completed'].includes(b.status)&&order.payment_state!=='paid')return err('Pembayaran belum diverifikasi owner.',409);
+  if(b.status==='completed'&&order.evidence_worker!==order.assigned_to)return err('Bukti pengerjaan belum dikirim penjoki.',409);
+  if(b.status==='cancelled'&&order.payment_state==='paid')return err('Order sudah dibayar. Memerlukan proses refund manual.',409);
+  const results=await env.DB.batch([env.DB.prepare('UPDATE orders SET status=?,updated_at=? WHERE id=? AND status=? AND assigned_to IS ?').bind(b.status,t,id,order.status,order.assigned_to),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,?,?,? WHERE changes()=1").bind(user.id,'status:'+b.status,id,t)]);
   return results[0].meta.changes?json({ok:true}):err('Status sudah berubah.',409);
  }
+ if(!bot){const extra=await operations({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
  if(p==='/api/team'&&m==='GET'){
   if(user.role!=='owner')return err('Akses owner diperlukan.',403);
   const after=url.searchParams.get('after')||'';
