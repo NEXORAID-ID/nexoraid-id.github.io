@@ -87,7 +87,12 @@ test('outbox no backfill; rollback, lease expiry, retry and canonical ack',async
  assert.equal((await(await call(finish)).json()).state,'closed');
  assert.equal((await call({...finish,transcript_message_id:'1524898826903752882'})).status,409);
  add('00000000-0000-4000-8000-000000000008');
- assert.equal(sql.prepare('SELECT count(*) n FROM order_ticket_links').get().n,beforeCounts);
+ const reopened=await(await call({action:'lease'})).json();
+ assert.equal(reopened.order.id,'00000000-0000-4000-8000-000000000008');
+ const newAck={...ack,order_id:reopened.order.id,lease_token:reopened.lease_token,message_id:'1524898826903752890'};
+ assert.equal((await call(newAck)).status,409);
+ assert.equal((await call({...newAck,channel_id:'1524898826903752891',ticket_id:'0009'})).status,200);
+ assert.equal(sql.prepare('SELECT count(*) n FROM order_ticket_links').get().n,beforeCounts+1);
  sql.close();
 });
 test('machine route rejects missing, reused, wrong key and actor impersonation',async()=>{

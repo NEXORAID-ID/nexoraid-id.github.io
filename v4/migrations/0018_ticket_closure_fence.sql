@@ -18,3 +18,8 @@ CREATE UNIQUE INDEX ticket_closure_one_pending ON ticket_closure_fences(customer
 CREATE TRIGGER ticket_closure_checkout_fence BEFORE INSERT ON orders
  WHEN EXISTS(SELECT 1 FROM ticket_closure_fences f WHERE f.customer_id=NEW.customer_id AND f.closed_at IS NULL)
  BEGIN SELECT RAISE(ABORT,'ticket_closure_pending'); END;
+
+-- A previously closed or closing channel/ticket must never receive another order link.
+CREATE TRIGGER ticket_closure_no_relink BEFORE INSERT ON order_ticket_links
+ WHEN EXISTS(SELECT 1 FROM ticket_closure_fences f WHERE f.guild_id=NEW.guild_id AND (f.channel_id=NEW.channel_id OR f.ticket_id=NEW.ticket_id))
+ BEGIN SELECT RAISE(ABORT,'ticket_closure_relink'); END;
