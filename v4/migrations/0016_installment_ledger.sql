@@ -7,7 +7,7 @@ CREATE TABLE verified_receipts (
 );
 CREATE INDEX verified_receipts_order ON verified_receipts(order_id);
 CREATE TRIGGER verified_receipt_guard BEFORE INSERT ON verified_receipts
-WHEN NOT EXISTS(SELECT 1 FROM order_finance f JOIN orders o ON o.id=f.order_id WHERE f.order_id=NEW.order_id AND f.state='quoted' AND o.status IN ('claimed','confirmed'))
+WHEN NOT EXISTS(SELECT 1 FROM order_finance f JOIN orders o ON o.id=f.order_id WHERE f.order_id=NEW.order_id AND ((f.state='quoted' AND o.status IN ('claimed','confirmed')) OR (f.state='paid' AND EXISTS(SELECT 1 FROM verified_receipts WHERE order_id=f.order_id))))
  OR EXISTS(SELECT 1 FROM order_finance WHERE payment_ref=NEW.reference)
  OR EXISTS(SELECT 1 FROM payment_claims WHERE order_id=NEW.order_id AND (reference<>NEW.reference OR amount<>NEW.amount))
 BEGIN SELECT RAISE(ABORT,'receipt_not_allowed'); END;

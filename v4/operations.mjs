@@ -92,7 +92,7 @@ export async function operations({p,m,url,user,env,readBody,r}){
   if(await db.prepare('SELECT order_id FROM verified_receipts WHERE order_id=? LIMIT 1').bind(id).first())return err('Gunakan pencatatan pembayaran bertahap.',409);
   const ref=typeof b.reference==='string'?b.reference.trim():'';
   if(ref.length<4||ref.length>80||!Number.isSafeInteger(b.amount)||b.amount!==order.invoice_amount)return err('Nominal harus sesuai invoice dan referensi transaksi wajib.',400);
-  return mutate(db,db.prepare("UPDATE order_finance SET state='paid',paid_by=?,paid_at=?,payment_ref=? WHERE order_id=? AND state='quoted' AND amount=? AND NOT EXISTS(SELECT 1 FROM order_finance f WHERE f.state='paid' AND f.payment_ref=? AND f.order_id<>?) AND EXISTS(SELECT 1 FROM orders WHERE id=? AND status IN ('claimed','confirmed','processing'))").bind(user.id,t,ref,id,b.amount,ref,id,id),user.id,'payment:verified',id,t);
+  return mutate(db,db.prepare("UPDATE order_finance SET state='paid',paid_by=?,paid_at=?,payment_ref=? WHERE order_id=? AND state='quoted' AND amount=? AND NOT EXISTS(SELECT 1 FROM verified_receipts v WHERE v.order_id=order_finance.order_id OR v.reference=?) AND NOT EXISTS(SELECT 1 FROM order_finance f WHERE f.state='paid' AND f.payment_ref=? AND f.order_id<>?) AND EXISTS(SELECT 1 FROM orders WHERE id=? AND status IN ('claimed','confirmed','processing'))").bind(user.id,t,ref,id,b.amount,ref,ref,id,id),user.id,'payment:verified',id,t);
  }
  if(action==='evidence'){
   if(user.role!=='worker'||!assigned)return err('Hanya penjoki yang ditugaskan.',403);

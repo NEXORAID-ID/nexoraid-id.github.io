@@ -8,10 +8,10 @@ export async function installments({p,m,user,env,r,readBody}){
  const order=await db.prepare('SELECT customer_id,status FROM orders WHERE id=?').bind(id).first();
  if(!order||!(user.role==='owner'||order.customer_id===user.id))return err('Order tidak ditemukan.',404);
  if(action==='installments'&&m==='GET'){
-  const b=await db.prepare('SELECT * FROM installment_balances WHERE order_id=?').bind(id).first();
+  const b=await db.prepare('SELECT b.*,f.state FROM installment_balances b JOIN order_finance f ON f.order_id=b.order_id WHERE b.order_id=?').bind(id).first();
   if(!b)return json({balance:null,receipts:[]});
   const rows=(await db.prepare('SELECT amount,reference,created_at FROM verified_receipts WHERE order_id=? ORDER BY created_at,id LIMIT 200').bind(id).all()).results;
-  return json({balance:{...b,due:order.status==='cancelled'?0:Math.max(0,b.invoice_amount-b.received),surplus_due:Math.max(0,b.received-b.invoice_amount-b.surplus_refunded)},receipts:rows});
+  return json({balance:{...b,due:order.status==='cancelled'||b.state==='paid'?0:Math.max(0,b.invoice_amount-b.received),surplus_due:Math.max(0,b.received-b.invoice_amount-b.surplus_refunded)},receipts:rows});
  }
  if(m!=='POST')return err('Metode tidak diizinkan.',405);
  if(user.role!=='owner')return err('Hanya pemilik dapat mencatat dana aktual.',403);
