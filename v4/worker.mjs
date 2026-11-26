@@ -1,8 +1,10 @@
+import {businessControls} from './business-controls.mjs';
+import {installments} from './installments.mjs';
 import { services } from '../services-data.js';
 import { fixedPriceValue } from '../catalog.js';
 import { operations,listOrders } from './operations.mjs';
 import { workspace } from './workspace.mjs';
-import { business,memberCatalog,applyOverride,rateLimit } from './business.mjs';
+import { business,memberCatalog,rateLimit } from './business.mjs';
 import { ticketLinks } from './ticket-links.mjs';
 import { collaboration } from './collaboration.mjs';
 import { customer,deviceLabel } from './customer.mjs';
@@ -39,7 +41,7 @@ export function mayTransition(role,assigned,actor,from,to){
 async function session(r,env){
  const token=getCookie(r,'nexo_session');
  if(!/^[a-f0-9-]{72}$/.test(token))return null;
- const user=await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+' FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?').bind(await hash(token),now()).first();
+ const user=await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+' FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND NOT EXISTS(SELECT 1 FROM account_suspensions a WHERE a.user_id=u.id)').bind(await hash(token),now()).first();
  return user?{...user,role:roleFor(user,env)}:null;
 }
 async function body(r){
@@ -96,8 +98,8 @@ async function handle(r,env){
   return page.ok?new Response(page.body,{status:404,headers:page.headers}):asset;
  }
  if(p==='/api/health'&&m==='GET'){
-  let ready=false;try{if(env.DB){const check=await env.DB.prepare('SELECT (SELECT COUNT(*) FROM users WHERE 0)+(SELECT COUNT(*) FROM order_ticket_links WHERE 0)+(SELECT COUNT(*) FROM rejected_payment_claims WHERE 0)+(SELECT COUNT(*) FROM order_attachments WHERE 0)+(SELECT COUNT(*) FROM order_messages WHERE 0)+(SELECT COUNT(*) FROM order_plans WHERE 0)+(SELECT COUNT(*) FROM checkout_groups WHERE 0)+(SELECT COUNT(*) FROM session_metadata WHERE 0)+(SELECT COUNT(*) FROM completed_refunds WHERE 0)+(SELECT COUNT(*) FROM web_ticket_outbox WHERE 0)+(SELECT COUNT(*) FROM cash_opening WHERE 0)+(SELECT COUNT(*) FROM cash_movements WHERE 0)+(SELECT COUNT(*) FROM rental_reservations WHERE 0)+(SELECT COUNT(*) FROM investor_attestations WHERE 0) AS probe').first();const trigger=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name='web_ticket_order_insert'").first();ready=check?.probe===0&&trigger?.name==='web_ticket_order_insert';}}catch{}
-  return json({status:ready&&oauthReady(env)?'ok':'degraded',version:4,release:env.RELEASE_SHA||null,database_configured:Boolean(env.DB),database_ready:ready,login_configured:oauthReady(env),schema:ready?15:null,maintenance:env.MAINTENANCE_MODE==='true'},ready&&oauthReady(env)?200:503);
+  let ready=false;try{if(env.DB){const check=await env.DB.prepare('SELECT (SELECT COUNT(*) FROM users WHERE 0)+(SELECT COUNT(*) FROM order_ticket_links WHERE 0)+(SELECT COUNT(*) FROM rejected_payment_claims WHERE 0)+(SELECT COUNT(*) FROM order_attachments WHERE 0)+(SELECT COUNT(*) FROM order_messages WHERE 0)+(SELECT COUNT(*) FROM order_plans WHERE 0)+(SELECT COUNT(*) FROM checkout_groups WHERE 0)+(SELECT COUNT(*) FROM session_metadata WHERE 0)+(SELECT COUNT(*) FROM completed_refunds WHERE 0)+(SELECT COUNT(*) FROM web_ticket_outbox WHERE 0)+(SELECT COUNT(*) FROM cash_opening WHERE 0)+(SELECT COUNT(*) FROM cash_movements WHERE 0)+(SELECT COUNT(*) FROM rental_reservations WHERE 0)+(SELECT COUNT(*) FROM investor_attestations WHERE 0)+(SELECT COUNT(*) FROM verified_receipts WHERE 0)+(SELECT COUNT(*) FROM receipt_adjustments WHERE 0)+(SELECT COUNT(*) FROM service_policies WHERE 0)+(SELECT COUNT(*) FROM account_suspensions WHERE 0)+(SELECT COUNT(*) FROM gear_rewards WHERE 0) AS probe').first();const trigger=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name='web_ticket_order_insert'").first();ready=check?.probe===0&&trigger?.name==='web_ticket_order_insert';}}catch{}
+  return json({status:ready&&oauthReady(env)?'ok':'degraded',version:4,release:env.RELEASE_SHA||null,database_configured:Boolean(env.DB),database_ready:ready,login_configured:oauthReady(env),schema:ready?17:null,maintenance:env.MAINTENANCE_MODE==='true'},ready&&oauthReady(env)?200:503);
  }
  if(p==='/api/catalog'&&m==='GET'){const response=env.DB?json({services:await memberCatalog(env.DB),catalog_revision:1}):json({services:services.map(({id,name,category,desc,price})=>({id,name,category,desc,price})),baseline:true});response.headers.set('access-control-allow-origin','*');return response;}
  if(!env.DB||!env.PUBLIC_ORIGIN||url.origin!==env.PUBLIC_ORIGIN)return err('Layanan akun belum dikonfigurasi untuk domain ini.',503);
@@ -127,6 +129,7 @@ async function handle(r,env){
   await env.DB.prepare("INSERT INTO users(id,display_name,created_at) VALUES(?,?,?) ON CONFLICT(id) DO NOTHING").bind(actor,'Discord '+actor,now()).run();
   const u=await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+' FROM users u WHERE u.id=?').bind(actor).first();
   botUser=u?{...u,role:roleFor(u,env)}:null;
+  if(botUser&&await env.DB.prepare('SELECT user_id FROM account_suspensions WHERE user_id=?').bind(actor).first())return err('Akun dinonaktifkan.',403);
  }else if(m!=='GET'&&r.headers.get('origin')!==env.PUBLIC_ORIGIN)return err('Origin tidak diizinkan.',403);
  if(p==='/api/auth/login'&&m==='GET'){
   if(!oauthReady(env))return err('Login belum dikonfigurasi.',503);
@@ -143,6 +146,7 @@ async function handle(r,env){
   const result=await discordIdentity(env,code,fetch,undefined,verifier);
   if(result.error)return loginFailure(result.error);
   const user=result.user;
+  if(await env.DB.prepare('SELECT user_id FROM account_suspensions WHERE user_id=?').bind(user.id).first())return loginFailure('account_suspended');
   const t=now(),s=random(),sessionHash=await hash(s);
   await env.DB.batch([
    env.DB.prepare('INSERT INTO users(id,display_name,created_at) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET display_name=excluded.display_name').bind(user.id,String(user.global_name||user.username||'Pelanggan').slice(0,100),t),
@@ -162,6 +166,7 @@ async function handle(r,env){
  if(p==='/api/me'&&m==='GET'){const earned=await env.DB.prepare('SELECT order_id FROM order_settlements WHERE worker_id=? LIMIT 1').bind(user.id).first();return json({user:{...user,finance_access:user.role==='owner'||user.role==='worker'||Boolean(earned)}});}
  if(p==='/api/auth/logout-all'&&m==='POST'&&!bot){await env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(user.id).run();const response=json({ok:true});response.headers.append('set-cookie',cookie('nexo_session','',0));return response;}
  if(m==='POST'&&!(p==='/api/team/role'&&user.role!=='owner')&&!await rateLimit(env.DB,user.id))return err('Terlalu banyak permintaan.',429);
+ if(!bot&&['/api/business/policies','/api/business/gear','/api/team/suspension'].includes(p))return businessControls({p,m,user,env,r,readBody:body});
  if(!bot&&p.startsWith('/api/customer/')){const extra=await customer({p,m,user,env,r,readBody:body,sessionHash:await hash(getCookie(r,'nexo_session'))});if(extra)return extra;}
  if(!bot&&p.startsWith('/api/business/')){const extra=await business({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
  if(p==='/api/orders'&&m==='GET')return listOrders(env.DB,user,url);
@@ -175,8 +180,7 @@ async function handle(r,env){
   if(key){const old=await replay();if(old)return old;}
   const membership=await membershipStatus(env,user.id,env.DISCORD_MEMBERSHIP_FETCH||fetch);
   if(membership!==200)return err(membershipMessage(membership),membership);
-  const override=await env.DB.prepare('SELECT amount,enabled,promo_percent FROM catalog_overrides WHERE service_id=?').bind(order.service_id).first();
-  if(override){const s=applyOverride(services.find(s=>s.id===order.service_id),override);if(!s.enabled)return err('Layanan sedang tidak tersedia.',409);order.catalog_price=s.price;order.estimate=s.unit_amount===null?null:s.unit_amount*order.quantity;}
+  const live=(await memberCatalog(env.DB)).find(s=>s.id===order.service_id);if(!live)return err('Layanan sedang tidak tersedia.',409);order.catalog_price=live.price;order.estimate=live.unit_amount===null?null:live.unit_amount*order.quantity;
   const t=now();
   // Atomic conditional insert: no more than 5 requests per user in any rolling hour.
   let result;try{[result]=await env.DB.batch([env.DB.prepare("INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,estimate,created_at,updated_at) SELECT ?,?,?,?,"+guardedCatalogPrice+",?,?,? WHERE (SELECT COUNT(*) FROM orders WHERE customer_id=? AND created_at>=?)<5 ON CONFLICT(id) DO NOTHING").bind(id,user.id,order.service_id,order.quantity,...catalogPriceBindings(order.service_id,override,order.catalog_price),order.estimate,t,t,user.id,t-3600),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'order:create',?,? WHERE changes()=1").bind(user.id,id,t)]);}catch(e){const old=await replay();if(old)return old;if(String(e.message).includes('rental_stock_unavailable'))return err('Stok sewa tidak tersedia.',409);if(catalogChangedError(e))return err('Harga atau ketersediaan layanan berubah. Muat ulang katalog dan coba lagi.',409);throw e;}
@@ -197,6 +201,7 @@ async function handle(r,env){
   if(['processing','completed'].includes(b.status)&&order.payment_state!=='paid')return err('Pembayaran belum diverifikasi owner.',409);
   if(b.status==='completed'&&(!order.assigned_to||order.evidence_worker!==order.assigned_to))return err('Bukti pengerjaan belum dikirim penjoki.',409);
   if(b.status==='cancelled'&&order.payment_state==='paid')return err('Order sudah dibayar. Memerlukan proses refund manual.',409);
+  if(b.status==='cancelled'&&await env.DB.prepare('SELECT order_id FROM installment_balances WHERE order_id=? AND received>partial_refunded').bind(id).first())return err('Cicilan sudah diterima. Catat refund penuh melalui pemilik.',409);
   if(b.status==='cancelled'&&order.payment_claimed)return err('Laporan pembayaran sedang menunggu pemeriksaan owner.',409);
   const results=await env.DB.batch([env.DB.prepare("UPDATE orders SET status=?,updated_at=? WHERE id=? AND status=? AND assigned_to IS ? AND (?<>'cancelled' OR (NOT EXISTS(SELECT 1 FROM payment_claims WHERE order_id=orders.id) AND NOT EXISTS(SELECT 1 FROM order_finance WHERE order_id=orders.id AND state='paid')))").bind(b.status,t,id,order.status,order.assigned_to,b.status),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,?,?,? WHERE changes()=1").bind(user.id,'status:'+b.status,id,t)]);
   return results[0].meta.changes?json({ok:true}):err('Status sudah berubah.',409);
@@ -204,7 +209,7 @@ async function handle(r,env){
  if(p.endsWith('/ticket')){const linked=await ticketLinks({p,m,user,env,bot,r,readBody:body});if(linked)return linked;}
  if(!bot&&p.startsWith('/api/collaboration/')){const extra=await collaboration({p,m,url,user,env,r,readBody:body});if(extra)return extra;}
  if(!bot&&p==='/api/workspace/cash-ledger')return cashLedger({p,m,user,env,r,readBody:body});
- if(!bot&&p.startsWith('/api/workspace/')){const extra=await workspace({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
+ if(!bot&&p.startsWith('/api/workspace/')){const payment=await installments({p,m,user,env,r,readBody:body});if(payment)return payment;const extra=await workspace({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
  if(!bot||p.endsWith('/evidence')){const extra=await operations({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
  if(p==='/api/team'&&m==='GET'){
   if(user.role!=='owner')return err('Akses owner diperlukan.',403);
