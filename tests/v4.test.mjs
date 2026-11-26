@@ -220,3 +220,14 @@ test('PKCE uses RFC S256 challenge and keeps verifier in secure HTTP-only cookie
  const state=u.searchParams.get('state');const missing=await worker.fetch(req('/api/auth/callback?code=x&state='+state,{headers:{cookie:'nexo_state='+state}}),env);assert.equal(missing.headers.get('location'),'/portal.html?login_error=invalid_state');
 });
 test('maintenance rejects write requests without accessing database',async()=>{const env={DB:{},PUBLIC_ORIGIN:'https://nexoraid.example',MAINTENANCE_MODE:'true'};const res=await worker.fetch(req('/api/orders',{method:'POST',headers:{origin:env.PUBLIC_ORIGIN}}),env);assert.equal(res.status,503);});
+
+test('combined release health requires closure, catalog and finance schema guards',async()=>{
+ const {DatabaseSync}=await import('node:sqlite');const {readdir,readFile}=await import('node:fs/promises');
+ const sql=new DatabaseSync(':memory:');try{
+ const dir=new URL('../v4/migrations/',import.meta.url);for(const n of (await readdir(dir)).filter(x=>x.endsWith('.sql')).sort())sql.exec(await readFile(new URL(n,dir),'utf8'));
+ const DB={prepare(q){return {first:async()=>sql.prepare(q).get()}}};const env={DB,PUBLIC_ORIGIN:'https://nexoraid.example',DISCORD_CLIENT_ID:'123',DISCORD_CLIENT_SECRET:'synthetic'};
+ const health=()=>worker.fetch(req('/api/health'),env);
+ let response=await health();assert.equal(response.status,200);assert.equal((await response.json()).schema,22);
+ sql.exec('DROP TRIGGER ticket_closure_checkout_fence');response=await health();assert.equal(response.status,503);assert.equal((await response.json()).schema,null);
+ }finally{sql.close();}
+});
