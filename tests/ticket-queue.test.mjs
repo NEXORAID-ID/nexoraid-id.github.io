@@ -55,6 +55,17 @@ test('outbox no backfill; rollback, lease expiry, retry and canonical ack',async
  const sameAck={...ack,order_id:id3,lease_token:sameLease.lease_token,message_id:'1524898826903752869'};
  assert.equal((await call({...sameAck,channel_id:'1524898826903752870',ticket_id:'0003'})).status,409);
  assert.equal((await call(sameAck)).status,200);
+ const close={action:'closure-status',customer_id:user,channel_id:ack.channel_id,ticket_id:ack.ticket_id};
+ const checkClose=async()=>await (await call(close)).json();
+ const beforeClose=await checkClose();assert.equal(beforeClose.eligible,false);assert.equal(beforeClose.linked,2);assert.equal(beforeClose.active,3);assert.equal(beforeClose.read_only,true);
+ sql.prepare("UPDATE orders SET status='cancelled' WHERE customer_id=?").run(user);
+ assert.equal((await checkClose()).eligible,true);
+ const beforeCounts=sql.prepare('SELECT count(*) n FROM order_ticket_links').get().n;
+ assert.equal((await call({...close,customer_id:other})).status,200);assert.equal((await (await call({...close,customer_id:other})).json()).eligible,false);
+ sql.prepare('UPDATE web_ticket_outbox SET delivered_at=NULL,channel_id=NULL,message_id=NULL WHERE order_id=?').run(id3);
+ assert.equal((await checkClose()).eligible,false);assert.equal((await checkClose()).uncertain,1);
+ assert.equal(sql.prepare('SELECT count(*) n FROM order_ticket_links').get().n,beforeCounts);
+ assert.equal((await call({...close,ticket_id:'invalid / id'})).status,400);
  sql.close();
 });
 test('machine route rejects missing, reused, wrong key and actor impersonation',async()=>{

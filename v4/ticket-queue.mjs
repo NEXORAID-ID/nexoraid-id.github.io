@@ -1,3 +1,4 @@
+import {closureStatus} from './ticket-closure-status.mjs';
 import {services} from '../services-data.js';
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'}});
 const err=(error,status)=>json({error},status);
@@ -9,6 +10,10 @@ export async function ticketQueue({db,r,m,readBody,clock=()=>Math.floor(Date.now
  const b=await readBody(r),t=clock();
  if(b?.action==='health'){const probe=await db.prepare('SELECT COUNT(*) AS probe FROM web_ticket_outbox WHERE 0').first();return probe?.probe===0?json({ok:true}):err('Queue tidak siap.',503);}
  if(maintenance)return err('Antrean dalam pemeliharaan.',503);
+ if(b?.action==='closure-status'){
+  if(!snow(b.customer_id)||!snow(b.channel_id)||typeof b.ticket_id!=='string'||!/^[a-zA-Z0-9_-]{1,80}$/.test(b.ticket_id))return err('Identitas tiket tidak valid.',400);
+  return json(await closureStatus(db,b,guild));
+ }
  if(b?.action==='lease'){
   const lease=token();
   const result=await db.prepare("UPDATE web_ticket_outbox SET lease_token=?,lease_until=?,attempts=attempts+1 WHERE order_id=(SELECT q.order_id FROM web_ticket_outbox q JOIN orders o ON o.id=q.order_id WHERE q.delivered_at IS NULL AND q.next_attempt<=? AND (q.lease_until IS NULL OR q.lease_until<=?) AND o.status NOT IN ('completed','cancelled') ORDER BY q.next_attempt,o.created_at,o.id LIMIT 1) RETURNING order_id").bind(lease,t+180,t,t).first();
