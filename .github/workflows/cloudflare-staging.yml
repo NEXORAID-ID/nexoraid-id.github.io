@@ -1,0 +1,56 @@
+name: Dedicated Cloudflare staging
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cloudflare-v4-staging
+  cancel-in-progress: false
+jobs:
+  security:
+    uses: ./.github/workflows/release-security.yml
+  local:
+    uses: ./.github/workflows/d1-local-gate.yml
+  staging:
+    if: github.ref == 'refs/heads/main'
+    needs: [security, local]
+    environment: cloudflare-v4-staging
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.STAGING_CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.STAGING_ACCOUNT_ID }}
+      STAGING_ACCOUNT_ID: ${{ vars.STAGING_ACCOUNT_ID }}
+      STAGING_D1_DATABASE_ID: ${{ vars.STAGING_D1_DATABASE_ID }}
+      STAGING_PUBLIC_ORIGIN: ${{ vars.STAGING_PUBLIC_ORIGIN }}
+      PRODUCTION_ACCOUNT_ID: ${{ vars.PRODUCTION_ACCOUNT_ID }}
+      PRODUCTION_D1_DATABASE_ID: ${{ vars.PRODUCTION_D1_DATABASE_ID }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build dedicated staging Worker
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN"
+          SITE_URL="$STAGING_PUBLIC_ORIGIN" npm run build
+          node v4/scripts/prepare-staging.mjs
+      - name: Verify target inventory and dry run
+        run: |
+          npx --yes wrangler@4.168.0 d1 list --json > "$RUNNER_TEMP/staging-d1.json"
+          node --input-type=module -e 'import fs from "node:fs";const rows=JSON.parse(fs.readFileSync(process.argv[1]));const match=rows.filter(x=>x.name==="nexoraid-v4-staging"&&(x.uuid??x.id)===process.env.STAGING_D1_DATABASE_ID);if(match.length!==1)throw Error("Dedicated staging database not found");' "$RUNNER_TEMP/staging-d1.json"
+          npx --yes wrangler@4.168.0 deploy --dry-run --config v4/.generated/wrangler-staging.json
+      - name: Deploy only to dedicated staging
+        run: |
+          npx --yes wrangler@4.168.0 d1 migrations apply nexoraid-v4-staging --remote --config v4/.generated/wrangler-staging.json
+          npx --yes wrangler@4.168.0 deploy --config v4/.generated/wrangler-staging.json
+      - name: Verify read-only staging boundaries
+        run: |
+          node --input-type=module -e 'import assert from "node:assert/strict";import fs from "node:fs";const o=process.env.STAGING_PUBLIC_ORIGIN;const get=async(p,method="GET")=>fetch(o+p,{method,redirect:"error",signal:AbortSignal.timeout(15000)});let r=await get("/api/health");assert.equal(r.status,200);const h=await r.json();assert.equal(h.release,process.env.GITHUB_SHA);assert.equal(h.database_ready,true);assert.equal(h.maintenance,true);r=await get("/api/catalog");assert.equal(r.status,200);assert.ok((await r.json()).services.length);for(const [p,m] of [["/api/auth/login","GET"],["/api/bot/ticket-queue","POST"],["/api/orders","POST"]])assert.equal((await get(p,m)).status,403);fs.writeFileSync("staging-evidence.json",JSON.stringify({release:h.release,schema:h.schema,read_only:true,isolated:true},null,2));'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-staging-evidence
+          path: staging-evidence.json
+          if-no-files-found: error

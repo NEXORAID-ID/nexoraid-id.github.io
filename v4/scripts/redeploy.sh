@@ -14,7 +14,7 @@ echo "Deploy existing Worker: $PUBLIC_ORIGIN ($RELEASE_SHA)"
 npm test
 bash v4/scripts/release-security.sh
 SITE_URL="$PUBLIC_ORIGIN" npm run build
-for file in portal.html portal.css portal.mjs portal.webmanifest portal-sw.js portal-offline.html; do cp "v4/$file" "dist/$file"; done
+for file in portal.html portal.css portal.mjs portal-ui.mjs portal-core.mjs portal.webmanifest portal-sw.js portal-offline.html; do cp "v4/$file" "dist/$file"; done
 npm install --no-save --package-lock=false playwright@1.56.1
 npx playwright install chromium
 node tests/browser.mjs
