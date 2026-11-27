@@ -73,3 +73,7 @@ WHEN NEW.expense_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM operating_expenses 
 BEGIN SELECT RAISE(ABORT,'bonus_expense_invalid'); END;
 CREATE TRIGGER bonus_no_update BEFORE UPDATE ON investor_noncash_bonuses BEGIN SELECT RAISE(ABORT,'bonus_immutable'); END;
 CREATE TRIGGER bonus_no_delete BEFORE DELETE ON investor_noncash_bonuses BEGIN SELECT RAISE(ABORT,'bonus_immutable'); END;
+
+CREATE TRIGGER bonus_single_set_budget BEFORE INSERT ON investor_noncash_bonuses
+WHEN NEW.quantity<>1 OR NEW.value_amount>=1000000
+BEGIN SELECT RAISE(ABORT,'bonus_set_budget_invalid'); END;

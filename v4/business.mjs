@@ -132,7 +132,7 @@ export async function business({p,m,url,user,env,readBody,r}){
  }
  if(p==='/api/business/investors/bonus'&&post){
   const b=await readBody(r),item=str(b?.item,3,120),ref=str(b?.reference,4,80),expense=b?.expense_id||null;
-  if(!uuid.test(b?.capital_id||'')||!item||!ref||!integer(b?.value_amount)||!Number.isSafeInteger(b.quantity)||b.quantity<1||b.quantity>1000||expense&&!uuid.test(expense)||b.confirmed!==true)return err('Data serah terima, nilai total dan konfirmasi wajib.');
+  if(!uuid.test(b?.capital_id||'')||!item||!ref||!integer(b?.value_amount)||b.quantity!==1||b.value_amount>=1000000||expense&&!uuid.test(expense)||b.confirmed!==true)return err('Catat satu set perangkat non-tunai per serah terima dengan nilai di bawah Rp1.000.000 dan konfirmasi owner.');
   const id=crypto.randomUUID();
   try{return await record(db,db.prepare('INSERT INTO investor_noncash_bonuses SELECT ?,c.id,?,?,?,?,?,?,? FROM investor_capital c WHERE c.id=? AND EXISTS(SELECT 1 FROM investor_attestations WHERE capital_id=c.id) ON CONFLICT(reference) DO NOTHING').bind(id,item,b.quantity,b.value_amount,ref,expense,user.id,t,b.capital_id),user,'investor:bonus',id,t);}catch(e){if(/bonus_expense_invalid|UNIQUE constraint/.test(String(e.message)))return err('Biaya sudah tertaut atau tidak valid.',409);throw e;}
  }
