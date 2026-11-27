@@ -1,4 +1,4 @@
-import {createNavigator,createPortalApi,shouldClearPendingCheckout,validateCheckoutReceipt} from './portal-core.mjs';
+import {createNavigator,createPortalApi,shouldClearPendingCheckout,validateCheckoutReceipt,checkoutPricingPreview} from './portal-core.mjs';
 import {exportRows,exportXlsx,searchKey,searchCatalog,deadlineLabel,createToast,loading,finishLoading,showLoadError,createViewData} from './portal-ui.mjs';
 const $=id=>document.getElementById(id);
 let user,catalog=[],orders=[],summary={},cursor=null,teamCursor=null,financeCursor=null,auditCursor=null,detailId=null,serial=0,detailSerial=0,requestKey=null;
@@ -178,7 +178,7 @@ async function shopView(){const host=$('shopBody');const d=await viewData(host,(
   if(!confirm(cartKey?'Ulangi pengiriman keranjang yang sama?':'Buat '+cart.length+' pesanan terpisah?'))return;
   const retry=Boolean(cartKey);cartKey??=crypto.randomUUID();const submitting=cartKey;
   checkoutBusy=true;let sent=false;
-  try{saveCheckoutDraft();sent=true;const result=validateCheckoutReceipt(await api('customer/checkout',{request_id:submitting,items:cart}),cart);cart=[];cartKey=null;persistDraft();await load();await view('orders');status(result.orders.length+' order berhasil tercatat.');}
+  try{saveCheckoutDraft();sent=true;const result=validateCheckoutReceipt(await api('customer/checkout',{request_id:submitting,items:cart}),cart);cart=[];cartKey=null;persistDraft();await load();await view('orders');status(result.orders.length+' order berhasil tercatat.'+checkoutPricingPreview(result.checkout_pricing));}
   catch(e){if(shouldClearPendingCheckout({sent,retry,error:e})){cartKey=null;persistDraft();}else if(cartKey)status(pendingMessage,true);throw e;}
   finally{checkoutBusy=false;if(!$('shopView').hidden)await shopView().catch(()=>{});}
  });host.append(section);host.append(node('h3','Favorit akun'));
@@ -201,8 +201,8 @@ $('request').onsubmit=async e=>{
    payload=previous;
   }
   requestKey??={signature:JSON.stringify(payload),id:crypto.randomUUID()};
-  saveCheckoutDraft();sent=true;const {order}=validateCheckoutReceipt(await api('orders',{...payload,request_id:requestKey.id}),[payload],{single:true});
-  requestKey=null;persistDraft();await load();status('Permintaan tercatat: '+order.id);
+  saveCheckoutDraft();sent=true;const {order,checkout_pricing}=validateCheckoutReceipt(await api('orders',{...payload,request_id:requestKey.id}),[payload],{single:true});
+  requestKey=null;persistDraft();await load();status('Permintaan tercatat: '+order.id+checkoutPricingPreview(checkout_pricing));
  }catch(e){if(shouldClearPendingCheckout({sent,retry,error:e})){requestKey=null;persistDraft();}status(e.message+(requestKey?' '+pendingMessage:''),true);}
  finally{checkoutBusy=false;b.disabled=false;}
 };
