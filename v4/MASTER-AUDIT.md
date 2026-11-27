@@ -83,9 +83,9 @@ Status: candidate development, not stable. Source: owner-approved 26 Nov 2026 au
 | A78 | P0 | Migration deployment compatibility | DEPLOYMENT GATE PASSED |
 | A79 | P0 | Real backend browser E2E | ISOLATED E2E PASSED |
 | A80 | P1 | Native dependencies CI | NATIVE CI PASSED |
-| A81 | P0 | Mandatory security gate | DEPLOYMENT GATE PASSED; CONTROL GAP |
+| A81 | P0 | Mandatory security gate | FULL PRE-DEPLOY GATE VERIFIED; WAIT FOR CI DISABLED |
 | A82 | P1 | Isolated staging | LOCAL PASSED; CLOUD CANDIDATE |
-| A83 | P1 | Release drift monitor | MERGED; LIVE MONITOR PENDING |
+| A83 | P1 | Release drift monitor | WEBSITE LIVE DRIFT DETECTED; RAILWAY CONFIG PENDING |
 | A84 | P0 | Restore drill | ISOLATED RESTORE PASSED |
 | A85 | P0 | Complete release evidence | IN PROGRESS |
 
