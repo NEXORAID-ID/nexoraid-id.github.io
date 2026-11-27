@@ -138,16 +138,27 @@ class RecoveryDrill(unittest.TestCase):
                 self.assertTrue(migrations, "Candidate must include an upgrade")
                 for path in migrations:
                     candidate.executescript(path.read_text())
-                self.assertEqual(restore.snapshot(candidate), original)
+                upgraded = restore.snapshot(candidate)
+                # Compare every pre-upgrade measure, including attachment hashes.
+                # New ledger tables may appear in the expanded snapshot plan,
+                # but this fixture has no new financial events and no backfill.
+                for section in ("counts", "totals"):
+                    self.assertTrue(set(original[section]).issubset(upgraded[section]))
+                    self.assertEqual({k: upgraded[section][k] for k in original[section]},
+                                     original[section])
+                    for name in set(upgraded[section]) - set(original[section]):
+                        self.assertEqual(upgraded[section][name], 0,
+                                         f"Unexpected new business data: {section}/{name}")
+                self.assertEqual(upgraded["attachments"], original["attachments"])
                 self.assertEqual(candidate.execute("PRAGMA foreign_key_check").fetchall(), [])
                 # Simulate failed release validation following a business write
                 # in the disposable candidate. The pre-upgrade copy is untouched.
                 candidate.execute("INSERT INTO users(id,display_name,created_at) VALUES('failed-release-user','fixture',6)")
                 candidate.commit()
-                self.assertNotEqual(restore.snapshot(candidate), original)
+                self.assertEqual(restore.snapshot(candidate)['counts']['users'], upgraded['counts']['users'] + 1)
                 candidate_dump = "\n".join(candidate.iterdump())
                 with self.assertRaisesRegex(ValueError, "Source snapshot mismatch"):
-                    restore.verify(candidate_dump, original)
+                    restore.verify(candidate_dump, upgraded)
             with sqlite3.connect(root / "recovered.sqlite") as recovered:
                 with sqlite3.connect(backup_path) as backup:
                     backup.backup(recovered)
