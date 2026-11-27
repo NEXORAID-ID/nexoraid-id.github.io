@@ -26,6 +26,19 @@ export async function ticketQueue({db,r,m,readBody,clock=()=>Math.floor(Date.now
   if(!counts||Object.values(counts).some(v=>!Number.isSafeInteger(v)||v<0))return err('Pemeriksaan antrean tidak valid.',503);
   return json({ok:true,read_only:true,maintenance:Boolean(maintenance),...counts});
  }
+ if(b?.action==='missing-status'){
+  if(!snow(b.customer_id)||!snow(b.channel_id)||typeof b.ticket_id!=='string'||!/^[a-zA-Z0-9_-]{1,80}$/.test(b.ticket_id))return err('Identitas tiket tidak valid.',400);
+  // No transcript is fabricated, no D1 link/fence is changed. Only a fully
+  // cancelled, acknowledged mapping without an existing fence may be retired locally.
+  const row=await db.prepare(`WITH i(guild,customer,channel,ticket) AS (VALUES(?,?,?,?)) SELECT
+   (SELECT COUNT(*) FROM order_ticket_links l JOIN orders o ON o.id=l.order_id AND o.customer_id=l.customer_id JOIN web_ticket_outbox q ON q.order_id=o.id AND q.channel_id=l.channel_id CROSS JOIN i WHERE l.guild_id=i.guild AND l.customer_id=i.customer AND l.channel_id=i.channel AND l.ticket_id=i.ticket AND q.delivered_at IS NOT NULL AND q.message_id IS NOT NULL AND o.status='cancelled') AS cancelled,
+   (SELECT COUNT(*) FROM order_ticket_links l CROSS JOIN i WHERE l.guild_id=i.guild AND (l.channel_id=i.channel OR l.ticket_id=i.ticket)) AS mapped,
+   (SELECT COUNT(*) FROM orders o CROSS JOIN i WHERE o.customer_id=i.customer AND o.status NOT IN ('cancelled','completed')) AS active,
+   (SELECT COUNT(*) FROM ticket_closure_fences f CROSS JOIN i WHERE f.guild_id=i.guild AND (f.channel_id=i.channel OR f.ticket_id=i.ticket OR (f.customer_id=i.customer AND f.closed_at IS NULL))) AS fences
+  `).bind(guild,b.customer_id,b.channel_id,b.ticket_id).first();
+  if(!row||Object.values(row).some(v=>!Number.isSafeInteger(v)||v<0))return err('Pemeriksaan recovery tidak valid.',503);
+  return json({ok:true,read_only:true,...row,eligible:row.cancelled>0&&row.cancelled===row.mapped&&row.active===0&&row.fences===0});
+ }
  if(b?.action==='message-status'){
   if(!snow(b.customer_id)||!snow(b.channel_id)||typeof b.ticket_id!=='string'||!/^[a-zA-Z0-9_-]{1,80}$/.test(b.ticket_id))return err('Identitas tiket tidak valid.',400);
   // Only acknowledged canonical web messages, never arbitrary orders or legacy tickets.
