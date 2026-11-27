@@ -116,6 +116,15 @@ function setupMarketplaceAccount(){
  refreshAccount();
 }
 setupMarketplaceAccount();
+if(menu&&marketplaceAccountOrigin(location.origin)){
+ const mobileNav=document.createElement('nav');mobileNav.className='marketplace-mobile-nav';mobileNav.setAttribute('aria-label','Navigasi belanja cepat');
+ for(const [label,href] of [['Beranda','/'],['Layanan','/layanan.html'],['Keranjang','/keranjang.html'],['Pesanan','/portal.html?view=orders'],['Akun','/portal.html?view=account']]){
+  const a=document.createElement('a');a.href=href;a.textContent=label;if(new URL(a.href).pathname===location.pathname&& !a.search)a.setAttribute('aria-current','page');mobileNav.append(a);
+ }
+ document.body.append(mobileNav);document.body.classList.add('marketplace-mobile-ready');
+}
+addEventListener('pageshow',e=>{if(e.persisted){basket=savedBasket(readStore('nexoraid-basket',[]),services);updateBasketNav();renderBasket();}});
+
 
 const motionButton = $('#motionToggle');
 let motionPaused = false;
@@ -441,11 +450,13 @@ $('#faqSearch')?.addEventListener('input', () => {
 });
 reveal();
 
-function openMarketplaceCheckout(rows){
+function openMarketplaceCheckout(rows,{fromBasket=false}={}){
  if(!catalogue.live){showToast('Katalog aktif belum tersedia. Muat ulang sebelum checkout.');return;}
  if(!rows.length||rows.length>5||basketHasUnavailable(rows,services)||rows.some(r=>!Number.isInteger(r.quantity)||r.quantity<1||r.quantity>99||!services.some(s=>s.id===r.id&&s.orderable!==false&&!stockBlocked(s)))){showToast('Pilih 1–5 layanan berbeda yang tersedia sebelum checkout.');return;}
  const url=new URL('https://nexoraid-v4.nexoraid.workers.dev/portal.html');
  // Only public catalog IDs and quantities cross origins; never send notes, prices or credentials.
+ url.searchParams.set('view','shop');
+ if(fromBasket&&marketplaceAccountOrigin(location.origin))url.searchParams.set('from','basket');
  url.hash='cart='+encodeURIComponent(JSON.stringify(rows.map(r=>({service_id:r.id,quantity:r.quantity}))));
  location.assign(url.href);
 }
@@ -461,7 +472,7 @@ document.addEventListener('click',event=>{
  if(rem){basket=basket.filter(r=>r.id!==rem.dataset.removeBasket);saveStore('nexoraid-basket',basket);updateBasketNav();renderBasket();}
 });
 $('#basketItems')?.addEventListener('change',event=>{const id=event.target.dataset.quantity;if(!id)return;const row=basket.find(r=>r.id===id);if(!row)return;const value=Number(event.target.value);row.quantity=Number.isInteger(value)?Math.max(1,Math.min(99,value)):1;saveStore('nexoraid-basket',basket);updateBasketNav();renderBasket();});
-$('#basketCheckout')?.addEventListener('click',()=>openMarketplaceCheckout(basket));
+$('#basketCheckout')?.addEventListener('click',()=>openMarketplaceCheckout(basket,{fromBasket:true}));
 $('#basketClear')?.addEventListener('click',()=>{basket=[];saveStore('nexoraid-basket',basket);updateBasketNav();renderBasket();});
 $('#favoritesClear')?.addEventListener('click',()=>{favorites=[];saveStore('nexoraid-favorites',favorites);updateFavorites();showToast('Favorit dihapus.');});
 $('#basketForm')?.addEventListener('submit',event=>{event.preventDefault();if(basketHasUnavailable(basket,services)){showToast('Stok rental belum tersedia. Hapus layanan tersebut atau muat ulang katalog.');return;}if(basket.length)copyText(basketText(basket,services,$('#basketNote').value),'Ringkasan disalin. Tempelkan di tiket Discord.');});
