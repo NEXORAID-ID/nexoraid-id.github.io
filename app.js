@@ -4,6 +4,8 @@ import { categories, escapeHTML as esc, queryCatalog, orderText, fixedPriceValue
 
 const catalogue=await getLiveCatalog(baselineServices,location);
 const services=catalogue.services;
+const stockLabel=s=>s.availability==='sold_out'?'Stok habis':s.availability==='unconfigured'?'Stok belum dikonfirmasi':s.availability==='available'?'Stok tersedia saat diperiksa':'';
+const stockBlocked=s=>['sold_out','unconfigured'].includes(s.availability);
 if(catalogue.production){const notice=document.createElement('p');notice.className='catalog-source-notice';notice.textContent=catalogue.live?'Katalog aktif terhubung ke NEXORAID V4. Harga akhir mengikuti tagihan portal.':'Katalog cadangan: harga dan ketersediaan belum tersinkron. Konfirmasi melalui portal sebelum membayar.';document.querySelector('main')?.prepend(notice);}
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -18,7 +20,7 @@ let basket = safeBasket(readStore('nexoraid-basket',[]), services);
 const basketNav=$('#basketNav');
 function updateBasketNav(){if(basketNav)basketNav.textContent='Keranjang ('+basket.reduce((n,r)=>n+r.quantity,0)+')';}
 function updateFavorites(){ $$('[data-favorite]').forEach(b=>{const selected=favorites.includes(b.dataset.favorite);b.setAttribute('aria-pressed',String(selected));b.textContent=selected?'♥ Tersimpan':'♡ Favorit';}); }
-function addBasket(id,quantity=1){if(!services.some(s=>s.id===id&&s.orderable!==false)||!Number.isInteger(quantity)||quantity<1||quantity>99)return;const row=basket.find(s=>s.id===id);if(row){if(row.quantity+quantity>99){showToast('Jumlah maksimal 99.');return;}row.quantity+=quantity;}else{if(basket.length>=50){showToast('Keranjang sudah penuh.');return;}basket.push({id,quantity});}const saved=saveStore('nexoraid-basket',basket);updateBasketNav();renderBasket();showToast(saved?'Ditambahkan ke keranjang.':'Ditambahkan untuk sesi halaman ini; penyimpanan browser tidak tersedia.');}
+function addBasket(id,quantity=1){if(!services.some(s=>s.id===id&&s.orderable!==false&&!stockBlocked(s))||!Number.isInteger(quantity)||quantity<1||quantity>99)return;const row=basket.find(s=>s.id===id);if(row){if(row.quantity+quantity>99){showToast('Jumlah maksimal 99.');return;}row.quantity+=quantity;}else{if(basket.length>=50){showToast('Keranjang sudah penuh.');return;}basket.push({id,quantity});}const saved=saveStore('nexoraid-basket',basket);updateBasketNav();renderBasket();showToast(saved?'Ditambahkan ke keranjang.':'Ditambahkan untuk sesi halaman ini; penyimpanan browser tidak tersedia.');}
 updateBasketNav();
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const icons = {
@@ -35,9 +37,9 @@ function serviceCard(service, index = 0, compareEnabled = false) {
   return `<article class="service-card reveal" style="--delay:${index % 3 * 60}ms">
     <div class="service-top"><div class="service-icon">${icon(service.category)}</div><span class="service-badge">${esc(categories[service.category])}</span></div>
     <h3><a href="${serviceHref(service.id)}">${esc(service.name)}</a></h3><p>${esc(service.desc)}</p>
-    <div class="service-price"><small>${service.price === 'Sesuai Request' ? 'Harga sesuai kebutuhan' : 'Harga layanan'}</small><strong>${esc(service.price)}</strong></div>
-    <div class="service-actions"><a class="text-link" href="${serviceHref(service.id)}" aria-label="Lihat detail ${esc(service.name)}">Lihat detail ↗</a>${service.orderable===false?'':`<a class="btn btn-primary btn-sm" href="${serviceHref(service.id)}#pesan" aria-label="Pesan ${esc(service.name)}">Pesan ↗</a>`}</div>
-    <div class="card-tools"><button type="button" class="compare-add" data-favorite="${esc(service.id)}" aria-pressed="${favorites.includes(service.id)}">${favorites.includes(service.id)?'♥ Tersimpan':'♡ Favorit'}</button>${service.orderable===false?'':`<button type="button" class="compare-add" data-basket="${esc(service.id)}">+ Keranjang</button>`}</div>${compareEnabled ? `<button type="button" class="compare-add" data-compare="${esc(service.id)}" aria-pressed="false">+ Bandingkan</button>` : ''}</article>`;
+    <div class="service-price"><small>${service.price === 'Sesuai Request' ? 'Harga sesuai kebutuhan' : 'Harga layanan'}</small><strong>${esc(service.price)}</strong>${stockLabel(service)?`<small>${esc(stockLabel(service))}</small>`:''}</div>
+    <div class="service-actions"><a class="text-link" href="${serviceHref(service.id)}" aria-label="Lihat detail ${esc(service.name)}">Lihat detail ↗</a>${service.orderable===false||stockBlocked(service)?'':`<a class="btn btn-primary btn-sm" href="${serviceHref(service.id)}#pesan" aria-label="Pesan ${esc(service.name)}">Pesan ↗</a>`}</div>
+    <div class="card-tools"><button type="button" class="compare-add" data-favorite="${esc(service.id)}" aria-pressed="${favorites.includes(service.id)}">${favorites.includes(service.id)?'♥ Tersimpan':'♡ Favorit'}</button>${service.orderable===false||stockBlocked(service)?'':`<button type="button" class="compare-add" data-basket="${esc(service.id)}">+ Keranjang</button>`}</div>${compareEnabled ? `<button type="button" class="compare-add" data-compare="${esc(service.id)}" aria-pressed="false">+ Bandingkan</button>` : ''}</article>`;
 }
 
 // Progressive enhancement: content remains visible without JavaScript.
@@ -346,8 +348,8 @@ if (detail) {
   } else {
     document.title = `${service.name} — NEXORAID`;
     $('meta[name="description"]').content = `${service.desc} Harga: ${service.price}. Pemesanan melalui tiket Discord NEXORAID.`;
-    if(service.orderable===false){
-      detail.innerHTML=`<h1>${esc(service.name)}</h1><p class="lead">${esc(service.desc)}</p><strong>${esc(service.price)}</strong><section class="detail-spec"><h2>Informasi</h2><dl class="spec-list">${service.details.map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl></section>${service.download_url?`<a class="btn btn-primary" href="${esc(service.download_url)}" target="_blank" rel="noopener noreferrer">Lihat rilis resmi ↗</a>`:''}<p><a href="layanan.html">Kembali ke katalog</a></p>`;
+    if(service.orderable===false||stockBlocked(service)){
+      detail.innerHTML=`<h1>${esc(service.name)}</h1><p class="lead">${esc(service.desc)}</p><strong>${esc(service.price)}</strong>${stockLabel(service)?`<p>${esc(stockLabel(service))}. Pesanan rental belum tersedia.</p>`:''}<section class="detail-spec"><h2>Informasi</h2><dl class="spec-list">${service.details.map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl></section>${service.download_url?`<a class="btn btn-primary" href="${esc(service.download_url)}" target="_blank" rel="noopener noreferrer">Lihat rilis resmi ↗</a>`:''}<p><a href="layanan.html">Kembali ke katalog</a></p>`;
     } else {
     const serviceURL = new URL(serviceHref(service.id), location.href).href;
     const policy=service.policy,promo=policy?.promo;
