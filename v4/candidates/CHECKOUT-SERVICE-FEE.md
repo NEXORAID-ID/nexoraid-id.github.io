@@ -12,3 +12,5 @@ Integration requirements:
 
 ## Candidate integration increment
 An explicitly enabled synthetic environment (`CHECKOUT_FEE_PREVIEW=true`) now returns `checkout_pricing` from both cart and single-order create/replay paths based on persisted group snapshots. Legacy rows have zero fee. Response status is `estimate_only`; no invoice or payment changes. The default production path has no new field and no snapshot lookup. A real checkout lifecycle test uses the current migrations and separately applies the provisional SQL in memory. Do not enable preview in production or treat it as a collected charge.
+
+Preview fails closed before any new order is written if either the snapshot table or its trigger is absent. Regression verifies both missing-schema scenarios do not create checkout groups.

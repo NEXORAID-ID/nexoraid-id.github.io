@@ -53,8 +53,15 @@ test('real checkout transaction and replay expose only opt-in persisted group fe
   const items=[{service_id:'optiwindows',quantity:1}];
   const call=(key,items,single=false)=>createCheckout({env,user,items,key,single});
   const old=await call('legacy-checkout-0001',items,true);assert.equal(old.status,201);assert.equal((await old.json()).checkout_pricing,undefined);
-  db.exec(await readFile(new URL('../v4/candidates/checkout-service-fee.sql',import.meta.url),'utf8'));
   env.CHECKOUT_FEE_PREVIEW='true';
+  const blocked=await call('blocked-checkout-001',items,true);
+  assert.equal(blocked.status,503);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM checkout_groups').get().n,1);
+  db.exec(await readFile(new URL('../v4/candidates/checkout-service-fee.sql',import.meta.url),'utf8'));
+  db.exec('DROP TRIGGER checkout_service_fee_snapshot');
+  assert.equal((await call('blocked-checkout-002',items,true)).status,503);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM checkout_groups').get().n,1);
+  db.exec('CREATE TRIGGER checkout_service_fee_snapshot AFTER INSERT ON checkout_groups BEGIN INSERT INTO checkout_service_fees VALUES(NEW.id,500,NEW.created_at); END;');
   const historic=await (await call('legacy-checkout-0001',items,true)).json();
   assert.equal(historic.checkout_pricing.service_fee,0);assert.equal(historic.checkout_pricing.fee_snapshot_present,false);
   const res=await call('new-fee-checkout-001',items,true);assert.equal(res.status,201);

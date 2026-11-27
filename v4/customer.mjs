@@ -22,6 +22,15 @@ export async function createCheckout({env,user,items,key,single=false}){
  const signature=JSON.stringify(items),legacyId=await legacyOrderId(user.id,key);
  // Candidate-only preview. Never expose this as a payable invoice.
  const preview=env.CHECKOUT_FEE_PREVIEW==='true';
+ // Do not commit an order if preview is requested against an unmigrated
+ // database: a post-commit lookup failure would make the result ambiguous.
+ if(preview){
+  try{
+   const schema=await db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='checkout_service_fees'").first();
+   const trigger=await db.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name='checkout_service_fee_snapshot'").first();
+   if(schema?.name!=='checkout_service_fees'||trigger?.name!=='checkout_service_fee_snapshot')return err('Estimasi biaya layanan belum siap.',503);
+  }catch{return err('Estimasi biaya layanan belum siap.',503);}
+ }
  const response=async(id,rows,replayed,legacy=false)=>{
   let pricing={};
   if(preview){
