@@ -89,6 +89,33 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  const endpoint='/api/orders/'+order.id;
  let p=await open('worker');await submit(p,p.getByRole('button',{name:'Ambil pesanan',exact:true}),endpoint+'/claim');
  assert.equal(db.prepare('SELECT assigned_to FROM orders WHERE id=?').get(order.id).assigned_to,ids.worker);
+ // Actual Worker/SQLite-backed calendar: create and update a deadline from the UI, then verify every role.
+ const planPath='/api/collaboration/orders/'+order.id+'/plan';
+ const wibInput=seconds=>new Date(seconds*1000+25200000).toISOString().slice(0,16);
+ const baseSeconds=Math.floor(Date.now()/60000)*60;
+ const firstDue=baseSeconds+3600,updatedDue=baseSeconds+7200,planMonth=wibInput(updatedDue).slice(0,7);
+ p=await open('management');let planForm=p.locator('form').filter({has:p.getByRole('heading',{name:'Atur tenggat',exact:true})});
+ await planForm.getByLabel('Prioritas').selectOption('high');await planForm.getByLabel('Tanggal dan jam WIB').fill(wibInput(firstDue));await submit(p,planForm.getByRole('button',{name:'Simpan'}),planPath);
+ assert.equal(db.prepare('SELECT due_at FROM order_plans WHERE order_id=?').get(order.id).due_at,firstDue);
+ p=await open('owner');planForm=p.locator('form').filter({has:p.getByRole('heading',{name:'Atur tenggat',exact:true})});
+ await planForm.getByLabel('Prioritas').selectOption('urgent');await planForm.getByLabel('Tanggal dan jam WIB').fill(wibInput(updatedDue));await submit(p,planForm.getByRole('button',{name:'Simpan'}),planPath);
+ assert.deepEqual({...db.prepare('SELECT priority,due_at FROM order_plans WHERE order_id=?').get(order.id)},{priority:'urgent',due_at:updatedDue});
+ for(const role of ['owner','management','worker','customer','seller']){
+  const response=await api(role,'/api/collaboration/calendar?month='+planMonth);assert.equal(response.status,200);
+  const {items}=await response.json();assert.equal(items.some(x=>x.id===order.id),role!=='seller');
+  const search=await api(role,'/api/orders?q='+encodeURIComponent(order.id));assert.equal(search.status,200);
+  assert.equal((await search.json()).orders.some(x=>x.id===order.id),role!=='seller');
+  const rp=pages[role];if(await rp.locator('#orderDialog').isVisible())await rp.locator('#closeDetail').click();
+  await rp.locator('[data-view="calendar"]').click();await rp.locator('#calendarMonth').fill(planMonth);
+  if(role==='seller')await rp.locator('#calendarBody').getByText('Tidak ada tenggat pada bulan ini.').waitFor();
+  else await rp.locator('#calendarBody article').filter({hasText:'Mendesak'}).waitFor();
+ }
+ for(const role of ['worker','customer','seller']){
+  const denied=await api(role,planPath,{priority:'normal',due_at:updatedDue+60});assert.ok([403,404].includes(denied.status),role+' must not edit deadline');
+ }
+ assert.equal(db.prepare('SELECT due_at FROM order_plans WHERE order_id=?').get(order.id).due_at,updatedDue);
+ console.log('Calendar acceptance passed: actual plan create/update, WIB, five-role scope and search, forbidden edits.');
+
  p=await open('management');let form=p.locator('form').filter({has:p.getByRole('heading',{name:'Tetapkan tagihan',exact:true})});await form.getByLabel('Nominal rupiah').fill('150000');await submit(p,form.getByRole('button',{name:'Simpan'}),endpoint+'/quote');
  p=await open('management');await submit(p,p.getByRole('button',{name:'Konfirmasi pesanan',exact:true}),endpoint+'/status');
  p=await open('customer');assert.ok(await p.locator('.qris-payment').isVisible());
@@ -102,6 +129,20 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  const settlement=db.prepare('SELECT worker_share,owner_share,gross FROM order_settlements WHERE order_id=?').get(order.id);
  assert.equal(settlement.gross,150000);assert.equal(settlement.worker_share,10000);assert.equal(settlement.owner_share,140000);
  assert.equal(db.prepare('SELECT status FROM orders WHERE id=?').get(order.id).status,'completed');
+ const reportMonth=wibInput(Math.floor(Date.now()/1000)).slice(0,7);
+ const ownerReport=await api('owner','/api/workspace/report?month='+reportMonth);assert.equal(ownerReport.status,200);const report=await ownerReport.json();assert.equal(report.finance.gross,150000);
+ const managerReport=await api('management','/api/workspace/report?month='+reportMonth);assert.equal(managerReport.status,200);assert.equal(Object.hasOwn(await managerReport.json(),'finance'),false);
+ for(const role of ['worker','customer','seller'])assert.equal((await api(role,'/api/workspace/report?month='+reportMonth)).status,403);
+ const op=pages.owner;if(await op.locator('#orderDialog').isVisible())await op.locator('#closeDetail').click();
+ await op.locator('[data-view="report"]').click();await op.locator('#reportMonth').fill(reportMonth);
+ await op.locator('#reportBody').getByText('Omzet pesanan selesai dengan pembagian pendapatan: Rp150.000',{exact:true}).waitFor();
+ const download=op.waitForEvent('download');await op.getByRole('button',{name:'Unduh Excel (.xlsx)'}).click();const file=await download;const workbook=await readFile(await file.path());assert.ok(workbook.includes(Buffer.from('<v>150000</v>')));
+ await op.evaluate(()=>{window.print=()=>{window.__reportMarkup=document.querySelector('.print-invoice').outerHTML;window.__reportText=document.querySelector('.print-invoice').textContent;};});await op.getByRole('button',{name:'Cetak / simpan PDF'}).click();
+ assert.match(await op.evaluate(()=>window.__reportText),/150000/);
+ await op.evaluate(()=>{const template=document.createElement('template');template.innerHTML=window.__reportMarkup;document.body.append(template.content);});
+ const pdf=await op.pdf({format:'A4'});assert.equal(pdf.subarray(0,5).toString(),'%PDF-');await op.locator('.print-invoice').evaluate(el=>el.remove());
+ console.log('Report acceptance passed: real isolated settlement totals, owner-only finance and XLSX/PDF export.');
+
  const closure=await queue({action:'closure-status',customer_id:id,channel_id:'666666666666666666',ticket_id:'0001'});assert.equal(closure.status,200);assert.equal((await closure.json()).eligible,true);
  p=pages.seller;await p.locator('#service').selectOption('optiwindows');await p.locator('#request button').click();await p.waitForFunction(()=>document.querySelector('#status')?.textContent.startsWith('Permintaan tercatat:'));
  assert.equal(db.prepare('SELECT COUNT(*) n FROM orders WHERE customer_id=?').get(ids.seller).n,1);

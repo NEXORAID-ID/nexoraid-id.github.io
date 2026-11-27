@@ -21,3 +21,6 @@ export function createPortalApi({isExpired,expiredError,hasUser,expireSession,is
   return j;
  };
 }
+
+// A monotonically increasing ticket prevents A→B→A responses from overwriting a newer view.
+export function latestRequest(){let sequence=0;return ()=>{const ticket=++sequence;return ()=>ticket===sequence;};}
