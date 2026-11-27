@@ -17,3 +17,5 @@ Preview fails closed before any new order is written if either the snapshot tabl
 
 ## Integrated finance candidate PR #57
 The preview and its isolated tests now also run against the reconciled finance and ticket-closure schema 23. The existing ticket closure checkout fence is retained. The provisional SQL remains outside active migrations; the preview flag is not configured by production deployment. No actual fee collection, allocation or refund policy is activated.
+
+The isolated workerd/D1 checkout fixture now also applies the provisional fee schema exclusively to its temporary local state. It checks website/cart/bot parity, concurrent replay, payload conflict, post-promo fee, rollback, quota and absence of payable invoices (19 checks total). It does not alter the production migration inventory.
