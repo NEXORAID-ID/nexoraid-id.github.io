@@ -24,6 +24,7 @@ echo "Node: $(node --version)"
 [[ "$(git branch --show-current)" == main ]] || { echo 'Gunakan branch main.' >&2; exit 1; }
 [[ -z "$(git status --porcelain --untracked-files=no)" ]] || { echo 'Ada perubahan lokal; simpan dahulu.' >&2; exit 1; }
 export WRANGLER_SEND_METRICS=false
+export RELEASE_SHA="$(git rev-parse HEAD)"
 wr() { npx --yes wrangler@4.168.0 "$@"; }
 ask() { local dest="$1" prompt="$2" value; local default="${!dest:-}"; if [[ -n "$default" ]]; then read -r -p "$prompt [$default]: " value; else read -r -p "$prompt: " value; fi; printf -v "$dest" '%s' "${value:-$default}"; }
 echo 'NEXORAID V4 — setup Cloudflare (staging dahulu).'
