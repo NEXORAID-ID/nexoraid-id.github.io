@@ -61,7 +61,7 @@ def snapshot(db):
                         for row in db.execute("SELECT id,bytes FROM order_attachments ORDER BY id")},
     }
 
-def verify(sql, expected=None):
+def verify(sql, expected=None, migrations=None):
     with tempfile.TemporaryDirectory(prefix="nexoraid-restore-") as tmp:
         db = sqlite3.connect(pathlib.Path(tmp) / "restore.sqlite")
         try:
@@ -86,6 +86,26 @@ def verify(sql, expected=None):
                 raise ValueError("Session metadata cleanup failed")
             if snapshot(db) != summary:
                 raise ValueError("Session cleanup changed business records")
+            if migrations is not None:
+                if expected is None or not migrations:
+                    raise ValueError("Upgrade rehearsal requires source snapshot and pending migrations")
+                for migration in migrations:
+                    db.executescript(migration)
+                if db.execute("PRAGMA integrity_check").fetchall() != [("ok",)]:
+                    raise ValueError("Upgraded integrity check failed")
+                if db.execute("PRAGMA foreign_key_check").fetchone():
+                    raise ValueError("Upgraded foreign-key check failed")
+                upgraded = snapshot(db)
+                if upgraded["attachments"] != summary["attachments"]:
+                    raise ValueError("Upgrade changed attachments")
+                for section in ("counts", "totals"):
+                    before, after = summary[section], upgraded[section]
+                    if any(k not in after or after[k] != value for k, value in before.items()):
+                        raise ValueError("Upgrade changed baseline inventory or totals")
+                    if any(after[k] != 0 for k in after.keys() - before.keys()):
+                        raise ValueError("Upgrade introduced unexpected business records")
+                if db.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] or db.execute("SELECT COUNT(*) FROM session_metadata").fetchone()[0]:
+                    raise ValueError("Upgrade recreated copied sessions")
             return summary["counts"]
         finally:
             db.close()
