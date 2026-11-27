@@ -144,7 +144,7 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  console.log('Report acceptance passed: real isolated settlement totals, owner-only finance and XLSX/PDF export.');
 
  const closure=await queue({action:'closure-status',customer_id:id,channel_id:'666666666666666666',ticket_id:'0001'});assert.equal(closure.status,200);assert.equal((await closure.json()).eligible,true);
- p=pages.seller;await p.locator('#service').selectOption('optiwindows');await p.locator('#request button').click();await p.waitForFunction(()=>document.querySelector('#status')?.textContent.startsWith('Permintaan tercatat:'));
+ p=pages.seller;await p.locator('[data-view="orders"]').click();await p.locator('#service').selectOption('optiwindows');await p.locator('#request button').click();await p.waitForFunction(()=>document.querySelector('#status')?.textContent.startsWith('Permintaan tercatat:'));
  assert.equal(db.prepare('SELECT COUNT(*) n FROM orders WHERE customer_id=?').get(ids.seller).n,1);
  assert.equal((await (await api('seller','/api/orders')).json()).orders.length,1);
  assert.equal((await (await api('customer','/api/orders')).json()).orders.length,1);
