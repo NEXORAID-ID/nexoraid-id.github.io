@@ -1,4 +1,4 @@
-import {createNavigator,createPortalApi,latestRequest,shouldClearPendingCheckout,validateCheckoutReceipt,checkoutPricingPreview,parseStorefrontCart,storefrontView} from './portal-core.mjs';
+import {createNavigator,createPortalApi,latestRequest,shouldClearPendingCheckout,validateCheckoutReceipt,checkoutPricingPreview,parseStorefrontCart,storefrontView,sameStorefrontCart} from './portal-core.mjs';
 import {exportRows,exportXlsx,searchKey,searchCatalog,deadlineLabel,createToast,loading,finishLoading,showLoadError,createViewData,node,createControls,supportKindLabel,expenseCategoryLabel} from './portal-ui.mjs';
 const $=id=>document.getElementById(id);
 let user,catalog=[],catalogById=new Map(),orders=[],summary={},cursor=null,teamCursor=null,financeCursor=null,auditCursor=null,detailId=null,serial=0,detailSerial=0,requestKey=null;
@@ -202,7 +202,7 @@ function importStorefrontCart(){
  if(cartKey||requestKey){status(pendingMessage,true);return true;}
  if(incoming.some(x=>{const s=catalogById.get(x.service_id);return !s||s.orderable===false||rentalBlocked(s);})){status('Sebagian pilihan katalog tidak lagi tersedia. Kembali ke katalog untuk memilih ulang.',true);sessionStorage.removeItem(handoffKey);return true;}
  const names=incoming.map(x=>(catalogById.get(x.service_id)?.name||x.service_id)+' × '+x.quantity).join(', ');
- if(!confirm((cart.length?'Ganti isi keranjang portal dengan pilihan dari katalog? ':'Masukkan pilihan dari katalog ke keranjang akun ini? ')+names)){sessionStorage.removeItem(handoffKey);return true;}
+ if(cart.length&&!sameStorefrontCart(cart,incoming)&&!confirm('Ganti isi keranjang portal dengan pilihan dari katalog? '+names)){sessionStorage.removeItem(handoffKey);return true;}
  const previous=cart;cart=incoming;
  try{saveCheckoutDraft();sessionStorage.removeItem(handoffKey);}catch{cart=previous;status('Keranjang tidak dapat disimpan. Aktifkan penyimpanan browser dan coba lagi.',true);}
  return true;
@@ -220,23 +220,26 @@ function restoreDraft(){
   if(typeof d.requestKey?.signature==='string'&&typeof d.requestKey?.id==='string'&&/^[a-zA-Z0-9_-]{16,80}$/.test(d.requestKey.id))requestKey=d.requestKey;
  }catch{}
 }
-async function shopView(){const host=$('shopBody');const d=await viewData(host,()=>api('customer/saved'),()=>shopView()),saved=new Set(d.saved);
+async function shopView(){const host=$('shopBody');host.replaceChildren();
  const add=id=>{assertNoPendingCart();if(!catalog.some(s=>s.id===id&&s.orderable!==false&&!rentalBlocked(s)))throw Error('Layanan tidak dapat dipesan.');if(cart.some(x=>x.service_id===id)||cart.length>=5)throw Error('Maksimal lima layanan unik.');cart.push({service_id:id,quantity:1});cartKey=null;persistDraft();return shopView();};
- fields(host,'Tambah layanan',[{key:'service_id',label:'Layanan',options:catalog.filter(s=>s.orderable!==false&&!rentalBlocked(s)).map(s=>[s.id,s.name+' — '+s.price])}],b=>add(b.service_id));
- const section=node('section','','timeline');section.append(node('h3','Isi keranjang'));if(cartKey||requestKey)section.append(node('p',pendingMessage,'action-error'));let total=0,unknown=0;
+
+ const section=node('section','','timeline checkout-review');section.append(node('h3','Isi keranjang'),node('p','1. Tinjau layanan dan jumlah. 2. Buat pesanan. 3. Bayar setelah tagihan tersedia.','checkout-steps'));if(cartKey||requestKey)section.append(node('p',pendingMessage,'action-error'));let total=0,unknown=0;
  for(const item of cart){const s=catalogById.get(item.service_id),a=node('article','');a.append(node('strong',s?.name||item.service_id),node('p',s?.price||'Tidak tersedia'));if(rentalLabel(s))a.append(node('p',rentalLabel(s)));const p=s?.policy?.promo,n=s?.base_unit_amount,at=Math.floor(Date.now()/1000),pct=p&&(p.legacy||p.start<=at&&at<p.end&&item.quantity>=p.min_quantity)?p.percent:0,unit=Number.isSafeInteger(n)?Math.max(1,Math.floor(n*(100-pct)/100)):s?.unit_amount;if(unit!=null)total+=unit*item.quantity;else unknown++;const label=node('label','Jumlah');const input=document.createElement('input');input.type='number';input.min=1;input.max=99;input.value=item.quantity;input.disabled=Boolean(cartKey);input.onchange=()=>{if(cartKey||checkoutBusy){input.value=item.quantity;return;}const n=Number(input.value);item.quantity=Number.isInteger(n)?Math.max(1,Math.min(99,n)):1;cartKey=null;persistDraft();shopView().catch(e=>status(e.message,true));};label.append(input);a.append(label);button(a,'Hapus',()=>{assertNoPendingCart();cart=cart.filter(x=>x!==item);persistDraft();return shopView();}).disabled=Boolean(cartKey);section.append(a);}
  if(!cart.length)section.append(node('p','Keranjang masih kosong.','empty'));
- section.append(node('p','Estimasi: '+money(total)+' · '+unknown+' perlu penawaran.'));
- if(cart.length)button(section,cartKey?'Ulangi pengiriman pesanan':'Ajukan semua pesanan',async()=>{
+ section.append(node('p','Estimasi: '+money(total)+' · '+unknown+' perlu penawaran.','checkout-total'),node('p','Harga dan stok diperiksa ulang saat pesanan dibuat. Jangan transfer sebelum tagihan resmi tersedia.'));
+ if(cart.length)button(section,cartKey?'Ulangi pengiriman pesanan':'Buat pesanan',async()=>{
   if(requestKey||checkoutBusy)throw Error(pendingMessage);
-  if(!confirm(cartKey?'Ulangi pengiriman keranjang yang sama?':'Buat '+cart.length+' pesanan terpisah?'))return;
+  if(cartKey&&!confirm('Ulangi pengiriman keranjang yang sama?'))return;
   const retry=Boolean(cartKey);cartKey??=crypto.randomUUID();const submitting=cartKey;
   checkoutBusy=true;let sent=false;
-  try{saveCheckoutDraft();sent=true;const result=validateCheckoutReceipt(await api('customer/checkout',{request_id:submitting,items:cart}),cart);cart=[];cartKey=null;persistDraft();await load();await view('orders');status(result.orders.length+' pesanan berhasil tercatat.'+checkoutPricingPreview(result.checkout_pricing));}
+  try{saveCheckoutDraft();sent=true;const result=validateCheckoutReceipt(await api('customer/checkout',{request_id:submitting,items:cart}),cart);cart=[];cartKey=null;persistDraft();await load();await view('orders');status(result.orders.length+' pesanan berhasil tercatat. Buka detail untuk melihat status dan tagihan.'+checkoutPricingPreview(result.checkout_pricing));}
   catch(e){if(shouldClearPendingCheckout({sent,retry,error:e})){cartKey=null;persistDraft();}else if(cartKey)status(pendingMessage,true);throw e;}
   finally{checkoutBusy=false;if(!$('shopView').hidden)await shopView().catch(()=>{});}
- });host.append(section);host.append(node('h3','Favorit akun'));
- for(const s of catalog){const a=node('article','');a.append(node('strong',s.name),node('p',s.price));if(rentalLabel(s))a.append(node('p',rentalLabel(s)));button(a,saved.has(s.id)?'Hapus favorit':'Simpan favorit',async()=>{await api('customer/saved',{service_id:s.id,saved:!saved.has(s.id)});await shopView();});if(saved.has(s.id)&&s.orderable!==false&&!rentalBlocked(s))button(a,'Masukkan keranjang',()=>add(s.id));host.append(a);}
+ });host.append(section);
+ fields(host,'Tambah layanan',[{key:'service_id',label:'Layanan',options:catalog.filter(s=>s.orderable!==false&&!rentalBlocked(s)).map(s=>[s.id,s.name+' — '+s.price])}],b=>add(b.service_id));
+ const favorites=node('section','','checkout-favorites');favorites.append(node('h3','Favorit akun'));host.append(favorites);
+ let saved;try{const d=await api('customer/saved');if(sessionInvalid||!favorites.isConnected)return;saved=new Set(d.saved);}catch(e){if(!sessionInvalid&&favorites.isConnected){favorites.append(node('p','Favorit sementara tidak tersedia. Checkout tetap dapat digunakan.'));button(favorites,'Muat ulang favorit',()=>shopView());}return;}
+ for(const s of catalog){const a=node('article','');a.append(node('strong',s.name),node('p',s.price));if(rentalLabel(s))a.append(node('p',rentalLabel(s)));button(a,saved.has(s.id)?'Hapus favorit':'Simpan favorit',async()=>{await api('customer/saved',{service_id:s.id,saved:!saved.has(s.id)});await shopView();});if(saved.has(s.id)&&s.orderable!==false&&!rentalBlocked(s))button(a,'Masukkan keranjang',()=>add(s.id));favorites.append(a);}
 }
 async function performanceView(){const host=$('performanceBody');const d=await viewData(host,()=>api('performance'),()=>performanceView());if(!d.items.length)host.append(node('p','Belum ada pekerjaan tercatat.'));for(const [idx,x] of d.items.entries()){const a=node('article','');a.append(node('strong',(d.scope==='team'?(idx+1)+'. ':'')+x.display_name),node('p',x.completed+' selesai · '+x.active+' aktif · '+x.overdue+' terlambat'),node('p',x.reviews?'Penilaian '+x.rating+'/5 dari '+x.reviews+' ulasan':'Belum ada ulasan'));host.append(a);}button(host,'Muat ulang kinerja',()=>performanceView());}
 const view=createNavigator({get:$,buttons:()=>document.querySelectorAll('[data-view]'),allowed:()=>!sessionInvalid&&Boolean(user),loaders:{performance:performanceView,shop:shopView,calendar:calendarView,business:businessView,notifications:()=>notifications(true),account:accountView,workspace:workspaceView,support:supportView,report:reportView,finance,audit,team}});

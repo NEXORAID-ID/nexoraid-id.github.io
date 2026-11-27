@@ -61,3 +61,6 @@ export function parseStorefrontCart(raw){
 
 // Only explicit public portal destinations are eligible for a storefront deep link.
 export function storefrontView(value){return ['orders','account','shop','notifications','support'].includes(value)?value:null;}
+
+// Compare by service and quantity, independent of display order; never merge quantities implicitly.
+export function sameStorefrontCart(a,b){return a.length===b.length&&a.every(x=>b.some(y=>y.service_id===x.service_id&&y.quantity===x.quantity));}
