@@ -74,7 +74,13 @@ export async function operations({p,m,url,user,env,readBody,r}){
  if(action==='finance'){
   if(m!=='GET')return err('Metode tidak diizinkan.',405);
   if(!over&&!owns&&!(assigned&&user.role==='worker'))return err('Order tidak ditemukan.',404);
-  return json({finance:{order_id:id,status:order.status,invoice_amount:order.invoice_amount,received_amount:order.received_amount,outstanding_amount:order.outstanding_amount,overpayment_due:order.overpayment_due,partial_refunded_amount:order.partial_refunded_amount,invoice_refunded_amount:order.refunded_amount,payment_state:order.payment_state}});
+  const finance={order_id:id,status:order.status,invoice_amount:order.invoice_amount,received_amount:order.received_amount,outstanding_amount:order.outstanding_amount,overpayment_due:order.overpayment_due,partial_refunded_amount:order.partial_refunded_amount,invoice_refunded_amount:order.refunded_amount,payment_state:order.payment_state};
+  if(feeTrialEnabled(env)&&order.invoice_amount!==null){
+   const c=await db.prepare('SELECT base_amount,service_fee,fee_received,fee_refunded FROM checkout_fee_ledger_components WHERE order_id=?').bind(id).first();
+   if(!c)return err('Komponen invoice belum tersedia.',503);
+   finance.checkout_fee={...c};
+  }
+  return json({finance});
  }
  if(!action&&m==='GET'){
   const visible=redact(order,user);
