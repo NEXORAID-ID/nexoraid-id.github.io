@@ -36,6 +36,29 @@ export default {async fetch(request,bindings){
   const remaining=await Promise.all(Array.from({length:5},(_,i)=>single('quota-runtime-000'+i)));
   eq(remaining.map(r=>r.status).sort().join(','),'201,201,201,429,429','concurrent quota');
   eq(await count('orders'),5,'rolling limit');
+  // Fresh synthetic customer: real D1 stock, promo, snapshots and public catalog parity.
+  const other='555555555555555555',otherToken='c'.repeat(72);
+  await db.batch([db.prepare('INSERT INTO users(id,display_name,created_at) VALUES(?,?,1)').bind(other,'CI rental customer'),db.prepare('INSERT INTO sessions VALUES(?,?,?)').bind(await hash(otherToken),other,Math.floor(Date.now()/1000)+600)]);
+  const order=(request_id,service_id,quantity=1)=>worker.fetch(new Request(origin+'/api/orders',{method:'POST',headers:{'content-type':'application/json',origin,cookie:'nexo_session='+otherToken},body:JSON.stringify({request_id,service_id,quantity})}),env);
+  const rental='cherax-rental-standard',catalog=async()=>((await (await worker.fetch(new Request(origin+'/api/catalog'),env)).json()).services.find(s=>s.id===rental));
+  eq((await catalog()).availability,'unconfigured','unconfigured stock public');
+  eq((await order('rental-unconfigured-01',rental)).status,409,'missing capacity rejected');
+  await db.prepare('INSERT INTO rental_capacity VALUES(?,?,?,?,?)').bind(rental,1,'CI only',owner,1).run();
+  eq((await catalog()).availability,'available','available stock public');
+  const at=Math.floor(Date.now()/1000);
+  await db.prepare('INSERT INTO service_policies(service_id,warranty_days,warranty_terms,promo_percent,promo_start,promo_end,promo_terms,promo_min_quantity,actor_id,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(rental,7,'CI warranty',10,at-60,at+3600,'CI promo',1,owner,at).run();
+  const attempts=await Promise.all([order('rental-concurrent-001',rental),order('rental-concurrent-002',rental)]);
+  eq(attempts.map(r=>r.status).sort().join(','),'201,409','one real stock reservation');
+  const winner=(await attempts.find(r=>r.status===201).json()).order;
+  eq(winner.estimate,198000,'scheduled rental price');
+  eq((await catalog()).availability,'sold_out','sold out stock public');
+  const snapshot=await db.prepare('SELECT warranty_days,promo_percent FROM order_policy_snapshots WHERE order_id=?').bind(winner.id).first();
+  eq(snapshot.warranty_days,7,'atomic warranty snapshot');eq(snapshot.promo_percent,10,'atomic promo snapshot');
+  await db.prepare("UPDATE service_policies SET promo_percent=0,warranty_days=30 WHERE service_id=?").bind(rental).run();
+  eq((await db.prepare('SELECT warranty_days FROM order_policy_snapshots WHERE order_id=?').bind(winner.id).first()).warranty_days,7,'historical warranty unchanged');
+  eq((await db.prepare('SELECT estimate FROM orders WHERE id=?').bind(winner.id).first()).estimate,198000,'historical price unchanged');
+  await db.prepare("UPDATE orders SET status='cancelled' WHERE id=?").bind(winner.id).run();
+  eq((await catalog()).availability,'available','released stock public');
   return Response.json({ok:true,checks});
  }catch(e){return Response.json({ok:false,checks,error:String(e.message).slice(0,400)},{status:500});}
 }};

@@ -71,4 +71,4 @@ jobs:
           if [ "$ready" != 1 ]; then cat "$scratch/worker.log"; exit 1; fi
           curl --silent --show-error --max-time 90 http://127.0.0.1:8791/run > "$scratch/result.json"
           cat "$scratch/result.json"
-          node -e 'const r=require(process.argv[1]);if(r.ok!==true||r.checks!==12)process.exit(1)' "$scratch/result.json"
+          node -e 'const r=require(process.argv[1]);if(r.ok!==true||r.checks!==23)process.exit(1)' "$scratch/result.json"
