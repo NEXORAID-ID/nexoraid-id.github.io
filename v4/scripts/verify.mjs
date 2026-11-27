@@ -1,6 +1,5 @@
-import {verifyProductionMigrations,verifyReleaseHealth} from './deployment-verification.mjs';
-const origin=process.env.PUBLIC_ORIGIN;
-if(!origin||!/^https:\/\/[a-z0-9.-]+$/i.test(origin))throw Error('PUBLIC_ORIGIN required');
+import {verifyProductionMigrations,verifyReleaseHealth,requireProductionOrigin} from './deployment-verification.mjs';
+const origin=requireProductionOrigin(process.env.PUBLIC_ORIGIN);
 async function check(path,validate,expected=200,headers={}){
  let last;
  for(let i=0;i<6;i++){
