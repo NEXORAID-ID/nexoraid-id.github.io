@@ -1,3 +1,5 @@
+import { ORDER_TRANSITION_SQL } from './order-transition.mjs';
+import { retentionReview } from './retention-review.mjs';
 import { services } from '../services-data.js';
 import { fixedPriceValue } from '../catalog.js';
 import { operations,listOrders } from './operations.mjs';
@@ -39,7 +41,7 @@ export function mayTransition(role,assigned,actor,from,to){
 async function session(r,env){
  const token=getCookie(r,'nexo_session');
  if(!/^[a-f0-9-]{72}$/.test(token))return null;
- const user=await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+' FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?').bind(await hash(token),now()).first();
+ const user=await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+' FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND NOT EXISTS(SELECT 1 FROM account_suspensions a WHERE a.user_id=u.id)').bind(await hash(token),now()).first();
  return user?{...user,role:roleFor(user,env)}:null;
 }
 async function body(r){
@@ -102,8 +104,8 @@ async function handle(r,env){
   return page.ok?new Response(page.body,{status:404,headers:page.headers}):asset;
  }
  if(p==='/api/health'&&m==='GET'){
-  let ready=false;try{if(env.DB){const check=await env.DB.prepare('SELECT (SELECT COUNT(*) FROM users WHERE 0)+(SELECT COUNT(*) FROM order_ticket_links WHERE 0)+(SELECT COUNT(*) FROM rejected_payment_claims WHERE 0)+(SELECT COUNT(*) FROM order_attachments WHERE 0)+(SELECT COUNT(*) FROM order_messages WHERE 0)+(SELECT COUNT(*) FROM order_plans WHERE 0)+(SELECT COUNT(*) FROM checkout_groups WHERE 0)+(SELECT COUNT(*) FROM session_metadata WHERE 0)+(SELECT COUNT(*) FROM completed_refunds WHERE 0)+(SELECT COUNT(*) FROM web_ticket_outbox WHERE 0)+(SELECT COUNT(*) FROM cash_opening WHERE 0)+(SELECT COUNT(*) FROM cash_movements WHERE 0)+(SELECT COUNT(*) FROM rental_reservations WHERE 0)+(SELECT COUNT(*) FROM investor_attestations WHERE 0)+(SELECT COUNT(*) FROM cash_period_closes WHERE 0)+(SELECT COUNT(*) FROM payout_approvals WHERE 0)+(SELECT COUNT(*) FROM order_receipts WHERE 0)+(SELECT COUNT(*) FROM receipt_refunds WHERE 0)+(SELECT COUNT(*) FROM all_order_settlements WHERE 0)+(SELECT COUNT(*) FROM seller_order_fees WHERE 0)+(SELECT COUNT(*) FROM order_cost_basis WHERE 0)+(SELECT COUNT(*) FROM investor_post_policies WHERE 0)+(SELECT COUNT(*) FROM investor_noncash_bonuses WHERE 0)+(SELECT COUNT(*) FROM ticket_closure_fences WHERE 0)+(SELECT COUNT(*) FROM service_policies WHERE 0)+(SELECT COUNT(*) FROM order_policy_snapshots WHERE 0) AS probe').first();const trigger=await env.DB.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='trigger' AND name IN ('web_ticket_order_insert','rental_capacity_required','variant_parent_guard','ticket_closure_checkout_fence','ticket_closure_no_relink','seller_fee_guard','payout_balance_guard','order_policy_snapshot','receipt_guard','receipt_apply','receipt_invoice_lock','receipt_refund_guard','receipt_no_update','receipt_no_delete','receipt_refund_no_update','receipt_refund_no_delete','payout_paid_requires_approval','cash_period_close_guard','investor_distribution_post_guard','seller_fee_before_complete')").first();ready=check?.probe===0&&trigger?.n===20;}}catch{}
-  return json({status:ready&&oauthReady(env)?'ok':'degraded',version:4,release:env.RELEASE_SHA||null,database_configured:Boolean(env.DB),database_ready:ready,login_configured:oauthReady(env),schema:ready?23:null,maintenance:env.MAINTENANCE_MODE==='true'},ready&&oauthReady(env)?200:503);
+  let ready=false;try{if(env.DB){const check=await env.DB.prepare('SELECT (SELECT COUNT(*) FROM users WHERE 0)+(SELECT COUNT(*) FROM order_ticket_links WHERE 0)+(SELECT COUNT(*) FROM rejected_payment_claims WHERE 0)+(SELECT COUNT(*) FROM order_attachments WHERE 0)+(SELECT COUNT(*) FROM order_messages WHERE 0)+(SELECT COUNT(*) FROM order_plans WHERE 0)+(SELECT COUNT(*) FROM checkout_groups WHERE 0)+(SELECT COUNT(*) FROM session_metadata WHERE 0)+(SELECT COUNT(*) FROM completed_refunds WHERE 0)+(SELECT COUNT(*) FROM web_ticket_outbox WHERE 0)+(SELECT COUNT(*) FROM cash_opening WHERE 0)+(SELECT COUNT(*) FROM cash_movements WHERE 0)+(SELECT COUNT(*) FROM rental_reservations WHERE 0)+(SELECT COUNT(*) FROM investor_attestations WHERE 0)+(SELECT COUNT(*) FROM cash_period_closes WHERE 0)+(SELECT COUNT(*) FROM payout_approvals WHERE 0)+(SELECT COUNT(*) FROM order_receipts WHERE 0)+(SELECT COUNT(*) FROM receipt_refunds WHERE 0)+(SELECT COUNT(*) FROM all_order_settlements WHERE 0)+(SELECT COUNT(*) FROM seller_order_fees WHERE 0)+(SELECT COUNT(*) FROM order_cost_basis WHERE 0)+(SELECT COUNT(*) FROM investor_post_policies WHERE 0)+(SELECT COUNT(*) FROM investor_noncash_bonuses WHERE 0)+(SELECT COUNT(*) FROM ticket_closure_fences WHERE 0)+(SELECT COUNT(*) FROM service_policies WHERE 0)+(SELECT COUNT(*) FROM order_policy_snapshots WHERE 0)+(SELECT COUNT(*) FROM account_suspensions WHERE 0) AS probe').first();const trigger=await env.DB.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='trigger' AND name IN ('web_ticket_order_insert','rental_capacity_required','variant_parent_guard','ticket_closure_checkout_fence','ticket_closure_no_relink','seller_fee_guard','payout_balance_guard','order_policy_snapshot','receipt_guard','receipt_apply','receipt_invoice_lock','receipt_refund_guard','receipt_no_update','receipt_no_delete','receipt_refund_no_update','receipt_refund_no_delete','payout_paid_requires_approval','cash_period_close_guard','investor_distribution_post_guard','seller_fee_before_complete')").first();ready=check?.probe===0&&trigger?.n===20;}}catch{}
+  return json({status:ready&&oauthReady(env)?'ok':'degraded',version:4,release:env.RELEASE_SHA||null,database_configured:Boolean(env.DB),database_ready:ready,login_configured:oauthReady(env),schema:ready?24:null,maintenance:env.MAINTENANCE_MODE==='true'},ready&&oauthReady(env)?200:503);
  }
  const limited=await publicRateLimit(r,env,p,m);if(limited)return limited;
  if(p==='/api/catalog'&&m==='GET'){const response=env.DB?json({services:await memberCatalog(env.DB),catalog_revision:1}):json({services:services.map(({id,name,category,desc,price})=>({id,name,category,desc,price})),baseline:true});response.headers.set('access-control-allow-origin','*');return response;}
@@ -140,9 +142,9 @@ async function handle(r,env){
   // In maintenance, authenticated bot mutations must stop before any actor provisioning.
   // Existing actors can still read orders; unknown actors cannot create a row via GET.
   if(env.MAINTENANCE_MODE==='true'&&!['GET','HEAD'].includes(m))return err('Sistem sedang dalam pemeliharaan. Tidak ada perubahan yang disimpan.',503);
-  if(env.MAINTENANCE_MODE!=='true')await env.DB.prepare("INSERT INTO users(id,display_name,created_at) VALUES(?,?,?) ON CONFLICT(id) DO NOTHING").bind(actor,'Discord '+actor,now()).run();
-  const u=await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+' FROM users u WHERE u.id=?').bind(actor).first();
-  botUser=u?{...u,role:roleFor(u,env)}:null;
+  if(env.MAINTENANCE_MODE!=='true')await env.DB.prepare("INSERT INTO users(id,display_name,created_at) SELECT ?,?,? WHERE NOT EXISTS(SELECT 1 FROM account_suspensions WHERE user_id=?) ON CONFLICT(id) DO NOTHING").bind(actor,'Discord '+actor,now(),actor).run();
+  const u=await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+',EXISTS(SELECT 1 FROM account_suspensions a WHERE a.user_id=u.id) AS suspended FROM users u WHERE u.id=?').bind(actor).first();
+  botUser=u?{id:u.id,display_name:u.display_name,role:roleFor(u,env)}:null;
   if(botUser?.role==='worker'){
    const verified=await guildMembership(env,actor,env.DISCORD_MEMBERSHIP_FETCH||fetch);
    if(verified.status!==200)return err(membershipMessage(verified.status),verified.status);
@@ -172,6 +174,7 @@ async function handle(r,env){
   const result=await discordIdentity(env,code,env.DISCORD_OAUTH_FETCH||fetch,undefined,verifier,true);
   if(result.error)return loginFailure(result.error);
   const user=result.user;
+  if(await env.DB.prepare('SELECT 1 AS suspended FROM account_suspensions WHERE user_id=?').bind(user.id).first())return loginFailure('account_suspended');
   const t=now(),s=random(),sessionHash=await hash(s);
   const isOwner=validId(env.OWNER_DISCORD_ID)&&user.id===env.OWNER_DISCORD_ID;
   const displayName=String(user.global_name||user.username||'Pelanggan').slice(0,100);
@@ -189,6 +192,7 @@ async function handle(r,env){
    env.DB.prepare('INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)').bind(sessionHash,user.id,t+age),
    env.DB.prepare('INSERT INTO session_metadata VALUES(?,?,?,?)').bind(sessionHash,crypto.randomUUID(),deviceLabel(r.headers.get('user-agent')||''),t)
   ]);}catch(e){
+   if(String(e?.message).includes('account_suspended'))return loginFailure('account_suspended');
    if(!isOwner&&String(e?.message).includes('worker_has_active_orders')){
     await env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(user.id).run();
     return loginFailure('worker_role_review');
@@ -221,7 +225,7 @@ async function handle(r,env){
   if(action==='claim'){
    if(user.role!=='worker')return err('Akses penjoki diperlukan.',403);
    const presence=await env.DB.prepare('SELECT available FROM worker_presence WHERE worker_id=?').bind(user.id).first();if(presence?.available===0)return err('Aktifkan ketersediaan untuk mengambil order.',409);
-   const results=await env.DB.batch([env.DB.prepare("UPDATE orders SET status='claimed',assigned_to=?,updated_at=? WHERE id=? AND status='requested' AND assigned_to IS NULL AND customer_id<>? AND NOT EXISTS(SELECT 1 FROM worker_presence WHERE worker_id=? AND available=0) AND EXISTS(SELECT 1 FROM users u WHERE u.id=? AND u.role='worker' AND NOT EXISTS(SELECT 1 FROM management_grants g WHERE g.user_id=u.id))").bind(user.id,t,id,user.id,user.id,user.id),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'claim',?,? WHERE changes()=1").bind(user.id,id,t)]);
+   const results=await env.DB.batch([env.DB.prepare("UPDATE orders SET status='claimed',assigned_to=?,updated_at=? WHERE id=? AND status='requested' AND assigned_to IS NULL AND customer_id<>? AND NOT EXISTS(SELECT 1 FROM worker_presence WHERE worker_id=? AND available=0) AND EXISTS(SELECT 1 FROM users u WHERE u.id=? AND u.role='worker' AND NOT EXISTS(SELECT 1 FROM management_grants g WHERE g.user_id=u.id) AND NOT EXISTS(SELECT 1 FROM account_suspensions a WHERE a.user_id=u.id))").bind(user.id,t,id,user.id,user.id,user.id),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'claim',?,? WHERE changes()=1").bind(user.id,id,t)]);
    return results[0].meta.changes?json({ok:true}):err('Order tidak tersedia.',409);
   }
   const b=await body(r);const order=await env.DB.prepare('SELECT o.status,o.assigned_to,f.state AS payment_state,w.worker_id AS evidence_worker,EXISTS(SELECT 1 FROM payment_claims c WHERE c.order_id=o.id) AS payment_claimed,COALESCE((SELECT received FROM order_payment_totals WHERE order_id=o.id),0) AS received_amount FROM orders o LEFT JOIN order_finance f ON f.order_id=o.id LEFT JOIN order_work w ON w.order_id=o.id WHERE o.id=?').bind(id).first();
@@ -232,7 +236,7 @@ async function handle(r,env){
   if(b.status==='cancelled'&&order.payment_state==='paid')return err('Order sudah dibayar. Memerlukan proses refund manual.',409);
   if(b.status==='cancelled'&&order.received_amount>0)return err('Dana sudah diterima. Refund diperlukan.',409);
   if(b.status==='cancelled'&&order.payment_claimed)return err('Laporan pembayaran sedang menunggu pemeriksaan owner.',409);
-  const results=await env.DB.batch([env.DB.prepare("UPDATE orders SET status=?,updated_at=? WHERE id=? AND status=? AND assigned_to IS ? AND (?<>'cancelled' OR (NOT EXISTS(SELECT 1 FROM payment_claims WHERE order_id=orders.id) AND NOT EXISTS(SELECT 1 FROM order_finance WHERE order_id=orders.id AND state='paid') AND NOT EXISTS(SELECT 1 FROM order_receipts WHERE order_id=orders.id)))").bind(b.status,t,id,order.status,order.assigned_to,b.status),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,?,?,? WHERE changes()=1").bind(user.id,'status:'+b.status,id,t)]);
+  const results=await env.DB.batch([env.DB.prepare(ORDER_TRANSITION_SQL).bind(b.status,t,id,order.status,order.assigned_to,b.status,b.status,b.status,user.role,user.id,user.role,user.id,user.role,user.id,user.id),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,?,?,? WHERE changes()=1").bind(user.id,'status:'+order.status+'->'+b.status,id,t)]);
   return results[0].meta.changes?json({ok:true}):err('Status sudah berubah.',409);
  }
  if(p.endsWith('/ticket')){const linked=await ticketLinks({p,m,user,env,bot,r,readBody:body});if(linked)return linked;}
@@ -240,13 +244,29 @@ async function handle(r,env){
  if(!bot&&p==='/api/workspace/cash-ledger')return cashLedger({p,m,user,env,r,readBody:body});
  if(!bot&&p.startsWith('/api/workspace/')){const extra=await workspace({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
  if(!bot||p.endsWith('/evidence')||p.endsWith('/finance')){const extra=await operations({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
+ if(p==='/api/security/retention-review'&&m==='GET'&&!bot){
+  if(user.role!=='owner')return err('Akses owner diperlukan.',403);
+  return json(await retentionReview(env.DB));
+ }
  if(p==='/api/team'&&m==='GET'){
   if(user.role!=='owner')return err('Akses owner diperlukan.',403);
   const after=url.searchParams.get('after')||'';
   if(after&&!validId(after))return err('Cursor tidak valid.',400);
-  const rows=(await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+' FROM users u WHERE u.id>? ORDER BY u.id LIMIT 101').bind(after).all()).results;
+  const rows=(await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+',EXISTS(SELECT 1 FROM account_suspensions a WHERE a.user_id=u.id) AS suspended FROM users u WHERE u.id>? ORDER BY u.id LIMIT 101').bind(after).all()).results;
   const page=rows.slice(0,100).map(u=>({...u,role:roleFor(u,env)}));
   return json({members:page,next:rows.length>100?page.at(-1).id:null});
+ }
+ if(p==='/api/team/suspension'&&m==='POST'){
+  if(user.role!=='owner')return err('Akses owner diperlukan.',403);
+  const b=await body(r);
+  if(!b||Object.keys(b).some(k=>!['user_id','suspended'].includes(k))||!validId(b.user_id)||typeof b.suspended!=='boolean'||b.user_id===env.OWNER_DISCORD_ID)return err('Target tidak valid.',400);
+  if(!await env.DB.prepare('SELECT id FROM users WHERE id=?').bind(b.user_id).first())return err('Pengguna belum terdaftar.',404);
+  const t=now();
+  const change=b.suspended
+   ?env.DB.prepare('INSERT INTO account_suspensions(user_id,suspended_by,suspended_at) VALUES(?,?,?) ON CONFLICT(user_id) DO NOTHING').bind(b.user_id,user.id,t)
+   :env.DB.prepare('DELETE FROM account_suspensions WHERE user_id=?').bind(b.user_id);
+  const result=await env.DB.batch([change,env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,?,?,? WHERE changes()=1").bind(user.id,b.suspended?'account:active->suspended':'account:suspended->active',b.user_id,t)]);
+  return json({ok:true,changed:Boolean(result[0].meta.changes),suspended:b.suspended});
  }
  if(p==='/api/team/role'&&m==='POST'){
   if(user.role!=='owner')return err('Akses owner diperlukan.',403);
@@ -255,19 +275,33 @@ async function handle(r,env){
   if(!target)return err('Pengguna belum terdaftar.',404);
   if(b.role!=='worker'&&await env.DB.prepare("SELECT id FROM orders WHERE assigned_to=? AND status IN ('claimed','confirmed','processing') LIMIT 1").bind(b.user_id).first())return err('Selesaikan atau alihkan pekerjaan aktif sebelum mencabut role penjoki.',409);
   const grant=b.role==='management'?env.DB.prepare('INSERT INTO management_grants(user_id,granted_at) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET granted_at=excluded.granted_at').bind(b.user_id,now()):env.DB.prepare('DELETE FROM management_grants WHERE user_id=?').bind(b.user_id);
-  try{await env.DB.batch([env.DB.prepare('UPDATE users SET role=? WHERE id=?').bind(b.role==='management'?'customer':b.role,b.user_id),grant,env.DB.prepare('INSERT INTO audit_events(actor_id,action,target_id,created_at) VALUES(?,?,?,?)').bind(user.id,'role:'+b.role,b.user_id,now())]);}catch(e){if(String(e.message).includes('worker_has_active_orders'))return err('Penjoki masih memiliki order aktif.',409);throw e;}
+  try{await env.DB.batch([
+   // Record the actual effective role before mutation, not a stale pre-read.
+   env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'role:'||("+teamRoleSql.replace(' AS role','')+")||'->'||?,u.id,? FROM users u WHERE u.id=? AND ("+teamRoleSql.replace(' AS role','')+")<>?").bind(user.id,b.role,now(),b.user_id,b.role),
+   env.DB.prepare("DELETE FROM sessions WHERE user_id=? AND EXISTS(SELECT 1 FROM users u WHERE u.id=? AND ("+teamRoleSql.replace(' AS role','')+")<>?)").bind(b.user_id,b.user_id,b.role),
+   env.DB.prepare('UPDATE users SET role=? WHERE id=?').bind(b.role==='management'?'customer':b.role,b.user_id),grant
+  ]);}catch(e){if(String(e.message).includes('worker_has_active_orders'))return err('Penjoki masih memiliki order aktif.',409);throw e;}
   return json({ok:true});
  }
  return err('Endpoint tidak ditemukan.',404);
 }
 // frame-ancestors is enforced only in an HTTP CSP, not in a meta tag.
-function documentSecurity(response){
+export function documentPolicy(path){
+ const portal=['/portal.html','/portal-offline.html'].includes(path);
+ const common="default-src 'self'; script-src 'self'; script-src-attr 'none'; object-src 'none'; frame-ancestors 'none'; frame-src 'none'; form-action 'self'; manifest-src 'self'; worker-src 'self'";
+ return portal?common+"; base-uri 'none'; connect-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'":
+  common+"; base-uri 'self'; connect-src 'self' https://nexoraid-v4.nexoraid.workers.dev; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:";
+}
+function documentSecurity(response,path){
  if(!/^text\/html(?:;|$)/i.test(response.headers.get('content-type')||''))return response;
  const headers=new Headers(response.headers);
- headers.append('content-security-policy',"frame-ancestors 'none'; object-src 'none'; base-uri 'self'");
+ // Append (intersection), rather than replacing any existing asset policy.
+ headers.append('content-security-policy',documentPolicy(path));
+ headers.set('permissions-policy','camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+
  headers.set('x-frame-options','DENY');
  headers.set('x-content-type-options','nosniff');
  headers.set('referrer-policy','no-referrer');
  return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
 }
-export default {async fetch(r,env){try{return documentSecurity(await handle(r,env));}catch{console.error('nexoraid_request_failed',{method:r.method,request_id:crypto.randomUUID()});return err('Terjadi kesalahan layanan. Coba kembali.',500);}}};
+export default {async fetch(r,env){try{return documentSecurity(await handle(r,env),new URL(r.url).pathname);}catch{console.error('nexoraid_request_failed',{method:r.method,request_id:crypto.randomUUID()});return err('Terjadi kesalahan layanan. Coba kembali.',500);}}};
