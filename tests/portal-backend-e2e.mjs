@@ -153,6 +153,42 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  const settlement=db.prepare('SELECT worker_share,owner_share,gross FROM order_settlements WHERE order_id=?').get(order.id);
  assert.equal(settlement.gross,150000);assert.equal(settlement.worker_share,10000);assert.equal(settlement.owner_share,140000);
  assert.equal(db.prepare('SELECT status FROM orders WHERE id=?').get(order.id).status,'completed');
+ // Actual customer support and completed-order review forms, with role and duplicate checks.
+ const supportPath='/api/workspace/orders/'+order.id+'/support';
+ const reviewPath='/api/workspace/orders/'+order.id+'/review';
+ const complaint='Synthetic customer support request for acceptance';
+ const resolution='Synthetic management resolution confirmed';
+ p=await open('customer');
+ form=p.locator('form').filter({has:p.getByRole('heading',{name:'Ajukan bantuan',exact:true})});
+ await form.getByLabel('Jenis bantuan',{exact:true}).selectOption('complaint');
+ await form.getByLabel('Jelaskan kebutuhan (tanpa kredensial)',{exact:true}).fill(complaint);
+ await submit(p,form.getByRole('button',{name:'Simpan'}),supportPath);
+ const supportCase=db.prepare('SELECT id,state,customer_id FROM support_cases WHERE order_id=?').get(order.id);
+ assert.equal(supportCase.state,'open');assert.equal(supportCase.customer_id,id);
+ assert.equal((await api('customer',supportPath,{kind:'complaint',message:complaint})).status,409);
+ const resolvePath='/api/workspace/support/'+supportCase.id;
+ for(const role of ['customer','worker','seller'])assert.equal((await api(role,resolvePath,{resolution})).status,403);
+ for(const role of ['customer','owner','management','worker','seller']){
+  const response=await api(role,'/api/workspace/support');assert.equal(response.status,200);
+  assert.equal((await response.json()).items.some(x=>x.id===supportCase.id),['customer','owner','management'].includes(role));
+ }
+ p=pages.management;if(await p.locator('#orderDialog').isVisible())await p.locator('#closeDetail').click();
+ await p.locator('[data-view="support"]').click();
+ form=p.locator('#supportBody form').filter({has:p.getByRole('heading',{name:'Tanggapi kasus',exact:true})});
+ await form.getByLabel('Resolusi 10–500 karakter',{exact:true}).fill(resolution);
+ await submit(p,form.getByRole('button',{name:'Simpan'}),resolvePath);
+ await p.locator('#supportBody').getByText('Resolusi: '+resolution,{exact:true}).waitFor();
+ assert.equal(db.prepare('SELECT state FROM support_cases WHERE id=?').get(supportCase.id).state,'resolved');
+ p=await open('customer');
+ form=p.locator('form').filter({has:p.getByRole('heading',{name:'Beri ulasan',exact:true})});
+ await form.getByLabel('Penilaian 1–5',{exact:true}).fill('4');
+ await form.getByLabel('Catatan singkat',{exact:true}).fill('Synthetic completed-order review');
+ await submit(p,form.getByRole('button',{name:'Simpan'}),reviewPath);
+ await p.getByText('Penilaian: 4/5 · Synthetic completed-order review',{exact:true}).waitFor();
+ assert.equal(db.prepare('SELECT rating FROM order_reviews WHERE order_id=?').get(order.id).rating,4);
+ assert.equal((await api('customer',reviewPath,{rating:1,note:'Duplicate'})).status,409);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM order_reviews WHERE order_id=?').get(order.id).n,1);
+ console.log('Support and review acceptance passed: browser forms, role privacy, duplicate prevention and persisted resolution.');
  const reportMonth=wibInput(Math.floor(Date.now()/1000)).slice(0,7);
  const ownerReport=await api('owner','/api/workspace/report?month='+reportMonth);assert.equal(ownerReport.status,200);const report=await ownerReport.json();assert.equal(report.finance.gross,150000);
  const managerReport=await api('management','/api/workspace/report?month='+reportMonth);assert.equal(managerReport.status,200);assert.equal(Object.hasOwn(await managerReport.json(),'finance'),false);
