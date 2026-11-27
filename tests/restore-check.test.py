@@ -11,11 +11,13 @@ restore = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(restore)
 
 class RestoreTests(unittest.TestCase):
+    schema_limit = None
     def setUp(self):
         self.db = sqlite3.connect(":memory:")
         self.db.execute("PRAGMA foreign_keys=ON")
         for path in sorted((ROOT / "v4/migrations").glob("*.sql")):
-            self.db.executescript(path.read_text())
+            if self.schema_limit is None or int(path.name[:4]) <= self.schema_limit:
+                self.db.executescript(path.read_text())
         self.db.executescript("""
         INSERT INTO users(id,display_name,role,created_at) VALUES
          ('c','synthetic customer','customer',1),('o','synthetic owner','customer',1),('w','synthetic worker','worker',1);
@@ -111,6 +113,62 @@ class OwnerBackupTests(unittest.TestCase):
         with patch.object(self.helper,"scalar",side_effect=scalar), patch.object(self.helper,"query",return_value=[]):
             with self.assertRaisesRegex(ValueError,"Attachment inventory"):
                 self.helper.source_snapshot()
+
+
+class RecoveryDrill(unittest.TestCase):
+    def test_pre_upgrade_backup_recovers_populated_baseline_without_touching_source(self):
+        # All three databases are local synthetic fixtures, never Cloudflare D1.
+        fixture = RestoreTests("test_nonempty_finance_snapshot_and_session_cleanup")
+        fixture.schema_limit = 15
+        fixture.setUp()
+        self.addCleanup(fixture.tearDown)
+        source = fixture.db
+        original = fixture.expected
+        with tempfile.TemporaryDirectory(prefix="nexoraid-recovery-drill-") as tmp:
+            root = pathlib.Path(tmp)
+            backup_path = root / "before-upgrade.sqlite"
+            with sqlite3.connect(backup_path) as backup:
+                source.backup(backup)
+            with sqlite3.connect(root / "candidate.sqlite") as candidate:
+                with sqlite3.connect(backup_path) as backup:
+                    backup.backup(candidate)
+                candidate.execute("PRAGMA foreign_keys=ON")
+                migrations = [p for p in sorted((ROOT / "v4/migrations").glob("*.sql"))
+                              if int(p.name[:4]) > 15]
+                self.assertTrue(migrations, "Candidate must include an upgrade")
+                for path in migrations:
+                    candidate.executescript(path.read_text())
+                upgraded = restore.snapshot(candidate)
+                # Compare every pre-upgrade measure, including attachment hashes.
+                # New ledger tables may appear in the expanded snapshot plan,
+                # but this fixture has no new financial events and no backfill.
+                for section in ("counts", "totals"):
+                    self.assertTrue(set(original[section]).issubset(upgraded[section]))
+                    self.assertEqual({k: upgraded[section][k] for k in original[section]},
+                                     original[section])
+                    for name in set(upgraded[section]) - set(original[section]):
+                        self.assertEqual(upgraded[section][name], 0,
+                                         f"Unexpected new business data: {section}/{name}")
+                self.assertEqual(upgraded["attachments"], original["attachments"])
+                self.assertEqual(candidate.execute("PRAGMA foreign_key_check").fetchall(), [])
+                # Simulate failed release validation following a business write
+                # in the disposable candidate. The pre-upgrade copy is untouched.
+                candidate.execute("INSERT INTO users(id,display_name,created_at) VALUES('failed-release-user','fixture',6)")
+                candidate.commit()
+                self.assertEqual(restore.snapshot(candidate)['counts']['users'], upgraded['counts']['users'] + 1)
+                candidate_dump = "\n".join(candidate.iterdump())
+                with self.assertRaisesRegex(ValueError, "Source snapshot mismatch"):
+                    restore.verify(candidate_dump, upgraded)
+            with sqlite3.connect(root / "recovered.sqlite") as recovered:
+                with sqlite3.connect(backup_path) as backup:
+                    backup.backup(recovered)
+                self.assertEqual(recovered.execute("PRAGMA integrity_check").fetchall(), [("ok",)])
+                self.assertEqual(recovered.execute("PRAGMA foreign_key_check").fetchall(), [])
+                self.assertEqual(restore.snapshot(recovered), original)
+                self.assertEqual(restore.verify("\n".join(recovered.iterdump()), original)["orders"], 1)
+                self.assertEqual(recovered.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='service_policies'").fetchone()[0],0)
+            self.assertEqual(restore.snapshot(source), original)
+            self.assertEqual(source.execute("SELECT COUNT(*) FROM sessions").fetchone()[0],1)
 
 if __name__ == "__main__":
     unittest.main()
