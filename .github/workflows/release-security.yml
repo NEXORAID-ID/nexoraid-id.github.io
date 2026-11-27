@@ -67,9 +67,12 @@ jobs:
             *) echo "::error::A68 scanner execution failed (exit $rc)."; exit 1 ;;
           esac
       - uses: actions/setup-node@v4
+        if: ${{ !cancelled() }}
         with:
           node-version: '22'
       - name: Audit exact release-tool versions
+        if: ${{ !cancelled() }}
         run: bash v4/scripts/release-security.sh
       - name: Run source and authorization regression tests
+        if: ${{ !cancelled() }}
         run: npm test
