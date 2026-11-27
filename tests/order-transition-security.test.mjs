@@ -8,6 +8,7 @@ function fixture(){
  db.exec(`
  CREATE TABLE users(id TEXT PRIMARY KEY,role TEXT);
  CREATE TABLE management_grants(user_id TEXT PRIMARY KEY);
+ CREATE TABLE account_suspensions(user_id TEXT PRIMARY KEY);
  CREATE TABLE orders(id TEXT PRIMARY KEY,status TEXT,assigned_to TEXT,updated_at INTEGER);
  CREATE TABLE order_finance(order_id TEXT PRIMARY KEY,state TEXT);
  CREATE TABLE order_work(order_id TEXT PRIMARY KEY,worker_id TEXT);
@@ -19,7 +20,7 @@ function fixture(){
  INSERT INTO order_work VALUES('order','worker');
  `);
  const transition=(role,actor,from='confirmed',to='processing',assignee='worker')=>
-  Number(db.prepare(ORDER_TRANSITION_SQL).run(to,1,'order',from,assignee,to,to,to,role,actor,role,actor,role,actor).changes);
+  Number(db.prepare(ORDER_TRANSITION_SQL).run(to,1,'order',from,assignee,to,to,to,role,actor,role,actor,role,actor,actor).changes);
  return {db,transition};
 }
 test('A74 denies cross-worker status updates and stale roles',()=>{
@@ -55,5 +56,14 @@ test('A75 denies cancellation when payment arrives after authorization',()=>{
  db.exec("DELETE FROM payment_claims");
  assert.equal(t('owner','owner','confirmed','cancelled'),1);
  assert.equal(t('owner','owner','confirmed','cancelled'),0);
+ }finally{db.close();}
+});
+
+test('A65/A75 suspension committed after authorization prevents status write',()=>{
+ const {db,transition:t}=fixture();try{
+ db.exec("INSERT INTO account_suspensions VALUES('worker')");
+ assert.equal(t('worker','worker'),0);
+ db.exec("DELETE FROM account_suspensions");
+ assert.equal(t('worker','worker'),1);
  }finally{db.close();}
 });
