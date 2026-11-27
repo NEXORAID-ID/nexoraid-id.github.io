@@ -64,3 +64,10 @@ export function storefrontView(value){return ['orders','account','shop','notific
 
 // Compare by service and quantity, independent of display order; never merge quantities implicitly.
 export function sameStorefrontCart(a,b){return a.length===b.length&&a.every(x=>b.some(y=>y.service_id===x.service_id&&y.quantity===x.quantity));}
+
+// Only clear an unchanged public basket after a matching, confirmed order receipt.
+export function confirmedBasketRemoval(raw,submitted,source){
+ if(!source||typeof raw!=='string'||!Array.isArray(submitted)||!submitted.length)return null;
+ try{const rows=JSON.parse(raw);if(!Array.isArray(rows)||rows.length!==submitted.length||rows.some(x=>!x||typeof x.id!=='string'||!Number.isSafeInteger(x.quantity)||x.quantity<1||x.quantity>99)||new Set(rows.map(x=>x.id)).size!==rows.length)return null;
+ const converted=rows.map(x=>({service_id:x.id,quantity:x.quantity}));return sameStorefrontCart(converted,submitted)?[]:null;}catch{return null;}
+}
