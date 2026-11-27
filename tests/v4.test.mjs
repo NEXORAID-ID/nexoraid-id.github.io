@@ -45,7 +45,7 @@ test('Operations scope and seller settlement policy are explicit',async()=>{cons
 test('Four-role API lifecycle with SQLite D1 adapter and real persisted records',async()=>{
  const {DatabaseSync}=await import('node:sqlite');const {readFile}=await import('node:fs/promises');
  const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON');
- for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_workspace.sql','0006_business.sql','0007_ticket_links.sql','0008_integrity.sql','0009_order_collaboration.sql','0010_checkout.sql','0011_refund_ledger.sql','0012_web_ticket_outbox.sql','0013_processing_refund.sql','0014_cash_ledger.sql','0015_rental_investor_guard.sql','0016_rental_capacity_required.sql','0017_variant_parent_guard.sql','0018_catalog_policy.sql','0019_cash_period_controls.sql','0020_payout_approval.sql','0021_order_receipts.sql','0022_ticket_closure_fence.sql','0023_business_accounting.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
+ for(const name of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_workspace.sql','0006_business.sql','0007_ticket_links.sql','0008_integrity.sql','0009_order_collaboration.sql','0010_checkout.sql','0011_refund_ledger.sql','0012_web_ticket_outbox.sql','0013_processing_refund.sql','0014_cash_ledger.sql','0015_rental_investor_guard.sql','0016_rental_capacity_required.sql','0017_variant_parent_guard.sql','0018_catalog_policy.sql','0019_cash_period_controls.sql','0020_payout_approval.sql','0021_order_receipts.sql','0022_ticket_closure_fence.sql','0023_business_accounting.sql','0024_account_suspension.sql'])db.exec(await readFile(new URL('../v4/migrations/'+name,import.meta.url),'utf8'));
  const ids={owner:'111111111111111111',management:'222222222222222222',worker:'333333333333333333',customer:'444444444444444444',other:'555555555555555555'};
  const cookies={};
  for(const [role,id] of Object.entries(ids)){
@@ -196,6 +196,11 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await call('customer','business/notifications/read',{last_id:notices.latest})).status,200);
   assert.equal((await (await call('customer','business/notifications')).json()).unread,0);
   assert.equal((await call('owner','team/role',{user_id:ids.worker,role:'customer'})).status,200);
+  assert.equal((await call('worker','settlements')).status,401);
+  const renewed=crypto.randomUUID()+crypto.randomUUID();
+  const renewedHash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(renewed))),n=>n.toString(16).padStart(2,'0')).join('');
+  db.prepare('INSERT INTO sessions VALUES(?,?,?)').run(renewedHash,ids.worker,Math.floor(Date.now()/1000)+3600);
+  cookies.worker='nexo_session='+renewed;
   assert.equal((await call('worker','settlements')).status,200);assert.equal((await (await call('worker','workspace/payouts')).json()).balance.available,1000);assert.equal((await (await call('worker','me')).json()).user.finance_access,true);
   assert.equal((await call('customer','customer/saved',{service_id:'gta-heist',saved:true})).status,200);
   assert.deepEqual((await (await call('other','customer/saved')).json()).saved,[]);
