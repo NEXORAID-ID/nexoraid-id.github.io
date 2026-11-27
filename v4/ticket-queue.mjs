@@ -25,6 +25,17 @@ export async function ticketQueue({db,r,m,readBody,clock=()=>Math.floor(Date.now
   if(!counts||Object.values(counts).some(v=>!Number.isSafeInteger(v)||v<0))return err('Pemeriksaan antrean tidak valid.',503);
   return json({ok:true,read_only:true,maintenance:Boolean(maintenance),...counts});
  }
+ if(b?.action==='message-status'){
+  if(!snow(b.customer_id)||!snow(b.channel_id)||typeof b.ticket_id!=='string'||!/^[a-zA-Z0-9_-]{1,80}$/.test(b.ticket_id))return err('Identitas tiket tidak valid.',400);
+  // Only acknowledged canonical web messages, never arbitrary orders or legacy tickets.
+  const rows=(await db.prepare(`SELECT o.id,o.status,o.updated_at,q.message_id FROM order_ticket_links l
+   JOIN orders o ON o.id=l.order_id AND o.customer_id=l.customer_id
+   JOIN web_ticket_outbox q ON q.order_id=o.id AND q.channel_id=l.channel_id
+   WHERE l.guild_id=? AND l.customer_id=? AND l.channel_id=? AND l.ticket_id=? AND q.delivered_at IS NOT NULL AND q.message_id IS NOT NULL
+   ORDER BY o.id LIMIT 101`).bind(guild,b.customer_id,b.channel_id,b.ticket_id).all()).results;
+  if(rows.length>100||rows.some(x=>!uuid(x.id)||!snow(x.message_id)||!['requested','claimed','confirmed','processing','completed','cancelled'].includes(x.status)||!Number.isSafeInteger(x.updated_at)))return err('Pemetaan pesan memerlukan pemeriksaan.',409);
+  return json({ok:true,read_only:true,orders:rows});
+ }
  if(maintenance)return err('Antrean dalam pemeliharaan.',503);
  if(['closure-begin','closure-finish','closure-state'].includes(b?.action)){
   const result=await closureFence(db,b,guild,t);
