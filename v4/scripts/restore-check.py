@@ -12,8 +12,18 @@ import sqlite3
 import sys
 import tempfile
 
+# Required durable schema-15 inventory. Missing baseline tables fail verification.
+# Sessions/session_metadata are independently checked during copied-session cleanup;
+# rate-limit buckets are transient and excluded from business reconciliation.
 NAMES = ("users", "orders", "order_finance", "order_settlements", "order_attachments",
-         "web_ticket_outbox", "order_ticket_links", "rental_reservations", "investor_attestations")
+         "web_ticket_outbox", "order_ticket_links", "rental_reservations", "investor_attestations",
+         "audit_events", "management_grants", "order_work", "payout_requests",
+         "operating_expenses", "support_cases", "payment_claims", "order_reviews",
+         "worker_presence", "order_refunds", "catalog_overrides", "suppliers",
+         "supplier_movements", "investor_capital", "investor_distributions",
+         "notification_reads", "rejected_payment_claims", "order_messages", "order_plans",
+         "saved_services", "checkout_groups", "checkout_items", "completed_refunds",
+         "cash_opening", "rental_capacity")
 TOTALS = {
     "verified_invoice_amount": "SELECT COALESCE(SUM(amount),0) FROM order_finance WHERE state='paid'",
     "settlement_gross": "SELECT COALESCE(SUM(gross),0) FROM order_settlements",

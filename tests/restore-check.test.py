@@ -42,6 +42,25 @@ class RestoreTests(unittest.TestCase):
         self.assertEqual(self.expected["totals"]["worker_share"], 60000)
         self.assertEqual(self.expected["totals"]["owner_share"], 40000)
         self.assertEqual(restore.verify(self.dump,self.expected)["orders"],1)
+    def test_required_baseline_catalog_access_and_supplier_inventory(self):
+        self.db.execute("INSERT INTO management_grants(user_id,granted_at) VALUES('c',1)")
+        self.db.execute("INSERT INTO catalog_overrides(service_id,amount,enabled,actor_id,updated_at) VALUES('fixture-sku',15000,1,'o',1)")
+        self.db.execute("INSERT INTO suppliers(id,name,created_at) VALUES('fixture-supplier','Synthetic supplier',1)")
+        self.db.commit()
+        expected = restore.snapshot(self.db)
+        dump = "\n".join(self.db.iterdump())
+        counts = restore.verify(dump, expected)
+        for name in ("management_grants", "catalog_overrides", "suppliers"):
+            self.assertEqual(counts[name], 1)
+            changed = {"counts": dict(expected["counts"]), "totals": expected["totals"],
+                       "attachments": expected["attachments"]}
+            changed["counts"][name] = 0
+            with self.assertRaisesRegex(ValueError, "Source snapshot mismatch"):
+                restore.verify(dump, changed)
+        for name in ("cash_opening", "checkout_groups", "checkout_items", "rental_capacity",
+                     "supplier_movements", "investor_capital", "investor_distributions",
+                     "audit_events", "order_messages", "order_work"):
+            self.assertIn(name, counts)
     def test_source_mismatch(self):
         self.expected["totals"]["verified_invoice_amount"] += 1
         with self.assertRaisesRegex(ValueError,"Source snapshot mismatch"):
