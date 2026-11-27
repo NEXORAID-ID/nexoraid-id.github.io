@@ -47,7 +47,28 @@ jobs:
             sleep 2
           done
           if [ "$ready" != 1 ]; then cat "$localdb/worker.log"; exit 1; fi
-          node --input-type=module -e 'import fs from "node:fs";import assert from "node:assert/strict";const h=JSON.parse(fs.readFileSync(process.argv[1]));assert.equal(h.status,"ok");assert.equal(h.database_ready,true);assert.equal(h.release,process.env.GITHUB_SHA);assert.ok(h.schema>=15);' "$localdb/health.json"
+          # Compare the actual local migration ledger and reported schema with the exact release inventory.
+          npx --yes wrangler@4.168.0 d1 execute nexoraid-v4 --local --config v4/.generated/wrangler.json --command "SELECT name FROM d1_migrations ORDER BY name;" --json > "$localdb/migrations.json"
+          node --input-type=module - "$localdb/health.json" "$localdb/migrations.json" <<'NODE'
+          import fs from 'node:fs';
+          import assert from 'node:assert/strict';
+          const expected = fs.readdirSync('v4/migrations').filter(n => /^\d{4}_.+\.sql$/.test(n)).sort();
+          assert.ok(expected.length >= 15);
+          const versions = expected.map(n => Number(n.slice(0, 4)));
+          assert.deepEqual(versions, Array.from({length: expected.length}, (_, i) => i + 1), 'Missing or duplicate migration versions');
+          const result = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+          assert.equal(result.length, 1);
+          assert.equal(result[0].success, true);
+          assert.deepEqual(result[0].results.map(row => row.name).sort(), expected, 'Applied D1 migration inventory mismatch');
+          const h = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          assert.equal(h.status, 'ok');
+          assert.equal(h.database_configured, true);
+          assert.equal(h.database_ready, true);
+          assert.equal(h.login_configured, true);
+          assert.equal(h.maintenance, false);
+          assert.equal(h.release, process.env.GITHUB_SHA);
+          assert.equal(h.schema, versions.at(-1), 'Health schema must match exact migration inventory');
+          NODE
           curl --fail --silent --max-time 10 http://127.0.0.1:8787/api/catalog > "$localdb/catalog.json"
           node -e 'const c=require(process.argv[1]);if(!Array.isArray(c.services)||!c.services.length)process.exit(1)' "$localdb/catalog.json"
       - name: Exercise actual local D1 checkout transactions
