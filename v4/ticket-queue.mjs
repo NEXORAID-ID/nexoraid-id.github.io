@@ -48,7 +48,7 @@ export async function ticketQueue({db,r,m,readBody,clock=()=>Math.floor(Date.now
   return json({ok:true,read_only:true,random_assignment_exclusive:exclusive,orders:rows});
  }
  if(maintenance)return err('Antrean dalam pemeliharaan.',503);
- if(b?.action==='dispatch'){if(typeof verifyWorker!=='function')return err('Verifikasi penjoki belum siap.',503);return json(await dispatchAvailableOrder(db,{now:t,owner,verifyWorker}));}
+ if(b?.action==='dispatch'){if(typeof verifyWorker!=='function')return err('Verifikasi penjoki belum siap.',503);return json(await dispatchAvailableOrder(db,{now:t,owner,verifyWorker,clock}));}
  if(['closure-begin','closure-finish','closure-state'].includes(b?.action)){
   const result=await closureFence(db,b,guild,t);
   return json(result.body,result.status);
