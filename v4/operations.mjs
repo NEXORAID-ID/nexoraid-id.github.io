@@ -64,13 +64,20 @@ export async function operations({p,m,url,user,env,readBody,r}){
   const rows=(await db.prepare('SELECT '+columns+' FROM all_order_settlements WHERE '+where+' ORDER BY order_id LIMIT 51').bind(...(worker?[user.id,before]:[before])).all()).results;
   const settlements=rows.slice(0,50);return json({settlements,next:rows.length>50?settlements.at(-1).order_id:null});
  }
- const match=p.match(/^\/api\/orders\/([a-f0-9-]{36})(?:\/(quote|payment|evidence|assign|cancel|seller-fee|cost-basis|finance))?$/);
+ const match=p.match(/^\/api\/orders\/([a-f0-9-]{36})(?:\/(quote|payment|evidence|assign|cancel|seller-fee|cost-basis|finance|assignable))?$/);
  if(!match||!uuid.test(match[1]))return null;
  const [,id,action]=match;
  const order=await db.prepare('SELECT '+orderFields+joins+' WHERE o.id=?').bind(id).first();
  if(!order)return err('Order tidak ditemukan.',404);
  const owns=order.customer_id===user.id,assigned=order.assigned_to===user.id,over=staff(user.role);
  if(!over&&!owns&&!(user.role==='worker'&&(assigned||order.status==='requested')))return err('Order tidak ditemukan.',404);
+ if(action==='assignable'){
+  if(m!=='GET')return err('Metode tidak diizinkan.',405);
+  if(!over)return err('Akses management diperlukan.',403);
+  if(!['requested','claimed','confirmed'].includes(order.status))return json({workers:[],truncated:false});
+  const rows=(await db.prepare("SELECT u.id,u.display_name,COALESCE(w.available,1) AS available FROM users u LEFT JOIN worker_presence w ON w.worker_id=u.id WHERE u.role='worker' AND u.id<>? AND u.id<>? AND NOT EXISTS(SELECT 1 FROM management_grants g WHERE g.user_id=u.id) AND NOT EXISTS(SELECT 1 FROM account_suspensions a WHERE a.user_id=u.id) ORDER BY COALESCE(w.available,1) DESC,u.display_name,u.id LIMIT 101").bind(order.customer_id,env.OWNER_DISCORD_ID||'').all()).results;
+  return json({workers:rows.slice(0,100),truncated:rows.length>100});
+ }
  if(action==='finance'){
   if(m!=='GET')return err('Metode tidak diizinkan.',405);
   if(!over&&!owns&&!(assigned&&user.role==='worker'))return err('Order tidak ditemukan.',404);
@@ -134,7 +141,7 @@ export async function operations({p,m,url,user,env,readBody,r}){
   if(!over)return err('Akses management diperlukan.',403);
   if(!validId(b.worker_id)||b.worker_id===order.customer_id||b.worker_id===env.OWNER_DISCORD_ID)return err('Penjoki tidak valid.',400);
   // Override only before work starts, and never assign a management member.
-  return mutate(db,db.prepare("UPDATE orders SET assigned_to=?,status=CASE WHEN status='requested' THEN 'claimed' ELSE status END,updated_at=? WHERE id=? AND status IN ('requested','claimed','confirmed') AND customer_id<>? AND EXISTS(SELECT 1 FROM users u WHERE u.id=? AND u.role='worker' AND NOT EXISTS(SELECT 1 FROM management_grants g WHERE g.user_id=u.id))").bind(b.worker_id,t,id,b.worker_id,b.worker_id),user.id,'order:assign',id,t);
+  return mutate(db,db.prepare("UPDATE orders SET assigned_to=?,status=CASE WHEN status='requested' THEN 'claimed' ELSE status END,updated_at=? WHERE id=? AND status IN ('requested','claimed','confirmed') AND customer_id<>? AND EXISTS(SELECT 1 FROM users u WHERE u.id=? AND u.role='worker' AND NOT EXISTS(SELECT 1 FROM management_grants g WHERE g.user_id=u.id) AND NOT EXISTS(SELECT 1 FROM account_suspensions a WHERE a.user_id=u.id))").bind(b.worker_id,t,id,b.worker_id,b.worker_id),user.id,'order:assign',id,t);
  }
  if(action==='cancel'){
   if(!owns||order.status!=='requested')return err('Hanya permintaan sendiri yang belum diambil dapat dibatalkan.',403);
