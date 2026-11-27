@@ -176,7 +176,7 @@ class RecoveryDrill(unittest.TestCase):
                 # in the disposable candidate. The pre-upgrade copy is untouched.
                 candidate.execute("INSERT INTO users(id,display_name,created_at) VALUES('failed-release-user','fixture',6)")
                 candidate.commit()
-                self.assertNotEqual(restore.snapshot(candidate), original)
+                self.assertEqual(restore.snapshot(candidate)['counts']['users'], upgraded['counts']['users'] + 1)
                 candidate_dump = "\n".join(candidate.iterdump())
                 with self.assertRaisesRegex(ValueError, "Source snapshot mismatch"):
                     restore.verify(candidate_dump, upgraded)
