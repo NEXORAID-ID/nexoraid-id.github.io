@@ -225,7 +225,7 @@ async function handle(r,env){
   if(action==='claim'){
    if(user.role!=='worker')return err('Akses penjoki diperlukan.',403);
    const presence=await env.DB.prepare('SELECT available FROM worker_presence WHERE worker_id=?').bind(user.id).first();if(presence?.available===0)return err('Aktifkan ketersediaan untuk mengambil order.',409);
-   const results=await env.DB.batch([env.DB.prepare("UPDATE orders SET status='claimed',assigned_to=?,updated_at=? WHERE id=? AND status='requested' AND assigned_to IS NULL AND customer_id<>? AND NOT EXISTS(SELECT 1 FROM worker_presence WHERE worker_id=? AND available=0) AND EXISTS(SELECT 1 FROM users u WHERE u.id=? AND u.role='worker' AND NOT EXISTS(SELECT 1 FROM management_grants g WHERE g.user_id=u.id))").bind(user.id,t,id,user.id,user.id,user.id),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'claim',?,? WHERE changes()=1").bind(user.id,id,t)]);
+   const results=await env.DB.batch([env.DB.prepare("UPDATE orders SET status='claimed',assigned_to=?,updated_at=? WHERE id=? AND status='requested' AND assigned_to IS NULL AND customer_id<>? AND NOT EXISTS(SELECT 1 FROM worker_presence WHERE worker_id=? AND available=0) AND EXISTS(SELECT 1 FROM users u WHERE u.id=? AND u.role='worker' AND NOT EXISTS(SELECT 1 FROM management_grants g WHERE g.user_id=u.id) AND NOT EXISTS(SELECT 1 FROM account_suspensions a WHERE a.user_id=u.id))").bind(user.id,t,id,user.id,user.id,user.id),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'claim',?,? WHERE changes()=1").bind(user.id,id,t)]);
    return results[0].meta.changes?json({ok:true}):err('Order tidak tersedia.',409);
   }
   const b=await body(r);const order=await env.DB.prepare('SELECT o.status,o.assigned_to,f.state AS payment_state,w.worker_id AS evidence_worker,EXISTS(SELECT 1 FROM payment_claims c WHERE c.order_id=o.id) AS payment_claimed FROM orders o LEFT JOIN order_finance f ON f.order_id=o.id LEFT JOIN order_work w ON w.order_id=o.id WHERE o.id=?').bind(id).first();
@@ -234,7 +234,7 @@ async function handle(r,env){
   if(b.status==='completed'&&(!order.assigned_to||order.evidence_worker!==order.assigned_to))return err('Bukti pengerjaan belum dikirim penjoki.',409);
   if(b.status==='cancelled'&&order.payment_state==='paid')return err('Order sudah dibayar. Memerlukan proses refund manual.',409);
   if(b.status==='cancelled'&&order.payment_claimed)return err('Laporan pembayaran sedang menunggu pemeriksaan owner.',409);
-  const results=await env.DB.batch([env.DB.prepare(ORDER_TRANSITION_SQL).bind(b.status,t,id,order.status,order.assigned_to,b.status,b.status,b.status,user.role,user.id,user.role,user.id,user.role,user.id),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,?,?,? WHERE changes()=1").bind(user.id,'status:'+order.status+'->'+b.status,id,t)]);
+  const results=await env.DB.batch([env.DB.prepare(ORDER_TRANSITION_SQL).bind(b.status,t,id,order.status,order.assigned_to,b.status,b.status,b.status,user.role,user.id,user.role,user.id,user.role,user.id,user.id),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,?,?,? WHERE changes()=1").bind(user.id,'status:'+order.status+'->'+b.status,id,t)]);
   return results[0].meta.changes?json({ok:true}):err('Status sudah berubah.',409);
  }
  if(p.endsWith('/ticket')){const linked=await ticketLinks({p,m,user,env,bot,r,readBody:body});if(linked)return linked;}
