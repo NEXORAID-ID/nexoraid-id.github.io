@@ -117,7 +117,7 @@ async function handle(r,env){
  let diff=0;for(let i=0;i<expected.length;i++)diff|=actual.charCodeAt(i)^expected.charCodeAt(i);
  if(diff!==0)return err('Bot tidak terotorisasi.',401);
  if(r.headers.get('x-discord-guild-id')!=='1487728359482851348'||r.headers.has('x-discord-user-id'))return err('Identitas mesin tidak valid.',403);
- return ticketQueue({db:env.DB,r,m,readBody:body,maintenance:env.MAINTENANCE_MODE==='true'});
+ return ticketQueue({db:env.DB,r,m,readBody:body,maintenance:env.MAINTENANCE_MODE==='true',owner:env.OWNER_DISCORD_ID,verifyWorker:async id=>{const check=await guildMembership(env,id,env.DISCORD_MEMBERSHIP_FETCH||fetch);return check.status===200&&discordWorkerRole(check);}});
  }
  const bot=p.startsWith('/api/bot/');
  let botUser=null;
