@@ -48,6 +48,28 @@ class RestoreTests(unittest.TestCase):
         self.expected["attachments"]["fixture-attachment"] = "0" * 64
         with self.assertRaisesRegex(ValueError,"Source snapshot mismatch"):
             restore.verify(self.dump,self.expected)
+    def test_snapshot_includes_catalog_checkout_ticket_and_financial_inventory(self):
+        counts = self.expected["counts"]
+        for name in ("checkout_groups", "checkout_items", "service_policies",
+                     "order_policy_snapshots", "ticket_closure_fences", "cash_opening",
+                     "payout_requests", "order_refunds", "completed_refunds",
+                     "supplier_movements", "operating_expenses", "investor_capital",
+                     "investor_distributions"):
+            self.assertIn(name, counts)
+        self.assertEqual(counts["order_policy_snapshots"], 1)
+        for name in ("seller_fee_total", "paid_payout_total", "order_refund_total",
+                     "completed_refund_total", "operating_expense_total",
+                     "investor_capital_total", "investor_principal_return_total"):
+            self.assertIn(name, self.expected["totals"])
+        self.expected["counts"]["order_policy_snapshots"] += 1
+        with self.assertRaisesRegex(ValueError, "Source snapshot mismatch"):
+            restore.verify(self.dump, self.expected)
+
+    def test_optional_inventory_compatible_with_earlier_schema(self):
+        names, totals = restore.snapshot_plan(set(restore.NAMES))
+        self.assertEqual(names, restore.NAMES)
+        self.assertEqual(totals, restore.TOTALS)
+
     def test_malformed_export(self):
         with self.assertRaises(sqlite3.Error):
             restore.verify("not SQL")

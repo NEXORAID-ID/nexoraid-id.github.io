@@ -26,12 +26,24 @@ OPTIONAL_TOTALS = {
     "order_receipts": ("actual_receipts", "SELECT COALESCE(SUM(amount),0) FROM order_receipts"),
     "receipt_refunds": ("actual_receipt_refunds", "SELECT COALESCE(SUM(amount),0) FROM receipt_refunds"),
     "seller_settlements": ("seller_gross", "SELECT COALESCE(SUM(gross),0) FROM seller_settlements"),
+    "seller_order_fees": ("seller_fee_total", "SELECT COALESCE(SUM(amount),0) FROM seller_order_fees"),
+    "payout_requests": ("paid_payout_total", "SELECT COALESCE(SUM(amount),0) FROM payout_requests WHERE state='paid'"),
+    "order_refunds": ("order_refund_total", "SELECT COALESCE(SUM(amount),0) FROM order_refunds"),
+    "completed_refunds": ("completed_refund_total", "SELECT COALESCE(SUM(amount),0) FROM completed_refunds"),
+    "operating_expenses": ("operating_expense_total", "SELECT COALESCE(SUM(amount),0) FROM operating_expenses"),
+    "investor_capital": ("investor_capital_total", "SELECT COALESCE(SUM(amount),0) FROM investor_capital"),
+    "investor_distributions": ("investor_principal_return_total", "SELECT COALESCE(SUM(principal_return),0) FROM investor_distributions"),
     "order_cost_basis": ("order_cost_basis", "SELECT COALESCE(SUM(amount),0) FROM order_cost_basis"),
     "investor_noncash_bonuses": ("noncash_bonus_value", "SELECT COALESCE(SUM(value_amount),0) FROM investor_noncash_bonuses"),
 }
 OPTIONAL_NAMES = ("cash_period_closes", "payout_approvals", "order_receipts", "receipt_refunds",
                   "seller_order_fees", "seller_settlements", "order_cost_basis",
-                  "investor_post_policies", "investor_noncash_bonuses")
+                  "investor_post_policies", "investor_noncash_bonuses",
+                  "checkout_groups", "checkout_items", "service_policies",
+                  "order_policy_snapshots", "ticket_closure_fences",
+                  "cash_opening", "payout_requests", "order_refunds", "completed_refunds",
+                  "supplier_movements", "operating_expenses", "investor_capital",
+                  "investor_distributions")
 def snapshot_plan(existing):
     return NAMES + tuple(n for n in OPTIONAL_NAMES if n in existing), {
         **TOTALS, **{label: query for table, (label, query) in OPTIONAL_TOTALS.items() if table in existing}
