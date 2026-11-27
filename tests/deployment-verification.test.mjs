@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {verifyMigrationHistory,readAppliedHistory,verifyReleaseHealth} from '../v4/scripts/deployment-verification.mjs';
+import {verifyMigrationHistory,readAppliedHistory,verifyReleaseHealth,validateProductionTarget,requireProductionOrigin,PRODUCTION_ORIGIN} from '../v4/scripts/deployment-verification.mjs';
 const files=['0001_initial.sql','0002_finance.sql','0003_settlement.sql'];
 test('exact migration inventory, sorted canonically',()=>{
  assert.equal(verifyMigrationHistory(files,[...files].reverse()),3);
@@ -31,4 +31,18 @@ test('release health rejects wrong SHA, wrong types and degraded readiness',()=>
  for(const patch of [{release:'b'.repeat(40)},{database_ready:false},{database_configured:false},{login_configured:1},{schema:undefined},{schema:'18'},{schema:17},{maintenance:undefined},{status:'degraded'}])
   assert.throws(()=>verifyReleaseHealth({...health,...patch},sha),/mismatch/);
  assert.throws(()=>verifyReleaseHealth(health,undefined),/SHA required/);
+});
+
+test('production target and probe origin fail closed on staging, redirects and malformed identity',()=>{
+ const id='12345678-1234-1234-1234-123456789abc';
+ const target={binding:'DB',database_name:'nexoraid-v4',database_id:id};
+ const config={name:'nexoraid-v4',vars:{PUBLIC_ORIGIN:PRODUCTION_ORIGIN},d1_databases:[target]};
+ assert.equal(validateProductionTarget(config),id);
+ assert.equal(requireProductionOrigin(PRODUCTION_ORIGIN),PRODUCTION_ORIGIN);
+ for(const origin of [undefined,'https://nexoraid-v4-staging.example.com',PRODUCTION_ORIGIN+'/','https://nexoraid-v4.nexoraid.workers.dev.evil.example']){
+  assert.throws(()=>requireProductionOrigin(origin),/Unexpected production origin/);
+ }
+ for(const patch of [{name:'nexoraid-v4-staging'},{vars:{PUBLIC_ORIGIN:'https://other.example'}},{d1_databases:[target,target]},{d1_databases:[{...target,database_name:'staging'}]},{d1_databases:[{...target,database_id:'-'.repeat(36)}]}]){
+  assert.throws(()=>validateProductionTarget({...config,...patch}),/Unexpected production target/);
+ }
 });

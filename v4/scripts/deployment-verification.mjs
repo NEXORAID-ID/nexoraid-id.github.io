@@ -28,14 +28,24 @@ export function verifyReleaseHealth(h,expected){
  // Maintenance is allowed during a controlled deployment freeze, not public launch.
  return {runtime_schema:h.schema,maintenance:h.maintenance,public_ready:!h.maintenance};
 }
-export async function verifyProductionMigrations(){
- const configPath='v4/.generated/wrangler.json';
- const config=JSON.parse(await readFile(configPath,'utf8'));
- const targets=config.d1_databases?.filter(d=>d.binding==='DB');
- if(config.name!=='nexoraid-v4'||config.vars?.PUBLIC_ORIGIN!=='https://nexoraid-v4.nexoraid.workers.dev'||
+export const PRODUCTION_ORIGIN='https://nexoraid-v4.nexoraid.workers.dev';
+export function requireProductionOrigin(origin){
+ if(origin!==PRODUCTION_ORIGIN)throw Error('Unexpected production origin');
+ return origin;
+}
+export function validateProductionTarget(config,expectedOrigin=PRODUCTION_ORIGIN){
+ requireProductionOrigin(expectedOrigin);
+ const targets=config?.d1_databases?.filter(d=>d.binding==='DB');
+ if(config?.name!=='nexoraid-v4'||config.vars?.PUBLIC_ORIGIN!==expectedOrigin||
     targets?.length!==1||targets[0].database_name!=='nexoraid-v4'||
     !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(targets[0].database_id||''))
    throw Error('Unexpected production target');
+ return targets[0].database_id;
+}
+export async function verifyProductionMigrations(){
+ const configPath='v4/.generated/wrangler.json';
+ const config=JSON.parse(await readFile(configPath,'utf8'));
+ validateProductionTarget(config);
  const local=(await readdir(new URL('../migrations/',import.meta.url))).filter(n=>n.endsWith('.sql'));
  let response;
  try{
