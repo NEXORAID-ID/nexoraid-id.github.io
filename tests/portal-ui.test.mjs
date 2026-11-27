@@ -57,3 +57,8 @@ test('catalog search stops once the requested result limit is reached',()=>{
  assert.deepEqual(searchCatalog(catalog,'heist',3).map(s=>s.id),['0','1','2']);
  assert.equal(reads,3);assert.deepEqual(searchCatalog(catalog,'heist',0),[]);assert.equal(reads,3);
 });
+
+import {supportKindLabel,expenseCategoryLabel} from '../v4/portal-ui.mjs';
+test('Indonesian labels preserve unknown codes and never resolve prototype properties',()=>{
+ assert.equal(supportKindLabel('refund'),'Pengembalian dana');assert.equal(expenseCategoryLabel('supplier'),'Pemasok');assert.equal(supportKindLabel('constructor'),'constructor');assert.equal(expenseCategoryLabel('future'),'future');
+});
