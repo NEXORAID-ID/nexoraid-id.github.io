@@ -28,12 +28,22 @@ export async function ticketQueue({db,r,m,readBody,clock=()=>Math.floor(Date.now
  if(b?.action==='message-status'){
   if(!snow(b.customer_id)||!snow(b.channel_id)||typeof b.ticket_id!=='string'||!/^[a-zA-Z0-9_-]{1,80}$/.test(b.ticket_id))return err('Identitas tiket tidak valid.',400);
   // Only acknowledged canonical web messages, never arbitrary orders or legacy tickets.
-  const rows=(await db.prepare(`SELECT o.id,o.status,o.updated_at,q.message_id FROM order_ticket_links l
+  const rows=(await db.prepare(`SELECT o.id,o.status,o.updated_at,q.message_id,
+   CASE
+    WHEN EXISTS(SELECT 1 FROM order_refunds r WHERE r.order_id=o.id) OR EXISTS(SELECT 1 FROM completed_refunds r WHERE r.order_id=o.id) OR EXISTS(SELECT 1 FROM receipt_refunds r WHERE r.order_id=o.id AND r.kind='partial_cancel') THEN 'refund_recorded'
+    WHEN f.state='paid' THEN 'verified'
+    WHEN o.status='cancelled' THEN 'cancelled'
+    WHEN EXISTS(SELECT 1 FROM payment_claims c WHERE c.order_id=o.id) THEN 'reported'
+    WHEN COALESCE(pt.received,0)>0 THEN 'partial'
+    WHEN f.state='quoted' THEN 'awaiting'
+    ELSE 'unquoted'
+   END AS payment_status FROM order_ticket_links l
    JOIN orders o ON o.id=l.order_id AND o.customer_id=l.customer_id
    JOIN web_ticket_outbox q ON q.order_id=o.id AND q.channel_id=l.channel_id
+   LEFT JOIN order_finance f ON f.order_id=o.id LEFT JOIN order_payment_totals pt ON pt.order_id=o.id
    WHERE l.guild_id=? AND l.customer_id=? AND l.channel_id=? AND l.ticket_id=? AND q.delivered_at IS NOT NULL AND q.message_id IS NOT NULL
    ORDER BY o.id LIMIT 101`).bind(guild,b.customer_id,b.channel_id,b.ticket_id).all()).results;
-  if(rows.length>100||rows.some(x=>!uuid(x.id)||!snow(x.message_id)||!['requested','claimed','confirmed','processing','completed','cancelled'].includes(x.status)||!Number.isSafeInteger(x.updated_at)))return err('Pemetaan pesan memerlukan pemeriksaan.',409);
+  if(rows.length>100||rows.some(x=>!uuid(x.id)||!snow(x.message_id)||!['requested','claimed','confirmed','processing','completed','cancelled'].includes(x.status)||!Number.isSafeInteger(x.updated_at)||!['refund_recorded','verified','cancelled','reported','partial','awaiting','unquoted'].includes(x.payment_status)))return err('Pemetaan pesan memerlukan pemeriksaan.',409);
   return json({ok:true,read_only:true,orders:rows});
  }
  if(maintenance)return err('Antrean dalam pemeliharaan.',503);
