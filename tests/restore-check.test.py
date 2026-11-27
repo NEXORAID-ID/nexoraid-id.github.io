@@ -138,16 +138,32 @@ class RecoveryDrill(unittest.TestCase):
                 self.assertTrue(migrations, "Candidate must include an upgrade")
                 for path in migrations:
                     candidate.executescript(path.read_text())
-                self.assertEqual(restore.snapshot(candidate), original)
+                # A schema upgrade may introduce additional snapshot fields.
+                # Require all baseline values to survive exactly, and new
+                # tracked ledgers to begin empty (no fabricated/backfilled
+                # business records in the fresh-start release).
+                upgraded = restore.snapshot(candidate)
+                self.assertEqual(set(upgraded), set(original))
+                self.assertEqual(upgraded["attachments"], original["attachments"])
+                for section in ("counts", "totals"):
+                    self.assertTrue(original[section].keys() <= upgraded[section].keys())
+                    self.assertEqual(
+                        {k: upgraded[section][k] for k in original[section]},
+                        original[section])
+                    for key in upgraded[section].keys() - original[section].keys():
+                        self.assertEqual(upgraded[section][key], 0,
+                                         "Unexpected new ledger value: " + key)
+                self.assertEqual(
+                    restore.verify("\n".join(candidate.iterdump()), upgraded)["orders"], 1)
                 self.assertEqual(candidate.execute("PRAGMA foreign_key_check").fetchall(), [])
                 # Simulate failed release validation following a business write
                 # in the disposable candidate. The pre-upgrade copy is untouched.
                 candidate.execute("INSERT INTO users(id,display_name,created_at) VALUES('failed-release-user','fixture',6)")
                 candidate.commit()
-                self.assertNotEqual(restore.snapshot(candidate), original)
+                self.assertNotEqual(restore.snapshot(candidate), upgraded)
                 candidate_dump = "\n".join(candidate.iterdump())
                 with self.assertRaisesRegex(ValueError, "Source snapshot mismatch"):
-                    restore.verify(candidate_dump, original)
+                    restore.verify(candidate_dump, upgraded)
             with sqlite3.connect(root / "recovered.sqlite") as recovered:
                 with sqlite3.connect(backup_path) as backup:
                     backup.backup(recovered)
