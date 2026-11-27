@@ -245,4 +245,14 @@ async function handle(r,env){
  }
  return err('Endpoint tidak ditemukan.',404);
 }
-export default {async fetch(r,env){try{return await handle(r,env);}catch{console.error('nexoraid_request_failed',{method:r.method,request_id:crypto.randomUUID()});return err('Terjadi kesalahan layanan. Coba kembali.',500);}}};
+// frame-ancestors is enforced only in an HTTP CSP, not in a meta tag.
+function documentSecurity(response){
+ if(!/^text\/html(?:;|$)/i.test(response.headers.get('content-type')||''))return response;
+ const headers=new Headers(response.headers);
+ headers.append('content-security-policy',"frame-ancestors 'none'; object-src 'none'; base-uri 'self'");
+ headers.set('x-frame-options','DENY');
+ headers.set('x-content-type-options','nosniff');
+ headers.set('referrer-policy','no-referrer');
+ return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
+}
+export default {async fetch(r,env){try{return documentSecurity(await handle(r,env));}catch{console.error('nexoraid_request_failed',{method:r.method,request_id:crypto.randomUUID()});return err('Terjadi kesalahan layanan. Coba kembali.',500);}}};
