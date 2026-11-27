@@ -1,0 +1,2 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {customer} from '../v4/customer.mjs';
+test('shared cart candidate cannot expose a production route even when flag is true',async()=>{const r=await customer({p:'/api/customer/cart',m:'GET',user:{id:'a'},env:{PUBLIC_ORIGIN:'https://nexoraid-v4.nexoraid.workers.dev',SHARED_CART_CANDIDATE:'true',DB:{prepare(){throw Error('unexpected db access')}}}});assert.equal(r.status,503);});

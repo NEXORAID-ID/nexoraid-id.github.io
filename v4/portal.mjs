@@ -197,7 +197,7 @@ function renderCollaboration(host,o,data){
 const begincalendarView=latestRequest();
 async function calendarView(){const current=begincalendarView(),host=$('calendarBody');host.replaceChildren();if(!$('calendarMonth').value)$('calendarMonth').value=new Date(Date.now()+25200000).toISOString().slice(0,7);const month=$('calendarMonth').value;loading(host);let d;try{d=await api('collaboration/calendar?month='+encodeURIComponent(month));}catch(e){if(!current()||sessionInvalid)return;showLoadError(host,()=>calendarView().catch(e=>status(e.message,true)));throw e;}if(!current()||$('calendarMonth').value!==month||sessionInvalid)return;finishLoading(host);host.replaceChildren();if(!d.items.length)host.append(node('p','Tidak ada tenggat pada bulan ini.'));let lastDay='';for(const item of d.items){const day=new Date(item.due_at*1000+25200000).toISOString().slice(0,10);if(day!==lastDay){host.append(node('h3',new Date(item.due_at*1000).toLocaleDateString('id-ID',{timeZone:'Asia/Jakarta',weekday:'long',day:'numeric',month:'long'}),'calendar-day'));lastDay=day;}const a=node('article','');a.append(node('strong',(catalogById.get(item.service_id)?.name||item.service_id)),node('p',deadlineLabel(item)+' · '+(statuses[item.status]||'Status tidak diketahui'),deadlineLabel(item).startsWith('Terlambat')?'overdue':'deadline'));button(a,'Detail & tindakan',()=>detail(item.id));host.append(a);}if(d.truncated)host.append(node('p','Menampilkan 200 tenggat pertama.'));}
 $('calendarMonth').onchange=()=>calendarView().catch(e=>status(e.message,true));
-let cart=[],cartKey=null,checkoutBusy=false,basketSource=false,checkoutFocus=false;
+let cart=[],cartKey=null,checkoutBusy=false,basketSource=false,checkoutFocus=false,sharedCartEnabled=false,sharedSnapshot=null;
 const handoffKey='nexo-storefront-handoff-v1';
 const viewHandoffKey='nexo-storefront-view-v1';
 function captureStorefrontView(){
@@ -258,19 +258,51 @@ function checkoutReceipt(result){
 function clearConfirmedPublicBasket(submitted){
  try{const next=confirmedBasketRemoval(localStorage.getItem('nexoraid-basket'),submitted,basketSource);if(next!==null)localStorage.setItem('nexoraid-basket',JSON.stringify(next));}catch{}
 }
+function sharedState(data){
+ if(!data||!(data.revision===null||typeof data.revision==='string'&&/^[a-f0-9-]{36}$/i.test(data.revision))||!Array.isArray(data.items)||data.items.length>5||data.items.length&&!parseStorefrontCart(JSON.stringify(data.items)))throw Error('Respons keranjang akun tidak valid.');
+ return data;
+}
+async function loadSharedCart(){
+ if(!sharedCartEnabled)return;
+ assertNoPendingCart();if(requestKey)throw Error(pendingMessage);
+ const before=JSON.stringify(cart);checkoutBusy=true;
+ try{
+  const next=sharedState(await api('customer/cart'));
+  if(sessionInvalid||cartKey||requestKey||before!==JSON.stringify(cart))throw Error('Keranjang berubah; coba muat kembali.');
+  if(cart.length&&!sameStorefrontCart(cart,next.items)&&!confirm('Ganti keranjang perangkat dengan versi akun?'))return;
+  sharedSnapshot=next;cart=next.items.map(x=>({...x}));basketSource=false;persistDraft();
+ }finally{checkoutBusy=false;}
+ await shopView();
+}
+async function saveSharedCart(){
+ if(!sharedCartEnabled)return;
+ assertNoPendingCart();if(requestKey)throw Error(pendingMessage);
+ const before=JSON.stringify(cart);checkoutBusy=true;
+ try{
+  const snapshot=sharedSnapshot||sharedState(await api('customer/cart'));
+  if(sessionInvalid||cartKey||requestKey||before!==JSON.stringify(cart))throw Error('Keranjang berubah; coba simpan kembali.');
+  if(!sharedSnapshot&&snapshot.items.length&&!sameStorefrontCart(cart,snapshot.items)&&!confirm('Ganti keranjang akun yang tersimpan dengan pilihan perangkat ini?'))return;
+  const saved=sharedState(await api('customer/cart',{action:'save',revision:snapshot.revision,items:JSON.parse(before)}));
+  if(sessionInvalid)return;
+  sharedSnapshot=saved;status('Keranjang akun tersimpan.');
+ }finally{checkoutBusy=false;}
+ await shopView();
+}
 async function shopView(){const host=$('shopBody');host.replaceChildren();
  const add=id=>{assertNoPendingCart();if(!catalog.some(s=>s.id===id&&s.orderable!==false&&!rentalBlocked(s)))throw Error('Layanan tidak dapat dipesan.');if(cart.some(x=>x.service_id===id)||cart.length>=5)throw Error('Maksimal lima layanan unik.');cart.push({service_id:id,quantity:1});basketSource=false;cartKey=null;persistDraft();return shopView();};
 
  const section=node('section','','timeline checkout-review');section.append(node('h3','Isi keranjang'),node('p','1. Tinjau layanan dan jumlah. 2. Buat pesanan. 3. Bayar setelah tagihan tersedia.','checkout-steps'));if(cartKey||requestKey)section.append(node('p',pendingMessage,'action-error'));let total=0,unknown=0;
  for(const item of cart){const s=catalogById.get(item.service_id),a=node('article','');a.append(node('strong',s?.name||item.service_id),node('p',s?.price||'Tidak tersedia'));if(rentalLabel(s))a.append(node('p',rentalLabel(s)));const p=s?.policy?.promo,n=s?.base_unit_amount,at=Math.floor(Date.now()/1000),pct=p&&(p.legacy||p.start<=at&&at<p.end&&item.quantity>=p.min_quantity)?p.percent:0,unit=Number.isSafeInteger(n)?Math.max(1,Math.floor(n*(100-pct)/100)):s?.unit_amount;if(unit!=null)total+=unit*item.quantity;else unknown++;const label=node('label','Jumlah');const input=document.createElement('input');input.type='number';input.min=1;input.max=99;input.value=item.quantity;input.disabled=Boolean(cartKey);input.onchange=()=>{if(cartKey||checkoutBusy){input.value=item.quantity;return;}const n=Number(input.value);item.quantity=Number.isInteger(n)?Math.max(1,Math.min(99,n)):1;basketSource=false;cartKey=null;persistDraft();shopView().catch(e=>status(e.message,true));};label.append(input);a.append(label);button(a,'Hapus',()=>{assertNoPendingCart();cart=cart.filter(x=>x!==item);basketSource=false;persistDraft();return shopView();}).disabled=Boolean(cartKey);section.append(a);}
  if(!cart.length)section.append(node('p','Keranjang masih kosong.','empty'));
+ if(sharedCartEnabled){const panel=node('section','','checkout-favorites');panel.append(node('h3','Keranjang akun'),node('p','Simpan atau muat pilihan di perangkat lain. Perubahan versi tidak ditimpa diam-diam.'));button(panel,'Muat keranjang akun',loadSharedCart).disabled=Boolean(cartKey||requestKey);button(panel,'Simpan ke akun',saveSharedCart).disabled=Boolean(cartKey||requestKey);section.append(panel);}
  section.append(node('p','Estimasi: '+money(total)+' · '+unknown+' perlu penawaran.','checkout-total'),node('p','Harga dan stok diperiksa ulang saat pesanan dibuat. Jangan transfer sebelum tagihan resmi tersedia.'));
  if(cart.length)button(section,cartKey?'Ulangi pengiriman pesanan':'Buat pesanan',async()=>{
   if(requestKey||checkoutBusy)throw Error(pendingMessage);
   if(cartKey&&!confirm('Ulangi pengiriman keranjang yang sama?'))return;
-  const retry=Boolean(cartKey);cartKey??=crypto.randomUUID();const submitting=cartKey;
-  checkoutBusy=true;let sent=false;
-  try{saveCheckoutDraft();sent=true;const result=validateCheckoutReceipt(await api('customer/checkout',{request_id:submitting,items:cart}),cart);clearConfirmedPublicBasket(cart);cart=[];cartKey=null;basketSource=false;persistDraft();await view('orders');checkoutReceipt(result);status(result.orders.length+' pesanan berhasil tercatat. Buka detail untuk melihat status dan tagihan.'+checkoutPricingPreview(result.checkout_pricing));await load().catch(()=>{status('Pesanan berhasil tercatat. Daftar belum dapat dimuat; gunakan ringkasan atau muat ulang.',true);});}
+  const retry=Boolean(cartKey);checkoutBusy=true;let sent=false;
+  try{if(!cartKey&&sharedCartEnabled&&sharedSnapshot?.revision&&sameStorefrontCart(cart,sharedSnapshot.items)){const live=sharedState(await api('customer/cart'));if(live.revision!==sharedSnapshot.revision)throw Error('Keranjang akun berubah. Muat ulang sebelum checkout.');cartKey=live.revision;}cartKey??=crypto.randomUUID();}catch(e){checkoutBusy=false;throw e;}
+  const submitting=cartKey;
+  try{saveCheckoutDraft();sent=true;const result=validateCheckoutReceipt(await api('customer/checkout',{request_id:submitting,items:cart}),cart);clearConfirmedPublicBasket(cart);if(sharedCartEnabled){try{const live=sharedState(await api('customer/cart'));if(live.revision===submitting)sharedSnapshot=sharedState(await api('customer/cart',{action:'clear-confirmed',revision:submitting}));}catch{status('Pesanan tercatat. Keranjang akun belum dapat diperbarui.',true);}}cart=[];cartKey=null;basketSource=false;persistDraft();await view('orders');checkoutReceipt(result);status(result.orders.length+' pesanan berhasil tercatat. Buka detail untuk melihat status dan tagihan.'+checkoutPricingPreview(result.checkout_pricing));await load().catch(()=>{status('Pesanan berhasil tercatat. Daftar belum dapat dimuat; gunakan ringkasan atau muat ulang.',true);});}
   catch(e){if(shouldClearPendingCheckout({sent,retry,error:e})){cartKey=null;persistDraft();}else if(cartKey)status(pendingMessage,true);throw e;}
   finally{checkoutBusy=false;if(!$('shopView').hidden)await shopView().catch(()=>{});}
  });host.append(section);
@@ -288,7 +320,7 @@ async function view(name){
 }
 $('exitCheckout').onclick=()=>view('orders').catch(e=>status(e.message,true));
 const loginMessages={account_suspended:'Akun ditangguhkan. Hubungi pemilik untuk mengaktifkan kembali.',invalid_client:'Konfigurasi aplikasi Discord tidak cocok. Hubungi pemilik (OAUTH-CLIENT).',invalid_grant:'Kode login tidak valid. Mulai login kembali.',invalid_state:'Sesi login kedaluwarsa. Masuk kembali.',access_denied:'Login dibatalkan.',invalid_request:'Permintaan OAuth tidak valid.',unauthorized_client:'Aplikasi belum mengizinkan login.',rate_limited:'Discord membatasi permintaan. Coba lagi nanti.',identity_error:'Identitas Discord tidak berhasil diverifikasi.',token_transport:'Koneksi pertukaran token Discord gagal.',identity_transport:'Koneksi verifikasi identitas gagal.',membership_unavailable:'Peran Discord belum dapat diverifikasi. Coba masuk kembali; jika berulang, hubungi pemilik.',worker_role_review:'Peran penjoki berubah tetapi masih ada pekerjaan aktif. Hubungi pemilik untuk rekonsiliasi.',provider_error:'Layanan login Discord sementara gagal.'};
-async function init(){try{const h=await api('health');randomAssignmentExclusive=h.random_assignment_exclusive===true;if(h.maintenance)toast('Sistem dalam pemeliharaan: perubahan transaksi dinonaktifkan.');if(!h.login_configured){status('Portal belum dikonfigurasi. Gunakan tiket Discord.');return;}try{({user}=await api('me'));}catch(e){if(e.status!==401)throw e;$('login').hidden=false;const code=new URLSearchParams(location.search).get('login_error');status(code?loginMessages[code]||'Login gagal. Coba lagi.':'Masuk untuk mengakses dashboard.');if(code)history.replaceState(null,'',location.pathname+location.hash);if(handoffError)status(handoffError,true);return;}
+async function init(){try{const h=await api('health');randomAssignmentExclusive=h.random_assignment_exclusive===true;sharedCartEnabled=h.shared_cart===true;if(h.maintenance)toast('Sistem dalam pemeliharaan: perubahan transaksi dinonaktifkan.');if(!h.login_configured){status('Portal belum dikonfigurasi. Gunakan tiket Discord.');return;}try{({user}=await api('me'));}catch(e){if(e.status!==401)throw e;$('login').hidden=false;const code=new URLSearchParams(location.search).get('login_error');status(code?loginMessages[code]||'Login gagal. Coba lagi.':'Masuk untuk mengakses dashboard.');if(code)history.replaceState(null,'',location.pathname+location.hash);if(handoffError)status(handoffError,true);return;}
  restoreDraft();await refreshCatalog();$('heading').textContent='Dasbor '+(roles[user.role]||'Pelanggan');$('intro').textContent=descriptions[user.role]||descriptions.customer;$('identity').textContent=user.display_name;$('roleBadge').textContent=roles[user.role]||'Pelanggan';$('account').hidden=false;document.body.classList.add('dashboard-mode');$('account').prepend($('status'));$('logout').hidden=false;$('themeToggle').hidden=false;document.body.dataset.role=user.role;let light=false;try{light=localStorage.getItem('nexo-theme')==='light';}catch{}setTheme(light);$('orderTitle').textContent=oversees()?'Semua pesanan':user.role==='worker'?'Antrean & pekerjaan':'Pesanan saya';for(const b of document.querySelectorAll('[data-view]'))b.hidden=['finance','workspace'].includes(b.dataset.view)?!(['owner','worker'].includes(user.role)||user.finance_access):b.dataset.view==='report'?!oversees():b.dataset.view==='performance'?!oversees()&&user.role!=='worker':['audit','team','business'].includes(b.dataset.view)?user.role!=='owner':false;await load();syncConnection();status('Terhubung.');refreshWorkerAvailability();const requestedView=takeStorefrontView();if(importStorefrontCart()){checkoutFocus=true;await view('shop');}else if(requestedView)await view(requestedView);if(handoffError)status(handoffError,true);if(h.maintenance)toast('Sistem dalam pemeliharaan: perubahan transaksi dinonaktifkan.');notifications().catch(()=>{});setInterval(()=>{if(!document.hidden&&!sessionInvalid&&navigator.onLine!==false)notifications(!$('notificationsView').hidden).catch(()=>{});},30000);}catch(e){status('Portal tidak tersedia: '+e.message);}}
 $('request').onsubmit=async e=>{
  e.preventDefault();const form=$('request'),b=form.querySelector('button[type=submit],button:not([type])');if(!b||!form.reportValidity())return;if(checkoutBusy||cartKey){status(pendingMessage,true);return;}
