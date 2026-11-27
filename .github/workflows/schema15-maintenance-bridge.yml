@@ -1,0 +1,27 @@
+name: Schema 15 maintenance bridge
+on:
+  push:
+    branches: [release/schema15-maintenance-bridge-20261127]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  bridge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify schema is unchanged from deployed baseline
+        run: |
+          set -eu
+          git diff --exit-code 89d2738e78cf40db52c0fa731bba2c06a39616ea HEAD -- v4/migrations
+          test "$(find v4/migrations -maxdepth 1 -name '*.sql' | wc -l)" -eq 15
+      - name: Test strict maintenance and complete baseline regression
+        run: npm test
+      - name: Build storefront
+        run: npm run build
