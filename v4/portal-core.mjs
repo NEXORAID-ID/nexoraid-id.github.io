@@ -37,3 +37,6 @@ export function validateCheckoutReceipt(result,items,{single=false}={}){
  }
  return result;
 }
+
+// A monotonically increasing ticket prevents A→B→A responses from overwriting a newer view.
+export function latestRequest(){let sequence=0;return ()=>{const ticket=++sequence;return ()=>ticket===sequence;};}
