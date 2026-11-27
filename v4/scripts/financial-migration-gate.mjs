@@ -1,3 +1,4 @@
+import {validateProductionTarget} from './deployment-verification.mjs';
 import {createHash} from 'node:crypto';
 import {readFile,readdir} from 'node:fs/promises';
 import {execFileSync} from 'node:child_process';
@@ -37,9 +38,7 @@ async function main(){
  if(files.length===0||!files[0].startsWith('0001_')||files.some(x=>!filePattern.test(x)))throw Error('Invalid local migration inventory');
  if(!files.some(x=>Number(x.slice(0,4))>=16)){console.log('No new financial migration files; existing deploy gate unchanged.');return;}
  const config=JSON.parse(await readFile('v4/.generated/wrangler.json','utf8'));
- const databases=config.d1_databases?.filter(x=>x.binding==='DB'&&x.database_name==='nexoraid-v4');
- if(config.name!=='nexoraid-v4'||databases?.length!==1||!/^[-a-f0-9]{36}$/i.test(databases[0].database_id))throw Error('Unexpected production target');
- const databaseId=databases[0].database_id;
+ const databaseId=validateProductionTarget(config);
  // Query the actual migration inventory using the existing authorized D1 configuration.
  // Never print remote response, credentials, database ID or raw errors.
  const response=JSON.parse(execFileSync('npx',['--yes','wrangler@4.168.0','d1','execute','nexoraid-v4','--remote','--config','v4/.generated/wrangler.json','--json','--command','SELECT name FROM d1_migrations ORDER BY name'],{encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:120000,maxBuffer:1024*1024}));
