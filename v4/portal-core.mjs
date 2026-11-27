@@ -52,3 +52,9 @@ export function checkoutPricingPreview(pricing){
  const rupiah=n=>'Rp'+n.toLocaleString('id-ID');
  return ' Estimasi saja (bukan tagihan): subtotal '+rupiah(known_subtotal)+(unknown_count?' + '+unknown_count+' penawaran tertunda':'')+'; biaya layanan '+rupiah(service_fee)+'; total '+(total===null?'menunggu penawaran':rupiah(total))+'.';
 }
+
+// Storefront handoff accepts only public identifiers and bounded quantities. It is not an order or price quote.
+export function parseStorefrontCart(raw){
+ if(typeof raw!=='string'||raw.length>2048)return null;
+ try{const rows=JSON.parse(raw);if(!Array.isArray(rows)||rows.length<1||rows.length>5||rows.some(x=>!x||Object.keys(x).length!==2||typeof x.service_id!=='string'||!/^[a-zA-Z0-9_-]{1,128}$/.test(x.service_id)||!Number.isSafeInteger(x.quantity)||x.quantity<1||x.quantity>99)||new Set(rows.map(x=>x.service_id)).size!==rows.length)return null;return rows.map(x=>({service_id:x.service_id,quantity:x.quantity}));}catch{return null;}
+}
