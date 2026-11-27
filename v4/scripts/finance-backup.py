@@ -104,7 +104,7 @@ def pending_digest(ref,applied):
 
 def verify_live_freeze(opener=urlopen):
     url="https://nexoraid-v4.nexoraid.workers.dev/api/health"
-    with opener(Request(url,headers={"Cache-Control":"no-cache","Accept":"application/json"}),timeout=15) as response:
+    with opener(Request(url,headers={"Cache-Control":"no-cache","Accept":"application/json","User-Agent":"NEXORAID-Backup/1.0"}),timeout=15) as response:
         if response.status!=200 or response.geturl()!=url:
             raise ValueError("Production maintenance health unavailable")
         raw=response.read(16385)
