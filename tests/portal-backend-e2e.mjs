@@ -185,7 +185,7 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  await page.evaluate(()=>window.restoreFixtureStorage());
  page.once('dialog',d=>d.accept());
  await retryButton.click();
- await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('order berhasil tercatat'));
+ await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('pesanan berhasil tercatat'));
  assert.equal(db.prepare('SELECT COUNT(*) n FROM orders WHERE customer_id=?').get(id).n,cartBefore+1);
  assert.equal(await page.evaluate(id=>JSON.parse(localStorage.getItem('nexo-order-draft-v1:'+id)).cartKey,id),null);
  console.log('Cart retry storage failure preserves original pending key and replays without creating a duplicate.');

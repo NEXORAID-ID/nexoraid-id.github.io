@@ -66,7 +66,10 @@ export async function workspace({p,m,url,user,env,readBody,r}){
    const payouts=await db.prepare("SELECT COALESCE(SUM(amount),0) AS paid_out FROM payout_requests WHERE state='paid' AND reviewed_at>=? AND reviewed_at<?").bind(start,end).first();
    const daily=(await db.prepare("SELECT date(created_at,'unixepoch','+7 hours') AS day,SUM(gross) AS gross,SUM(owner_share) AS owner_share FROM all_order_settlements WHERE created_at>=? AND created_at<? GROUP BY day ORDER BY day").bind(start,end).all()).results;
    const attribution=await db.prepare("SELECT COALESCE(SUM(c.amount),0) AS cost_basis_total,COUNT(CASE WHEN c.order_id IS NULL THEN 1 END) AS cost_basis_missing,COALESCE(SUM(CASE WHEN c.order_id IS NOT NULL THEN s.owner_share-c.amount ELSE 0 END),0) AS known_contribution_margin FROM all_order_settlements s LEFT JOIN order_cost_basis c ON c.order_id=s.order_id WHERE s.created_at>=? AND s.created_at<?").bind(start,end).first();
-   result.finance={...attribution,...completed,...cost,...cash,...refunds,...payouts,...completedRefunds,recorded_margin:completed.owner_share-cost.expenses-completedRefunds.completed_refund_cost,daily};
+   // Actual consolidated cash flow, independent of settlement/accrual totals. All days use WIB.
+   const cash_daily=(await db.prepare("SELECT date(event_at,'unixepoch','+7 hours') AS day,SUM(CASE WHEN delta>0 THEN delta ELSE 0 END) AS incoming,SUM(CASE WHEN delta<0 THEN -delta ELSE 0 END) AS outgoing,SUM(delta) AS net,COUNT(*) AS movement_count FROM cash_movements WHERE event_at>=? AND event_at<? GROUP BY day ORDER BY day").bind(start,end).all()).results;
+   const cash_month=cash_daily.reduce((a,d)=>({incoming:a.incoming+d.incoming,outgoing:a.outgoing+d.outgoing,net:a.net+d.net,movement_count:a.movement_count+d.movement_count}),{incoming:0,outgoing:0,net:0,movement_count:0});
+   result.finance={...attribution,...completed,...cost,...cash,...refunds,...payouts,...completedRefunds,recorded_margin:completed.owner_share-cost.expenses-completedRefunds.completed_refund_cost,daily,cash_daily,cash_month};
   }
   return json(result);
  }
