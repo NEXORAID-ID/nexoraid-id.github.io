@@ -1,3 +1,4 @@
+import {feeTrialEnabled,trialQuote} from './checkout-fee-trial.mjs';
 const staff=r=>r==='owner'||r==='management';
 const statuses=['requested','claimed','confirmed','processing','completed','cancelled'];
 const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -77,6 +78,10 @@ export async function operations({p,m,url,user,env,readBody,r}){
  }
  if(!action&&m==='GET'){
   const visible=redact(order,user);
+  if(feeTrialEnabled(env)&&(over||owns||assigned)){
+   const components=await db.prepare('SELECT base_amount,service_fee,fee_received,fee_refunded FROM checkout_fee_ledger_components WHERE order_id=?').bind(id).first();
+   Object.assign(visible,{fee_trial:true,...(components||{})});
+  }
   // Payment references and evidence are deliberately excluded from general customer responses.
   const evidence=over||assigned&&user.role==='worker'?await db.prepare('SELECT evidence,submitted_at FROM order_work WHERE order_id=?').bind(id).first():null;
   const accounting=user.role==='owner'?{seller_fee:await db.prepare('SELECT amount,reference FROM seller_order_fees WHERE order_id=?').bind(id).first(),cost_basis:await db.prepare('SELECT amount,reference,note FROM order_cost_basis WHERE order_id=?').bind(id).first()}:null;
@@ -100,6 +105,10 @@ export async function operations({p,m,url,user,env,readBody,r}){
   if(kind==='seller'&&await db.prepare('SELECT 1 FROM seller_order_fees WHERE order_id=? AND amount>?').bind(id,amount).first())return err('Invoice tidak boleh lebih kecil dari fee seller.',409);
   if(order.received_amount>0)return err('Invoice terkunci setelah dana diterima.',409);
   if(order.payment_claimed)return err('Invoice dikunci karena ada laporan pembayaran. Owner harus meninjau laporan dahulu.',409);
+  if(feeTrialEnabled(env)){
+   try{return await trialQuote(db,{id,amount,kind,actor:user.id,time:t})?json({ok:true}):err('Invoice berubah atau terkunci.',409);}
+   catch(e){if(/fee_|invoice_limit|CHECK constraint|UNIQUE constraint/.test(String(e.message)))return err('Alokasi biaya atau nominal invoice tidak valid.',409);throw e;}
+  }
   return mutate(db,db.prepare("INSERT INTO order_finance(order_id,amount,kind,quoted_by,quoted_at) SELECT id,?,?,?,? FROM orders WHERE id=? AND status IN ('claimed','confirmed','processing') ON CONFLICT(order_id) DO UPDATE SET amount=excluded.amount,quoted_by=excluded.quoted_by,quoted_at=excluded.quoted_at WHERE order_finance.state='quoted' AND NOT EXISTS(SELECT 1 FROM payment_claims WHERE order_id=order_finance.order_id) AND NOT EXISTS(SELECT 1 FROM order_receipts WHERE order_id=order_finance.order_id)").bind(amount,kind,user.id,t,id),user.id,'invoice:quote',id,t);
  }
  if(action==='payment'){
