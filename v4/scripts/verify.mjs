@@ -1,4 +1,4 @@
-import {verifyProductionMigrations,verifyReleaseHealth,requireProductionOrigin} from './deployment-verification.mjs';
+import {verifyProductionMigrations,verifyReleaseHealth,requireProductionOrigin,verifyReleasePolicies} from './deployment-verification.mjs';
 import {readFile} from 'node:fs/promises';
 const origin=requireProductionOrigin(process.env.PUBLIC_ORIGIN);
 const config=JSON.parse(await readFile('v4/.generated/wrangler.json','utf8'));
@@ -18,7 +18,10 @@ const expected=process.env.RELEASE_SHA||process.env.GITHUB_SHA;
 const appliedCount=await verifyProductionMigrations();
 console.log('Exact production migration inventory verified: '+appliedCount+' migrations');
 await check('/api/health',async r=>{
- const state=verifyReleaseHealth(await r.json(),expected);
+ const health=await r.json();
+ const state=verifyReleaseHealth(health,expected);
+ const policies=verifyReleasePolicies(health,config.vars);
+ console.log('Release policies: '+JSON.stringify(policies));
  if(state.runtime_schema!==appliedCount)throw Error('Runtime schema differs from exact migration inventory');
  if(state.maintenance!==expectedMaintenance)throw Error('Live maintenance differs from deployment configuration');
  console.log('Release readiness: '+JSON.stringify(state));

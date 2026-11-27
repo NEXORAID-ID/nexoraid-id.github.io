@@ -38,8 +38,8 @@ jobs:
       D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
       PUBLIC_ORIGIN: ${{ vars.PUBLIC_ORIGIN }}
       MAINTENANCE_MODE: ${{ vars.MAINTENANCE_MODE }}
-      WEB_RANDOM_ASSIGNMENT_EXCLUSIVE: ${{ vars.WEB_RANDOM_ASSIGNMENT_EXCLUSIVE }}
-      AUTO_FIXED_INVOICE_ENABLED: ${{ vars.AUTO_FIXED_INVOICE_ENABLED }}
+      WEB_RANDOM_ASSIGNMENT_EXCLUSIVE: ${{ vars.WEB_RANDOM_ASSIGNMENT_EXCLUSIVE || 'true' }}
+      AUTO_FIXED_INVOICE_ENABLED: ${{ vars.AUTO_FIXED_INVOICE_ENABLED || 'true' }}
       OWNER_DISCORD_ID: ${{ vars.OWNER_DISCORD_ID }}
       DISCORD_CLIENT_ID: ${{ vars.DISCORD_CLIENT_ID }}
       DISCORD_CLIENT_SECRET: ${{ secrets.DISCORD_CLIENT_SECRET }}
@@ -70,6 +70,12 @@ jobs:
             echo "::error::Invalid or reused machine and actor credentials. No production changes."
             exit 1
           fi
+          for name in WEB_RANDOM_ASSIGNMENT_EXCLUSIVE AUTO_FIXED_INVOICE_ENABLED; do
+            if [ "${!name}" != true ] && [ "${!name}" != false ]; then
+              echo "::error::Invalid boolean deployment policy: $name"
+              exit 1
+            fi
+          done
           npm test
           SITE_URL="$PUBLIC_ORIGIN" npm run build
           node v4/scripts/prepare.mjs
