@@ -1,6 +1,6 @@
 import { CONFIG, services as baselineServices } from './services-data.js';
 import { getLiveCatalog } from './live-catalog.js';
-import { categories, escapeHTML as esc, queryCatalog, orderText, fixedPriceValue, comparisonTotals, PAGE_SIZE, safeSelection, safeBasket, basketTotals, basketText, packageOptions, pricingInfo, priceCSV, effectiveCatalogUnit, activePromotions, rentalStockBlocked as stockBlocked, basketHasUnavailable } from './catalog.js';
+import { categories, escapeHTML as esc, queryCatalog, orderText, fixedPriceValue, comparisonTotals, PAGE_SIZE, safeSelection, savedBasket, basketTotals, basketText, packageOptions, pricingInfo, priceCSV, effectiveCatalogUnit, activePromotions, rentalStockBlocked as stockBlocked, basketHasUnavailable } from './catalog.js';
 
 const catalogue=await getLiveCatalog(baselineServices,location);
 const services=catalogue.services;
@@ -15,7 +15,7 @@ const serviceHref = id => builtSite ? 'layanan-'+encodeURIComponent(id)+'.html' 
 function readStore(key, fallback) { try {return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback;} catch {return fallback;} }
 function saveStore(key, value) { try {localStorage.setItem(key,JSON.stringify(value));return true;} catch {return false;} }
 let favorites = safeSelection(readStore('nexoraid-favorites',[]), services);
-let basket = safeBasket(readStore('nexoraid-basket',[]), services);
+let basket = savedBasket(readStore('nexoraid-basket',[]), services);
 const basketNav=$('#basketNav');
 function updateBasketNav(){if(basketNav)basketNav.textContent='Keranjang ('+basket.reduce((n,r)=>n+r.quantity,0)+')';}
 function updateFavorites(){ $$('[data-favorite]').forEach(b=>{const selected=favorites.includes(b.dataset.favorite);b.setAttribute('aria-pressed',String(selected));b.textContent=selected?'♥ Tersimpan':'♡ Favorit';}); }
