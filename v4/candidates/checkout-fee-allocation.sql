@@ -54,3 +54,7 @@ BEGIN SELECT RAISE(ABORT,'fee_payment_policy_pending'); END;
 CREATE TRIGGER checkout_fee_pending_direct_payment BEFORE UPDATE OF state ON order_finance
 WHEN NEW.state='paid' AND OLD.state<>'paid' AND EXISTS(SELECT 1 FROM checkout_fee_allocations WHERE order_id=NEW.order_id)
 BEGIN SELECT RAISE(ABORT,'fee_payment_policy_pending'); END;
+
+CREATE TRIGGER checkout_fee_pending_direct_insert BEFORE INSERT ON order_finance
+WHEN NEW.state='paid' AND EXISTS(SELECT 1 FROM checkout_fee_allocations WHERE order_id=NEW.order_id)
+BEGIN SELECT RAISE(ABORT,'fee_payment_policy_pending'); END;
