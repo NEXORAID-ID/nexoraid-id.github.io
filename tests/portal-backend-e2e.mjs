@@ -124,6 +124,29 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  assert.equal(db.prepare('SELECT COUNT(*) n FROM orders WHERE customer_id=?').get(id).n,2);
  assert.deepEqual(db.prepare('SELECT worker_share,owner_share,gross FROM order_settlements WHERE order_id=?').get(order.id),settlement);
  console.log('Closure fence E2E passed: single and cart checkout blocked, receipt replay, new checkout after closure, historical settlement unchanged.');
+ // Recover an already-committed cart after a retry fails BEFORE transmission.
+ // Use synthetic local D1 only; keep the original key and payload locked.
+ const cartKey='fixture-cart-recovery-0001',cartItems=[{service_id:'optiwindows',quantity:1}];
+ const cartBefore=db.prepare('SELECT COUNT(*) n FROM orders WHERE customer_id=?').get(id).n;
+ assert.equal((await call('/api/customer/checkout',JSON.stringify({request_id:cartKey,items:cartItems}))).status,201);
+ await page.evaluate(({id,cartKey,cartItems})=>localStorage.setItem('nexo-order-draft-v1:'+id,JSON.stringify({cart:cartItems,cartKey,requestKey:null})),{id,cartKey,cartItems});
+ await page.reload();await page.waitForFunction(()=>document.querySelector('#status')?.textContent==='Terhubung.');
+ await page.locator('[data-view="shop"]').click();
+ const retryButton=page.getByRole('button',{name:'Ulangi pengiriman pesanan',exact:true});
+ await retryButton.waitFor();
+ await page.evaluate(()=>{const original=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){if(key.startsWith('nexo-order-draft-v1:'))throw new DOMException('fixture storage failure','QuotaExceededError');return original.call(this,key,value);};window.restoreFixtureStorage=()=>{Storage.prototype.setItem=original;};});
+ page.once('dialog',d=>d.accept());
+ await retryButton.click();
+ await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('Penyimpanan draft tidak tersedia'));
+ await retryButton.waitFor();
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM orders WHERE customer_id=?').get(id).n,cartBefore+1);
+ await page.evaluate(()=>window.restoreFixtureStorage());
+ page.once('dialog',d=>d.accept());
+ await retryButton.click();
+ await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('order berhasil tercatat'));
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM orders WHERE customer_id=?').get(id).n,cartBefore+1);
+ assert.equal(await page.evaluate(id=>JSON.parse(localStorage.getItem('nexo-order-draft-v1:'+id)).cartKey,id),null);
+ console.log('Cart retry storage failure preserves original pending key and replays without creating a duplicate.');
  // Revoke the actual session in the isolated DB while the owner dashboard is open.
  p=pages.owner;await p.reload();await p.waitForFunction(()=>document.querySelector('#status')?.textContent==='Terhubung.');
  assert.equal(await p.locator('#account').isVisible(),true);

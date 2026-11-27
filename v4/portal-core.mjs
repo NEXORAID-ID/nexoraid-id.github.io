@@ -21,3 +21,19 @@ export function createPortalApi({isExpired,expiredError,hasUser,expireSession,is
   return j;
  };
 }
+
+ // A failed retry never resolves the original uncertain transaction.
+export function shouldClearPendingCheckout({sent,retry,error}){
+ return !retry&&(!sent||([400,403,409,429].includes(error?.status)&&error.validError===true&&!String(error.message).includes('ID permintaan sudah')));
+}
+// Do not discard a persisted request on a malformed or mismatched success response.
+export function validateCheckoutReceipt(result,items,{single=false}={}){
+ const rows=single?[result?.order]:result?.orders;
+ if(!Array.isArray(rows)||rows.length!==items.length||(!single&&typeof result?.checkout_id!=='string'))throw Error('Respons pesanan belum dapat dipastikan.');
+ const expected=new Map(items.map(x=>[x.service_id,x.quantity])),ids=new Set();
+ for(const row of rows){
+  if(!row||typeof row.id!=='string'||!row.id||ids.has(row.id)||!expected.has(row.service_id)||expected.get(row.service_id)!==row.quantity)throw Error('Respons pesanan belum dapat dipastikan.');
+  ids.add(row.id);expected.delete(row.service_id);
+ }
+ return result;
+}
