@@ -59,6 +59,15 @@ jobs:
             exit 1
           fi
           printf '[extend]\nuseDefault = true\n' > "$work/config/gitleaks.toml"
+          # Apply only reviewed exact historical public-ID fingerprints, never whole rules or files.
+          python3 - v4/security/a68-reviewed-fingerprints.txt "$work/config/.gitleaksignore" <<'PY'
+          import pathlib, re, sys
+          lines=[s for s in pathlib.Path(sys.argv[1]).read_text().splitlines() if s and not s.startswith('#')]
+          pattern=r'[0-9a-f]{40}:tests/(?:maintenance-oauth\.test\.mjs|v4\.test\.mjs):discord-client-id:[1-9][0-9]*'
+          if len(lines)!=15 or len(set(lines))!=15 or any(not re.fullmatch(pattern,s) for s in lines):
+              raise SystemExit('Invalid reviewed A68 fingerprint inventory')
+          pathlib.Path(sys.argv[2]).write_text('\n'.join(lines)+'\n')
+          PY
           rc=0
           scan "$PWD" > "$work/scan.log" 2>&1 || rc=$?
           case "$rc" in
