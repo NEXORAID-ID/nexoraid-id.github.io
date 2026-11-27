@@ -1,6 +1,6 @@
 import { CONFIG, services as baselineServices } from './services-data.js';
 import { getLiveCatalog } from './live-catalog.js';
-import { categories, escapeHTML as esc, queryCatalog, orderText, fixedPriceValue, comparisonTotals, PAGE_SIZE, safeSelection, savedBasket, basketTotals, basketText, packageOptions, pricingInfo, priceCSV, effectiveCatalogUnit, activePromotions, rentalStockBlocked as stockBlocked, basketHasUnavailable } from './catalog.js';
+import { categories, escapeHTML as esc, queryCatalog, orderText, fixedPriceValue, comparisonTotals, PAGE_SIZE, safeSelection, savedBasket, basketTotals, basketText, packageOptions, pricingInfo, priceCSV, effectiveCatalogUnit, activePromotions, rentalStockBlocked as stockBlocked, basketHasUnavailable, MARKETPLACE_ORIGIN, marketplaceAccountOrigin, marketplaceAccountState } from './catalog.js';
 
 const catalogue=await getLiveCatalog(baselineServices,location);
 const services=catalogue.services;
@@ -68,6 +68,54 @@ menu?.querySelectorAll('a').forEach(link => link.addEventListener('click', close
 document.addEventListener('click', event => { if (!event.target.closest('.site-header')) closeMenu(); });
 document.addEventListener('keydown', event => { if (event.key === 'Escape' && menu?.classList.contains('open')) { closeMenu(); menuButton.focus(); } });
 matchMedia('(min-width: 901px)').addEventListener('change', closeMenu);
+// Shared storefront header: cookies remain HttpOnly and same-origin; no cached identity or cross-origin credential requests.
+function setupMarketplaceAccount(){
+ if(!menu)return;
+ const portalURL=MARKETPLACE_ORIGIN+'/portal.html';
+ let link=$('#accountNav');if(!link){link=document.createElement('a');link.id='accountNav';link.className='btn btn-primary';menu.append(link);}
+ link.href=portalURL;link.textContent='Masuk / Dasbor';
+ const sameOrigin=marketplaceAccountOrigin(location.origin);
+ // The legacy Pages site cannot read the Worker's host-only session.
+ // Route customers to the real portal rather than force another OAuth login.
+ if(!sameOrigin)return;
+ document.querySelectorAll('a[href="login.html"]').forEach(a=>{a.href=portalURL;});
+ const profile=document.createElement('details');profile.className='marketplace-account';profile.hidden=true;
+ const summary=document.createElement('summary');summary.className='btn btn-primary';
+ const panel=document.createElement('div');panel.className='marketplace-account-panel';
+ const identity=document.createElement('p');identity.className='marketplace-account-identity';
+ const actions=[['Dashboard',''],['Profil & sesi','account'],['Pesanan saya','orders'],['Keranjang & favorit','shop'],['Notifikasi','notifications'],['Bantuan','support']];
+ panel.append(identity);
+ for(const [label,view] of actions){const a=document.createElement('a');a.href=portalURL+(view?'?view='+view:'');a.textContent=label;a.addEventListener('click',closeMenu);panel.append(a);}
+ const logout=document.createElement('button');logout.type='button';logout.textContent='Keluar akun';logout.className='marketplace-account-logout';panel.append(logout);
+ profile.append(summary,panel);link.after(profile);
+ const roleNames={customer:'Pelanggan',owner:'Pemilik',worker:'Penjoki',management:'Manajemen',seller:'Penjual'};
+ let serial=0,busy=false;
+ function renderAccount(account){
+  profile.open=false;profile.hidden=!account;link.hidden=Boolean(account);
+  summary.textContent=account?'Akun: '+account.display_name:'Akun';
+  identity.textContent=account?roleNames[account.role]:'';
+  link.textContent=account?'Dashboard':'Masuk / Dasbor';
+ }
+ async function refreshAccount(){
+  if(busy)return;const seq=++serial;
+  // Hide stale identity immediately on navigation restoration and revalidation.
+  renderAccount(null);
+  try{const r=await fetch('/api/me',{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(8000)});const account=r.ok?marketplaceAccountState(await r.json()):null;if(seq===serial&&!busy)renderAccount(account);}catch{if(seq===serial&&!busy)renderAccount(null);}
+ }
+ logout.addEventListener('click',async()=>{
+  if(busy)return;busy=true;serial++;logout.disabled=true;
+  try{const r=await fetch('/api/auth/logout',{method:'POST',credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(8000)});if(!r.ok&&r.status!==401)throw Error('Logout gagal');renderAccount(null);showToast('Akun telah keluar.');}
+  catch{showToast('Keluar akun belum berhasil dikonfirmasi. Coba lagi.');}
+  finally{busy=false;logout.disabled=false;refreshAccount();}
+ });
+ document.addEventListener('click',e=>{if(!profile.contains(e.target))profile.open=false;});
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&profile.open){profile.open=false;summary.focus();}});
+ addEventListener('pageshow',e=>{if(e.persisted)refreshAccount();});
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshAccount();else{serial++;renderAccount(null);}});
+ addEventListener('online',refreshAccount);
+ refreshAccount();
+}
+setupMarketplaceAccount();
 
 const motionButton = $('#motionToggle');
 let motionPaused = false;

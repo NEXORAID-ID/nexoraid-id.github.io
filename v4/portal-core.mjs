@@ -58,3 +58,6 @@ export function parseStorefrontCart(raw){
  if(typeof raw!=='string'||raw.length>2048)return null;
  try{const rows=JSON.parse(raw);if(!Array.isArray(rows)||rows.length<1||rows.length>5||rows.some(x=>!x||Object.keys(x).length!==2||typeof x.service_id!=='string'||!/^[a-zA-Z0-9_-]{1,128}$/.test(x.service_id)||!Number.isSafeInteger(x.quantity)||x.quantity<1||x.quantity>99)||new Set(rows.map(x=>x.service_id)).size!==rows.length)return null;return rows.map(x=>({service_id:x.service_id,quantity:x.quantity}));}catch{return null;}
 }
+
+// Only explicit public portal destinations are eligible for a storefront deep link.
+export function storefrontView(value){return ['orders','account','shop','notifications','support'].includes(value)?value:null;}
