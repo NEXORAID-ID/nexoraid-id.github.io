@@ -8,6 +8,31 @@ let browser;
 try{
   for(let i=0;i<40;i++){try{if((await fetch(url)).ok)break;}catch{}await new Promise(r=>setTimeout(r,250));}
   browser=await chromium.launch({headless:true});
+  // Exercise HTTP CSP in Chromium, not just string/header assertions.
+  const {documentPolicy}=await import('../v4/worker.mjs');
+  const cspContext=await browser.newContext();
+  try{
+   const cspPage=await cspContext.newPage(),origin='http://127.0.0.1:'+port;
+   await cspContext.route(origin+'/csp-probe.js',route=>route.fulfill({contentType:'text/javascript',body:'window.allowedScript=true;'}));
+   await cspContext.route(origin+'/portal.html',route=>route.fulfill({contentType:'text/html',headers:{'content-security-policy':documentPolicy('/portal.html')},body:'<!doctype html><script src="/csp-probe.js"></script><script>window.blockedInline=true;</script><button id="probe" onclick="window.blockedHandler=true">Probe</button><iframe src="/index.html"></iframe>'}));
+   await cspPage.goto(origin+'/portal.html');
+   await cspPage.waitForFunction(()=>window.allowedScript===true);
+   await cspPage.locator('#probe').click();
+   assert.equal(await cspPage.evaluate(()=>typeof window.blockedInline),'undefined');
+   assert.equal(await cspPage.evaluate(()=>typeof window.blockedHandler),'undefined');
+   assert.ok(!cspPage.frames().some(f=>f.url()===origin+'/index.html'));
+   await cspContext.unroute(origin+'/portal.html');
+   await cspContext.route(origin+'/index.html',async route=>{
+    const response=await route.fetch();
+    await route.fulfill({response,headers:{...response.headers(),'content-security-policy':documentPolicy('/index.html')}});
+   });
+   await cspPage.goto(origin+'/index.html');
+   await cspPage.locator('#homeSearchInput').fill('OptiWindows');
+   await cspPage.locator('#homeSearchResults [data-suggestion]').first().waitFor();
+   console.log('A71 Chromium: same-origin script works, inline scripts/handlers and frames denied; public search works under HTTP policy.');
+  }finally{await cspContext.close();}
+
+
   const context=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce'});
   const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(url+'index.html');await page.locator('#homeSearchInput').waitFor({timeout:10000});assert.deepEqual(errors,[]);assert.equal(await page.locator('#featuredServices [data-compare]').count(),0);
