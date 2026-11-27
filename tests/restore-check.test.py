@@ -162,6 +162,7 @@ class RecoveryDrill(unittest.TestCase):
                 for path in migrations:
                     candidate.executescript(path.read_text())
                 upgraded = restore.snapshot(candidate)
+                self.assertEqual(set(upgraded), set(original))
                 self.assertEqual(upgraded["attachments"], original["attachments"])
                 for section in ("counts", "totals"):
                     self.assertEqual({name: upgraded[section][name] for name in original[section]}, original[section])
@@ -171,6 +172,7 @@ class RecoveryDrill(unittest.TestCase):
                 self.assertIn("order_receipts", upgraded["counts"])
                 self.assertIn("cash_period_closes", upgraded["counts"])
                 self.assertIn("seller_settlements", upgraded["counts"])
+                self.assertEqual(restore.verify("\n".join(candidate.iterdump()), upgraded)["orders"], 1)
                 self.assertEqual(candidate.execute("PRAGMA foreign_key_check").fetchall(), [])
                 # Simulate failed release validation following a business write
                 # in the disposable candidate. The pre-upgrade copy is untouched.
