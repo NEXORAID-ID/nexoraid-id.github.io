@@ -111,6 +111,27 @@ class OwnerBackupTests(unittest.TestCase):
         cls.helper = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.helper)
 
+    def test_owner_backup_requires_live_maintenance(self):
+        import io
+        import json
+        from unittest.mock import MagicMock
+        def opener(payload, status=200, redirected=False):
+            response=MagicMock()
+            response.__enter__.return_value=response
+            response.status=status
+            response.geturl.return_value=("https://other.invalid" if redirected else
+                "https://nexoraid-v4.nexoraid.workers.dev/api/health")
+            response.read.side_effect=io.BytesIO(json.dumps(payload).encode()).read
+            return lambda request, timeout: response
+        ready={"status":"ok","database_ready":True,"maintenance":True}
+        self.helper.verify_live_freeze(opener(ready))
+        for patch in ({"maintenance":False},{"maintenance":1},{"database_ready":False},{"status":"degraded"}):
+            with self.assertRaisesRegex(ValueError,"maintenance must be active"):
+                self.helper.verify_live_freeze(opener({**ready,**patch}))
+        for probe in (opener(ready,status=503),opener(ready,redirected=True)):
+            with self.assertRaisesRegex(ValueError,"health unavailable"):
+                self.helper.verify_live_freeze(probe)
+
     def test_pending_digest_matches_node_gate_byte_for_byte(self):
         import hashlib
         from unittest.mock import patch
