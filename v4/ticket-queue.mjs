@@ -7,7 +7,7 @@ const err=(error,status)=>json({error},status);
 const uuid=x=>typeof x==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(x);
 const snow=x=>typeof x==='string'&&/^\d{17,20}$/.test(x);
 const guild='1487728359482851348';
-export async function ticketQueue({db,r,m,readBody,clock=()=>Math.floor(Date.now()/1000),token=()=>crypto.randomUUID(),maintenance=false,owner,verifyWorker,exclusive=false}){
+export async function ticketQueue({db,r,m,readBody,clock=()=>Math.floor(Date.now()/1000),token=()=>crypto.randomUUID(),maintenance=false,owner,verifyWorker,exclusive=false,autoInvoice=false}){
  if(m!=='POST')return err('Metode tidak diizinkan.',405);
  const b=await readBody(r),t=clock();
  if(b?.action==='health'){const probe=await db.prepare('SELECT COUNT(*) AS probe FROM web_ticket_outbox WHERE 0').first();return probe?.probe===0?json({ok:true}):err('Queue tidak siap.',503);}
@@ -61,7 +61,7 @@ export async function ticketQueue({db,r,m,readBody,clock=()=>Math.floor(Date.now
   return json({ok:true,read_only:true,random_assignment_exclusive:exclusive,orders:rows});
  }
  if(maintenance)return err('Antrean dalam pemeliharaan.',503);
- if(b?.action==='dispatch'){if(typeof verifyWorker!=='function')return err('Verifikasi penjoki belum siap.',503);return json(await dispatchAvailableOrder(db,{now:t,owner,verifyWorker,clock}));}
+ if(b?.action==='dispatch'){if(typeof verifyWorker!=='function')return err('Verifikasi penjoki belum siap.',503);return json(await dispatchAvailableOrder(db,{now:t,owner,verifyWorker,clock,autoInvoice}));}
  if(['closure-begin','closure-finish','closure-state'].includes(b?.action)){
   const result=await closureFence(db,b,guild,t);
   return json(result.body,result.status);
