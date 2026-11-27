@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {verifyMigrationHistory,readAppliedHistory,verifyReleaseHealth,validateProductionTarget,requireProductionOrigin,PRODUCTION_ORIGIN} from '../v4/scripts/deployment-verification.mjs';
+import {verifyMigrationHistory,readAppliedHistory,verifyReleaseHealth,verifyReleasePolicies,validateProductionTarget,requireProductionOrigin,PRODUCTION_ORIGIN} from '../v4/scripts/deployment-verification.mjs';
 const files=['0001_initial.sql','0002_finance.sql','0003_settlement.sql'];
 test('exact migration inventory, sorted canonically',()=>{
  assert.equal(verifyMigrationHistory(files,[...files].reverse()),3);
@@ -46,3 +46,5 @@ test('production target and probe origin fail closed on staging, redirects and m
   assert.throws(()=>validateProductionTarget({...config,...patch}),/Unexpected production target/);
  }
 });
+
+test('production rollout verifies both live policies exactly, including rollback',()=>{const vars={WEB_RANDOM_ASSIGNMENT_EXCLUSIVE:'true',AUTO_FIXED_INVOICE_ENABLED:'true'};const live={random_assignment_exclusive:true,auto_fixed_invoice:true};assert.deepEqual(verifyReleasePolicies(live,vars),live);assert.throws(()=>verifyReleasePolicies({...live,auto_fixed_invoice:false},vars),/auto_fixed_invoice/);assert.throws(()=>verifyReleasePolicies({},vars),/random_assignment_exclusive/);assert.deepEqual(verifyReleasePolicies({random_assignment_exclusive:false,auto_fixed_invoice:false},{WEB_RANDOM_ASSIGNMENT_EXCLUSIVE:'false',AUTO_FIXED_INVOICE_ENABLED:'false'}),{random_assignment_exclusive:false,auto_fixed_invoice:false});});

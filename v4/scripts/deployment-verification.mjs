@@ -53,3 +53,10 @@ export async function verifyProductionMigrations(){
  }catch{throw Error('Production migration inventory query failed');}
  return verifyMigrationHistory(local,readAppliedHistory(response));
 }
+
+// Assert exact intended feature state, not merely a healthy Worker.
+export function verifyReleasePolicies(health,vars){
+ const expected={random_assignment_exclusive:vars?.WEB_RANDOM_ASSIGNMENT_EXCLUSIVE==='true',auto_fixed_invoice:vars?.AUTO_FIXED_INVOICE_ENABLED==='true'};
+ for(const [key,value] of Object.entries(expected))if(health?.[key]!==value)throw Error('Live policy differs from deployment configuration: '+key);
+ return expected;
+}

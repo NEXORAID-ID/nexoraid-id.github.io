@@ -1,0 +1,5 @@
+# Production random assignment and fixed invoice cutover
+
+The production workflow defaults to exclusive random assignment and automatic fixed-price quotations. Local/staging defaults remain off. Existing environment variables set explicitly to `false` override the production defaults; set the corresponding variable to false and redeploy through the existing protected workflow to roll back either policy. Invalid nonempty settings fail before deployment. The release verification checks the actual live boolean policy values and exact release SHA.
+
+Evidence before this candidate: PR104's security, browser and isolated D1 gates passed, including 48 local D1 assertions; Railway deployment dc05c75c-4e5a-4ce9-b949-512a822ee883 reported queue and ticket readiness OK with zero missing active mappings. This is not evidence that the new flags are already live. No synthetic orders are submitted in production. Real order delivery, notification, payment verification and archival still require observation. Manual owner/management assignment remains available; no change to fees, receipts or settlements.
