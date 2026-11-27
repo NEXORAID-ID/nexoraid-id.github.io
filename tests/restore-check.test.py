@@ -70,16 +70,28 @@ class OwnerBackupTests(unittest.TestCase):
         sha="a"*40
         name="0016_installment_ledger.sql"
         sql=b"CREATE TABLE fixture(id TEXT);\n"
+        baseline=[f"{i:04d}_fixture.sql" for i in range(1,16)]
+        names=baseline+[name]
         def git(args):
             if args[1]=="rev-parse": return (sha+"\n").encode()
-            if args[1]=="ls-tree": return ("0015_rental_investor_guard.sql\n"+name+"\n").encode()
+            if args[1]=="ls-tree": return ("\n".join(names)+"\n").encode()
             if args[1]=="show": return sql
             raise AssertionError("unexpected command")
         with patch.object(self.helper,"run",side_effect=git):
-            self.assertEqual(self.helper.pending_digest("fixture",["0015_rental_investor_guard.sql"]),
+            self.assertEqual(self.helper.pending_digest("fixture",baseline),
                 ([name],hashlib.sha256(name.encode()+b"\0"+sql+b"\0").hexdigest()))
             with self.assertRaisesRegex(ValueError,"Divergent migration"):
-                self.helper.pending_digest("fixture",["0015_other.sql"])
+                self.helper.pending_digest("fixture",baseline[:-1]+["0015_other.sql"])
+            with self.assertRaisesRegex(ValueError,"Divergent migration"):
+                self.helper.pending_digest("fixture",baseline[:-1])
+            with self.assertRaisesRegex(ValueError,"Divergent migration"):
+                self.helper.pending_digest("fixture",baseline[:1]+baseline[2:])
+            names.append("0018_gap.sql")
+            with self.assertRaisesRegex(ValueError,"gap or duplicate"):
+                self.helper.pending_digest("fixture",baseline)
+            names[-1]="0016_duplicate.sql"
+            with self.assertRaisesRegex(ValueError,"gap or duplicate"):
+                self.helper.pending_digest("fixture",baseline)
 
     def test_source_attachment_hash_is_independent_and_chunked(self):
         import hashlib
@@ -89,6 +101,7 @@ class OwnerBackupTests(unittest.TestCase):
             if sql.startswith("SELECT length(bytes)"): return len(data)
             return 1 if "order_attachments" in sql else 0
         def query(sql):
+            if sql.startswith("SELECT name FROM sqlite_master"): return [{"name":"order_receipts"}]
             if sql.startswith("SELECT id"): return [{"id":"fixture"}]
             if "substr(bytes,1,65536)" in sql: return [{"data":data[:65536].hex()}]
             if "substr(bytes,65537,65536)" in sql: return [{"data":data[65536:].hex()}]
