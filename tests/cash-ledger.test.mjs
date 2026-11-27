@@ -26,3 +26,25 @@ test('cash ledger excludes noncash supplier usage and protects opening balance',
  assert.equal((await(await call('owner','GET')).json()).closed_periods[0].closing_balance,74000);
  sql.close();
 });
+
+test('cash ledger reports legacy duplicate references before opening that block closure',async()=>{
+ const sql=new DatabaseSync(':memory:');sql.exec('PRAGMA foreign_keys=ON');const dir=new URL('../v4/migrations/',import.meta.url);const migrations=(await readdir(dir)).filter(x=>x.endsWith('.sql')).sort();
+ const actor='111111111111111111';
+ for(const n of migrations){
+  if(n.startsWith('0019_')){
+   sql.prepare('INSERT INTO users(id,display_name,created_at) VALUES(?,?,?)').run(actor,'Owner',1);
+   sql.exec("INSERT INTO suppliers VALUES('s','Supplier',1)");
+   sql.prepare('INSERT INTO supplier_movements VALUES(?,?,?,?,?,?,?,?)').run('legacy-deposit','s','deposit',5000,'legacy-duplicate','deposit',actor,2);
+   sql.prepare('INSERT INTO operating_expenses VALUES(?,?,?,?,?,?,?)').run('legacy-expense','hosting',1000,'Hosting','legacy-duplicate',actor,3);
+  }
+  sql.exec(await readFile(new URL(n,dir),'utf8'));
+ }
+ const db={prepare(q){return{args:[],bind(...a){this.args=a;return this;},async first(){return sql.prepare(q).get(...this.args)||null;},async all(){return{results:sql.prepare(q).all(...this.args)}},async run(){return{meta:{changes:Number(sql.prepare(q).run(...this.args).changes)}}}}},async batch(ss){sql.exec('BEGIN');try{const result=[];for(const s of ss)result.push(await s.run());sql.exec('COMMIT');return result;}catch(e){sql.exec('ROLLBACK');throw e;}}};
+ const call=(m,b)=>cashLedger({p:'/api/workspace/cash-ledger',m,user:{id:actor,role:'owner'},env:{DB:db},readBody:async()=>b});
+ assert.equal((await call('POST',{amount:10000,effective_at:10,reference:'opening-legacy',confirmed:true})).status,201);
+ const ledger=await(await call('GET')).json();
+ assert.equal(ledger.estimated_balance,10000);assert.equal(ledger.requires_reconciliation,true);assert.equal(ledger.missing_reference_count,0);
+ assert.equal(ledger.duplicate_references.length,1);assert.equal(ledger.duplicate_references[0].reference,'legacy-duplicate');assert.equal(ledger.duplicate_references[0].count,2);
+ assert.equal((await call('POST',{action:'close',end_at:20,reference:'close-legacy',confirmed:true})).status,409);
+ sql.close();
+});

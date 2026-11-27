@@ -30,7 +30,9 @@ export async function cashLedger({p,m,user,env,r,readBody}){
  const since=opening?.effective_at??0;
  const sums=await db.prepare('SELECT COALESCE(SUM(CASE WHEN delta>0 THEN delta ELSE 0 END),0) AS incoming,COALESCE(SUM(CASE WHEN delta<0 THEN -delta ELSE 0 END),0) AS outgoing,COALESCE(SUM(delta),0) AS net FROM cash_movements WHERE event_at>?').bind(since).first();
  const items=(await db.prepare('SELECT id,kind,delta,reference,event_at FROM cash_movements WHERE event_at>? ORDER BY event_at DESC,id DESC LIMIT 100').bind(since).all()).results;
- const duplicates=(await db.prepare("SELECT trim(reference) AS reference,COUNT(*) AS count FROM cash_movements WHERE event_at>? AND reference IS NOT NULL GROUP BY trim(reference) HAVING COUNT(*)>1 LIMIT 100").bind(since).all()).results;
+ // Match cash_period_close_guard: duplicate references include history before opening.
+ const duplicates=(await db.prepare("SELECT trim(reference) AS reference,COUNT(*) AS count FROM cash_movements WHERE reference IS NOT NULL GROUP BY trim(reference) HAVING COUNT(*)>1 ORDER BY count DESC,reference LIMIT 100").all()).results;
+ const missing=await db.prepare("SELECT COUNT(*) AS count FROM cash_movements WHERE event_at>? AND (reference IS NULL OR length(trim(reference))<4)").bind(since).first();
  const closed=(await db.prepare('SELECT * FROM cash_period_closes ORDER BY end_at DESC LIMIT 24').all()).results;
- return json({closed_periods:closed,opening,...sums,estimated_balance:opening?opening.amount+sums.net:null,items,duplicate_references:duplicates,requires_reconciliation:!opening||duplicates.length>0});
+ return json({closed_periods:closed,opening,...sums,estimated_balance:opening?opening.amount+sums.net:null,items,duplicate_references:duplicates,missing_reference_count:missing.count,requires_reconciliation:!opening||duplicates.length>0||missing.count>0});
 }
