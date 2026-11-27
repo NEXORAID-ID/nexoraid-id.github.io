@@ -12,6 +12,7 @@ import { membershipMessage,discordWorkerRole,oauthGuildMember,workerRoleSyncStat
 import { cashLedger } from './cash-ledger.mjs';
 import { publicRateLimit } from './public-rate-limit.mjs';
 import { ORDER_TRANSITION_SQL } from './order-transition.mjs';
+import { retentionReview } from './retention-review.mjs';
 const DAY=86400;
 const cookie=(name,value,age)=>name+'='+value+'; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age='+age;
 const getCookie=(r,name)=>r.headers.get('Cookie')?.split(';').map(s=>s.trim()).find(s=>s.startsWith(name+'='))?.slice(name.length+1)||'';
@@ -242,6 +243,10 @@ async function handle(r,env){
  if(!bot&&p==='/api/workspace/cash-ledger')return cashLedger({p,m,user,env,r,readBody:body});
  if(!bot&&p.startsWith('/api/workspace/')){const extra=await workspace({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
  if(!bot||p.endsWith('/evidence')){const extra=await operations({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
+ if(p==='/api/security/retention-review'&&m==='GET'&&!bot){
+  if(user.role!=='owner')return err('Akses owner diperlukan.',403);
+  return json(await retentionReview(env.DB));
+ }
  if(p==='/api/team'&&m==='GET'){
   if(user.role!=='owner')return err('Akses owner diperlukan.',403);
   const after=url.searchParams.get('after')||'';
