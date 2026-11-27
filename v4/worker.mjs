@@ -265,13 +265,22 @@ async function handle(r,env){
  return err('Endpoint tidak ditemukan.',404);
 }
 // frame-ancestors is enforced only in an HTTP CSP, not in a meta tag.
-function documentSecurity(response){
+export function documentPolicy(path){
+ const portal=['/portal.html','/portal-offline.html'].includes(path);
+ const common="default-src 'self'; script-src 'self'; script-src-attr 'none'; object-src 'none'; frame-ancestors 'none'; frame-src 'none'; form-action 'self'; manifest-src 'self'; worker-src 'self'";
+ return portal?common+"; base-uri 'none'; connect-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'":
+  common+"; base-uri 'self'; connect-src 'self' https://nexoraid-v4.nexoraid.workers.dev; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:";
+}
+function documentSecurity(response,path){
  if(!/^text\/html(?:;|$)/i.test(response.headers.get('content-type')||''))return response;
  const headers=new Headers(response.headers);
- headers.append('content-security-policy',"frame-ancestors 'none'; object-src 'none'; base-uri 'self'");
+ // Append (intersection), rather than replacing any existing asset policy.
+ headers.append('content-security-policy',documentPolicy(path));
+ headers.set('permissions-policy','camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+
  headers.set('x-frame-options','DENY');
  headers.set('x-content-type-options','nosniff');
  headers.set('referrer-policy','no-referrer');
  return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
 }
-export default {async fetch(r,env){try{return documentSecurity(await handle(r,env));}catch{console.error('nexoraid_request_failed',{method:r.method,request_id:crypto.randomUUID()});return err('Terjadi kesalahan layanan. Coba kembali.',500);}}};
+export default {async fetch(r,env){try{return documentSecurity(await handle(r,env),new URL(r.url).pathname);}catch{console.error('nexoraid_request_failed',{method:r.method,request_id:crypto.randomUUID()});return err('Terjadi kesalahan layanan. Coba kembali.',500);}}};
