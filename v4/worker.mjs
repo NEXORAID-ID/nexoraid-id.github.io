@@ -11,6 +11,7 @@ import { ticketQueue } from './ticket-queue.mjs';
 import { membershipMessage,discordWorkerRole,oauthGuildMember,workerRoleSyncStatements,guildMembership } from './membership.mjs';
 import { cashLedger } from './cash-ledger.mjs';
 import { publicRateLimit } from './public-rate-limit.mjs';
+import { ORDER_TRANSITION_SQL } from './order-transition.mjs';
 const DAY=86400;
 const cookie=(name,value,age)=>name+'='+value+'; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age='+age;
 const getCookie=(r,name)=>r.headers.get('Cookie')?.split(';').map(s=>s.trim()).find(s=>s.startsWith(name+'='))?.slice(name.length+1)||'';
@@ -230,7 +231,7 @@ async function handle(r,env){
   if(b.status==='completed'&&(!order.assigned_to||order.evidence_worker!==order.assigned_to))return err('Bukti pengerjaan belum dikirim penjoki.',409);
   if(b.status==='cancelled'&&order.payment_state==='paid')return err('Order sudah dibayar. Memerlukan proses refund manual.',409);
   if(b.status==='cancelled'&&order.payment_claimed)return err('Laporan pembayaran sedang menunggu pemeriksaan owner.',409);
-  const results=await env.DB.batch([env.DB.prepare("UPDATE orders SET status=?,updated_at=? WHERE id=? AND status=? AND assigned_to IS ? AND (?<>'cancelled' OR (NOT EXISTS(SELECT 1 FROM payment_claims WHERE order_id=orders.id) AND NOT EXISTS(SELECT 1 FROM order_finance WHERE order_id=orders.id AND state='paid')))").bind(b.status,t,id,order.status,order.assigned_to,b.status),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,?,?,? WHERE changes()=1").bind(user.id,'status:'+b.status,id,t)]);
+  const results=await env.DB.batch([env.DB.prepare(ORDER_TRANSITION_SQL).bind(b.status,t,id,order.status,order.assigned_to,b.status,b.status,b.status,user.role,user.id,user.role,user.id,user.role,user.id),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,?,?,? WHERE changes()=1").bind(user.id,'status:'+b.status,id,t)]);
   return results[0].meta.changes?json({ok:true}):err('Status sudah berubah.',409);
  }
  if(p.endsWith('/ticket')){const linked=await ticketLinks({p,m,user,env,bot,r,readBody:body});if(linked)return linked;}
