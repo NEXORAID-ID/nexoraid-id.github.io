@@ -264,17 +264,29 @@ function sharedState(data){
 }
 async function loadSharedCart(){
  if(!sharedCartEnabled)return;
- assertNoPendingCart();const next=sharedState(await api('customer/cart'));assertNoPendingCart();
- if(cart.length&&!sameStorefrontCart(cart,next.items)&&!confirm('Ganti keranjang perangkat dengan versi akun?'))return;
- sharedSnapshot=next;cart=next.items.map(x=>({...x}));basketSource=false;persistDraft();await shopView();
+ assertNoPendingCart();if(requestKey)throw Error(pendingMessage);
+ const before=JSON.stringify(cart);checkoutBusy=true;
+ try{
+  const next=sharedState(await api('customer/cart'));
+  if(sessionInvalid||cartKey||requestKey||before!==JSON.stringify(cart))throw Error('Keranjang berubah; coba muat kembali.');
+  if(cart.length&&!sameStorefrontCart(cart,next.items)&&!confirm('Ganti keranjang perangkat dengan versi akun?'))return;
+  sharedSnapshot=next;cart=next.items.map(x=>({...x}));basketSource=false;persistDraft();
+ }finally{checkoutBusy=false;}
+ await shopView();
 }
 async function saveSharedCart(){
- assertNoPendingCart();
- const before=JSON.stringify(cart),snapshot=sharedSnapshot||sharedState(await api('customer/cart'));
- if(checkoutBusy||cartKey||requestKey||before!==JSON.stringify(cart))throw Error('Keranjang berubah; coba simpan kembali.');
- if(!sharedSnapshot&&snapshot.items.length&&!sameStorefrontCart(cart,snapshot.items)&&!confirm('Ganti keranjang akun yang tersimpan dengan pilihan perangkat ini?'))return;
- const saved=sharedState(await api('customer/cart',{action:'save',revision:snapshot.revision,items:cart}));
- sharedSnapshot=saved;status('Keranjang akun tersimpan.');await shopView();
+ if(!sharedCartEnabled)return;
+ assertNoPendingCart();if(requestKey)throw Error(pendingMessage);
+ const before=JSON.stringify(cart);checkoutBusy=true;
+ try{
+  const snapshot=sharedSnapshot||sharedState(await api('customer/cart'));
+  if(sessionInvalid||cartKey||requestKey||before!==JSON.stringify(cart))throw Error('Keranjang berubah; coba simpan kembali.');
+  if(!sharedSnapshot&&snapshot.items.length&&!sameStorefrontCart(cart,snapshot.items)&&!confirm('Ganti keranjang akun yang tersimpan dengan pilihan perangkat ini?'))return;
+  const saved=sharedState(await api('customer/cart',{action:'save',revision:snapshot.revision,items:JSON.parse(before)}));
+  if(sessionInvalid)return;
+  sharedSnapshot=saved;status('Keranjang akun tersimpan.');
+ }finally{checkoutBusy=false;}
+ await shopView();
 }
 async function shopView(){const host=$('shopBody');host.replaceChildren();
  const add=id=>{assertNoPendingCart();if(!catalog.some(s=>s.id===id&&s.orderable!==false&&!rentalBlocked(s)))throw Error('Layanan tidak dapat dipesan.');if(cart.some(x=>x.service_id===id)||cart.length>=5)throw Error('Maksimal lima layanan unik.');cart.push({service_id:id,quantity:1});basketSource=false;cartKey=null;persistDraft();return shopView();};
