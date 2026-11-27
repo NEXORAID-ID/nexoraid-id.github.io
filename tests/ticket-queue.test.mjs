@@ -22,12 +22,14 @@ test('outbox no backfill; rollback, lease expiry, retry and canonical ack',async
  assert.deepEqual(readiness,{ok:true,read_only:true,maintenance:false,active:2,historicalUnqueued:1,pending:1,eligible:1,leased:0,delivered:0,inconsistent:0,splitActive:0});
  assert.deepEqual(sql.prepare('SELECT attempts,lease_token FROM web_ticket_outbox WHERE order_id=?').get(id),before);
  const paused=await ticketQueue({db,r:null,m:'POST',readBody:async()=>({action:'lease'}),maintenance:true});assert.equal(paused.status,503);assert.deepEqual(sql.prepare('SELECT attempts,lease_token FROM web_ticket_outbox WHERE order_id=?').get(id),before);
- const a=await(await call({action:'lease'})).json();assert.equal(a.order.id,id);
+ const policy=await (await ticketQueue({db,m:'POST',readBody:async()=>({action:'dispatch-policy'}),exclusive:true})).json();assert.deepEqual(policy,{ok:true,read_only:true,random_assignment_exclusive:true});
+ assert.deepEqual(sql.prepare('SELECT attempts,lease_token FROM web_ticket_outbox WHERE order_id=?').get(id),before);
+ const a=await(await ticketQueue({db,m:'POST',readBody:async()=>({action:'lease'}),clock:()=>time,exclusive:true})).json();assert.equal(a.order.id,id);assert.equal(a.random_assignment_exclusive,true);
  assert.equal((await(await call({action:'lease'})).json()).order,null);
  time+=170;const renewed=await call({action:'renew',order_id:id,lease_token:a.lease_token});assert.equal(renewed.status,200);assert.equal((await renewed.json()).lease_until,time+180);
  time+=11;assert.equal((await call({action:'check',order_id:id,lease_token:a.lease_token})).status,200);assert.equal((await(await call({action:'lease'})).json()).order,null);
  time=1351;assert.equal((await call({action:'renew',order_id:id,lease_token:a.lease_token})).status,409);
- const next=await(await call({action:'lease'})).json();assert.notEqual(next.lease_token,a.lease_token);
+ const next=await(await call({action:'lease'})).json();assert.notEqual(next.lease_token,a.lease_token);assert.equal(next.random_assignment_exclusive,false);
  const ack={action:'ack',order_id:id,lease_token:a.lease_token,channel_id:'1524898826903752864',message_id:'1524898826903752865',ticket_id:'0001'};
  assert.equal((await call(ack)).status,409);
  assert.equal((await call({action:'check',order_id:id,lease_token:a.lease_token})).status,409);
