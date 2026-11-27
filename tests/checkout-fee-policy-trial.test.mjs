@@ -69,3 +69,35 @@ test('atomic quote assigns fee once, subsequent quote and re-quote never duplica
  assert.equal(db.prepare("SELECT amount FROM order_finance WHERE order_id='a'").get().amount,110500);
  }finally{db.close();}
 });
+
+test('finance API trial: one fee per checkout, scoped read-only components, partial and excess receipts',async()=>{
+ const {db}=await fixture({prequote:false});try{
+ const {operations}=await import('../v4/operations.mjs');
+ const ids=['11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222'];
+ db.exec("INSERT INTO checkout_groups VALUES('api-group','c','api-fixture-key','[]',2,100)");
+ for(const id of ids){
+  db.prepare("INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,estimate,status,assigned_to,created_at,updated_at) VALUES(?,'c','gta-heist',1,'Rp100.000',100000,'claimed','w',100,100)").run(id);
+  db.prepare("INSERT INTO checkout_items VALUES('api-group',?)").run(id);
+ }
+ const DB={prepare(sql){return {args:[],bind(...args){this.args=args;return this;},async first(){return db.prepare(sql).get(...this.args)||null;},execute(){return {meta:{changes:Number(db.prepare(sql).run(...this.args).changes)}};}};},async batch(stmts){db.exec('BEGIN');try{const out=stmts.map(s=>s.execute());db.exec('COMMIT');return out;}catch(e){db.exec('ROLLBACK');throw e;}}};
+ const env={DB,CHECKOUT_FEE_POLICY_TRIAL:'true',PUBLIC_ORIGIN:'https://staging.invalid'};
+ const owner={id:'o',role:'owner'},customer={id:'c',role:'customer'},other={id:'stranger',role:'customer'};
+ const call=(user,id,action,data,override=env)=>{const p='/api/orders/'+id+'/'+action;return operations({p,m:data===undefined?'GET':'POST',url:new URL(override.PUBLIC_ORIGIN+p),user,env:override,readBody:async()=>data});};
+ for(const id of ids)assert.equal((await call(owner,id,'quote',{amount:100000})).status,200);
+ assert.equal((await call(owner,ids[0],'payment',{amount:100000,reference:'api-part-001'})).status,200);
+ let f=(await (await call(customer,ids[0],'finance')).json()).finance;
+ assert.deepEqual(f.checkout_fee,{base_amount:100000,service_fee:500,fee_received:0,fee_refunded:0});
+ assert.equal(f.outstanding_amount,500);
+ assert.equal((await call(other,ids[0],'finance')).status,404);
+ assert.equal((await call(customer,ids[0],'finance',{})).status,405);
+ assert.equal((await call(owner,ids[0],'payment',{amount:700,reference:'api-part-002'})).status,200);
+ f=(await (await call(customer,ids[0],'finance')).json()).finance;
+ assert.equal(f.checkout_fee.fee_received,500);assert.equal(f.overpayment_due,200);assert.equal(f.outstanding_amount,0);
+ const second=(await (await call(customer,ids[1],'finance')).json()).finance;
+ assert.equal(second.checkout_fee.service_fee,0);
+ assert.equal(db.prepare("SELECT SUM(amount) AS n FROM checkout_fee_allocations WHERE checkout_id='api-group'").get().n,500);
+ const disabled=(await (await call(customer,ids[0],'finance',undefined,{...env,PUBLIC_ORIGIN:'https://production.invalid'})).json()).finance;
+ assert.equal(Object.hasOwn(disabled,'checkout_fee'),false);
+ assert.equal(Object.hasOwn(f,'payment_ref'),false);
+ }finally{db.close();}
+});
