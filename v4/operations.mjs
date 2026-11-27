@@ -34,8 +34,11 @@ export async function dashboardSummary(db,user){
  }
  return json(result);
 }
-async function mutate(db,statement,actor,action,id,time){
- const rows=await db.batch([statement,db.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,?,?,? WHERE changes()=1").bind(actor,action,id,time)]);
+async function mutate(db,statement,actor,action,id,time,transition=null){
+ const audit=event=>db.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,?,?,? WHERE changes()=1").bind(actor,event,id,time);
+ // Preserve the established timeline action and append an explicit state-only
+ // transition in the same atomic batch. A failed or replayed write logs neither.
+ const rows=await db.batch([statement,audit(action),...(transition?[audit(transition)]:[])]);
  return rows[0].meta.changes?json({ok:true}):err('Data sudah berubah atau syarat belum terpenuhi. Muat ulang.',409);
 }
 export async function operations({p,m,url,user,env,readBody,r}){
@@ -91,7 +94,7 @@ export async function operations({p,m,url,user,env,readBody,r}){
   if(user.role!=='owner')return err('Hanya owner dapat memverifikasi pembayaran.',403);
   const ref=typeof b.reference==='string'?b.reference.trim():'';
   if(ref.length<4||ref.length>80||!Number.isSafeInteger(b.amount)||b.amount!==order.invoice_amount)return err('Nominal harus sesuai invoice dan referensi transaksi wajib.',400);
-  return mutate(db,db.prepare("UPDATE order_finance SET state='paid',paid_by=?,paid_at=?,payment_ref=? WHERE order_id=? AND state='quoted' AND amount=? AND NOT EXISTS(SELECT 1 FROM order_finance f WHERE f.state='paid' AND f.payment_ref=? AND f.order_id<>?) AND EXISTS(SELECT 1 FROM orders WHERE id=? AND status IN ('claimed','confirmed','processing'))").bind(user.id,t,ref,id,b.amount,ref,id,id),user.id,'payment:verified',id,t);
+  return mutate(db,db.prepare("UPDATE order_finance SET state='paid',paid_by=?,paid_at=?,payment_ref=? WHERE order_id=? AND state='quoted' AND amount=? AND NOT EXISTS(SELECT 1 FROM order_finance f WHERE f.state='paid' AND f.payment_ref=? AND f.order_id<>?) AND EXISTS(SELECT 1 FROM orders WHERE id=? AND status IN ('claimed','confirmed','processing'))").bind(user.id,t,ref,id,b.amount,ref,id,id),user.id,'payment:verified',id,t,'security:payment:quoted->paid');
  }
  if(action==='evidence'){
   if(user.role!=='worker'||!assigned)return err('Hanya penjoki yang ditugaskan.',403);
