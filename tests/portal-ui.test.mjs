@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {searchKey,searchCatalog,deadlineLabel,xlsxBytes,csvText,createViewData} from '../v4/portal-ui.mjs';
+import {searchKey,searchCatalog,deadlineLabel,xlsxBytes,csvText,createViewData,createToast} from '../v4/portal-ui.mjs';
 test('portal search normalizes accents and finds multiword catalog entries',()=>{
  const catalog=[{id:'gta-heist',name:'Joki Heist',category:'gaming'},{id:'other',name:'Akun Game'}];
  assert.equal(searchKey('  HéIST  '),'heist');
@@ -34,4 +34,20 @@ test('view loader recovers after a synchronous failure and coalesces overlapping
  await assert.rejects(view(host,()=>42,()=>{},true),e=>e.busy===true);
  resolve('recovered');assert.equal(await first,'recovered');
  assert.equal(await view(host,()=>42,()=>{},true),42);
+});
+
+test('toast deduplicates same severity, caps visible items, and expires without removing newer messages',()=>{
+ const children=[],timers=[];
+ const host={children,append(el){children.push(el)},get firstElementChild(){return children[0]}};
+ const old=globalThis.document;
+ globalThis.document={createElement(){return {dataset:{},remove(){const i=children.indexOf(this);if(i>=0)children.splice(i,1)}}}};
+ try{
+  const toast=createToast(host,{limit:2,duration:10,schedule:fn=>timers.push(fn)});
+  toast('Simpan berhasil');toast('Simpan berhasil');assert.equal(children.length,1);
+  toast('Simpan berhasil',true);assert.equal(children.length,2);assert.equal(children[1].dataset.kind,'error');
+  toast('Koneksi terputus',true);assert.equal(children.length,2);assert.equal(children[1].textContent,'Koneksi terputus');
+  timers[0]();assert.equal(children.length,2);
+  timers[1]();assert.equal(children.length,1);
+  timers[2]();assert.equal(children.length,0);
+ }finally{if(old===undefined)delete globalThis.document;else globalThis.document=old;}
 });
