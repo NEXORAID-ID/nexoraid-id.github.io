@@ -1,4 +1,4 @@
-import {createNavigator,createPortalApi} from './portal-core.mjs';
+import {createNavigator,createPortalApi,shouldClearPendingCheckout,validateCheckoutReceipt} from './portal-core.mjs';
 import {exportRows,exportXlsx,searchKey,searchCatalog,deadlineLabel,createToast,loading,finishLoading,showLoadError,createViewData} from './portal-ui.mjs';
 const $=id=>document.getElementById(id);
 let user,catalog=[],orders=[],summary={},cursor=null,teamCursor=null,financeCursor=null,auditCursor=null,detailId=null,serial=0,detailSerial=0,requestKey=null;
@@ -143,7 +143,6 @@ async function calendarView(){const host=$('calendarBody');host.replaceChildren(
 $('calendarMonth').onchange=()=>calendarView().catch(e=>status(e.message,true));
 let cart=[],cartKey=null,checkoutBusy=false;
 const pendingMessage='Hasil pesanan sebelumnya belum pasti. Ulangi pengiriman yang sama sebelum membuat pesanan baru.';
-function definitiveRejection(e){return [400,403,409,429].includes(e?.status)&&e.validError===true&&!String(e.message).includes('ID permintaan sudah');}
 function assertNoPendingCart(){if(cartKey||checkoutBusy)throw Error(pendingMessage);}
 function saveCheckoutDraft(){try{localStorage.setItem(orderDraftKey(),JSON.stringify({cart,cartKey,requestKey}));}catch{throw Error('Penyimpanan draft tidak tersedia. Pesanan belum dikirim. Aktifkan penyimpanan browser.');}}
 function orderDraftKey(){return 'nexo-order-draft-v1:'+user.id;}
@@ -168,8 +167,8 @@ async function shopView(){const host=$('shopBody');const d=await viewData(host,(
   if(!confirm(cartKey?'Ulangi pengiriman keranjang yang sama?':'Buat '+cart.length+' pesanan terpisah?'))return;
   const retry=Boolean(cartKey);cartKey??=crypto.randomUUID();const submitting=cartKey;
   checkoutBusy=true;let sent=false;
-  try{saveCheckoutDraft();sent=true;const result=await api('customer/checkout',{request_id:submitting,items:cart});cart=[];cartKey=null;persistDraft();await load();await view('orders');status(result.orders.length+' order berhasil tercatat.');}
-  catch(e){if(!sent||(!retry&&definitiveRejection(e))){cartKey=null;persistDraft();}else if(cartKey)status(pendingMessage,true);throw e;}
+  try{saveCheckoutDraft();sent=true;const result=validateCheckoutReceipt(await api('customer/checkout',{request_id:submitting,items:cart}),cart);cart=[];cartKey=null;persistDraft();await load();await view('orders');status(result.orders.length+' order berhasil tercatat.');}
+  catch(e){if(shouldClearPendingCheckout({sent,retry,error:e})){cartKey=null;persistDraft();}else if(cartKey)status(pendingMessage,true);throw e;}
   finally{checkoutBusy=false;if(!$('shopView').hidden)await shopView().catch(()=>{});}
  });host.append(section);host.append(node('h3','Favorit akun'));
  for(const s of catalog){const a=node('article','');a.append(node('strong',s.name),node('p',s.price));if(rentalLabel(s))a.append(node('p',rentalLabel(s)));button(a,saved.has(s.id)?'Hapus favorit':'Simpan favorit',async()=>{await api('customer/saved',{service_id:s.id,saved:!saved.has(s.id)});await shopView();});if(saved.has(s.id)&&s.orderable!==false&&!rentalBlocked(s))button(a,'Masukkan keranjang',()=>add(s.id));host.append(a);}
@@ -191,9 +190,9 @@ $('request').onsubmit=async e=>{
    payload=previous;
   }
   requestKey??={signature:JSON.stringify(payload),id:crypto.randomUUID()};
-  saveCheckoutDraft();sent=true;const {order}=await api('orders',{...payload,request_id:requestKey.id});
+  saveCheckoutDraft();sent=true;const {order}=validateCheckoutReceipt(await api('orders',{...payload,request_id:requestKey.id}),[payload],{single:true});
   requestKey=null;persistDraft();await load();status('Permintaan tercatat: '+order.id);
- }catch(e){if((!sent&&!retry)||(!retry&&definitiveRejection(e))){requestKey=null;persistDraft();}status(e.message+(requestKey?' '+pendingMessage:''),true);}
+ }catch(e){if(shouldClearPendingCheckout({sent,retry,error:e})){requestKey=null;persistDraft();}status(e.message+(requestKey?' '+pendingMessage:''),true);}
  finally{checkoutBusy=false;b.disabled=false;}
 };
 $('team').onsubmit=async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;try{await api('team/role',{user_id:$('member').value,role:$('role').value});await team();status('Peran diperbarui.');}catch(e){status(e.message,true);}finally{b.disabled=false;}};
