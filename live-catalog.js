@@ -1,12 +1,14 @@
 // Preserve source descriptions and package contents; live price overrides replace stale monetary rows.
 export function mergeLiveCatalog(baseline,response){
- if(response?.catalog_revision!==1||!Array.isArray(response.services))throw Error('Live catalogue unavailable');
+ if(response?.catalog_revision!==1||response.baseline===true||!Array.isArray(response.services))throw Error('Live catalogue unavailable');
  const byId=new Map(response.services.map(s=>[s.id,s]));
+ if(byId.size!==response.services.length)throw Error('Duplicate catalogue service');
  return baseline.flatMap(s=>{
   const live=byId.get(s.id);
   if(!live||live.enabled!==true)return [];
   if(typeof live.price!=='string'||live.price.length>100)throw Error('Invalid live price');
   const policy=live.policy?{policy:live.policy,base_unit_amount:live.base_unit_amount}:{};
+  if(['cherax-rental-standard','cherax-rental-premium'].includes(s.id))policy.availability=['available','sold_out','unconfigured'].includes(live.availability)?live.availability:'unconfigured';
   const children=baseline.filter(v=>v.parent_id===s.id);
   if(children.length){
    const byLabel=new Map(children.map(v=>[v.details[0][0],v]));

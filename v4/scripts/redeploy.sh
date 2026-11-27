@@ -9,7 +9,7 @@ CONFIG=v4/.generated/wrangler.json
 export WRANGLER_SEND_METRICS=false
 export PUBLIC_ORIGIN="$(node -e 'const c=require("./"+process.argv[1]);if(c.name!=="nexoraid-v4"||!/^https:\/\/nexoraid-v4\.nexoraid\.workers\.dev$/.test(c.vars?.PUBLIC_ORIGIN||"")||!c.d1_databases?.some(d=>d.binding==="DB"&&d.database_name==="nexoraid-v4"))process.exit(1);console.log(c.vars.PUBLIC_ORIGIN)' "$CONFIG")"
 export RELEASE_SHA="$(git rev-parse HEAD)"
-node -e 'const fs=require("node:fs");const p=process.argv[1],c=JSON.parse(fs.readFileSync(p));c.vars.RELEASE_SHA=process.env.RELEASE_SHA;fs.writeFileSync(p,JSON.stringify(c,null,2))' "$CONFIG"
+node --input-type=module -e 'import fs from "node:fs";import {configurePublicLimits} from "./v4/scripts/public-limit-config.mjs";const p=process.argv[1],c=JSON.parse(fs.readFileSync(p));c.vars.RELEASE_SHA=process.env.RELEASE_SHA;fs.writeFileSync(p,JSON.stringify(configurePublicLimits(c),null,2))' "$CONFIG"
 echo "Deploy existing Worker: $PUBLIC_ORIGIN ($RELEASE_SHA)"
 npm test
 bash v4/scripts/release-security.sh
