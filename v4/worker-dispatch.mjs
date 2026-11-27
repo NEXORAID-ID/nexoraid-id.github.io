@@ -19,3 +19,7 @@ export async function dispatchAvailableOrder(db,{now,owner,verifyWorker}){
  }
  return {ok:true,assigned:false};
 }
+
+// Roll out exclusive dispatch only after the companion bot is proven live.
+export function exclusiveDispatch(env){return env.WEB_RANDOM_ASSIGNMENT_EXCLUSIVE==='true';}
+export async function manualClaimBlocked(db,id,env){return exclusiveDispatch(env)&&Boolean(await db.prepare('SELECT order_id FROM web_ticket_outbox WHERE order_id=?').bind(id).first());}

@@ -1,3 +1,4 @@
+import {exclusiveDispatch,manualClaimBlocked} from './worker-dispatch.mjs';
 import { ORDER_TRANSITION_SQL } from './order-transition.mjs';
 import { retentionReview } from './retention-review.mjs';
 import { services } from '../services-data.js';
@@ -105,7 +106,7 @@ async function handle(r,env){
  }
  if(p==='/api/health'&&m==='GET'){
   let ready=false;try{if(env.DB){const check=await env.DB.prepare('SELECT (SELECT COUNT(*) FROM users WHERE 0)+(SELECT COUNT(*) FROM order_ticket_links WHERE 0)+(SELECT COUNT(*) FROM rejected_payment_claims WHERE 0)+(SELECT COUNT(*) FROM order_attachments WHERE 0)+(SELECT COUNT(*) FROM order_messages WHERE 0)+(SELECT COUNT(*) FROM order_plans WHERE 0)+(SELECT COUNT(*) FROM checkout_groups WHERE 0)+(SELECT COUNT(*) FROM session_metadata WHERE 0)+(SELECT COUNT(*) FROM completed_refunds WHERE 0)+(SELECT COUNT(*) FROM web_ticket_outbox WHERE 0)+(SELECT COUNT(*) FROM cash_opening WHERE 0)+(SELECT COUNT(*) FROM cash_movements WHERE 0)+(SELECT COUNT(*) FROM rental_reservations WHERE 0)+(SELECT COUNT(*) FROM investor_attestations WHERE 0)+(SELECT COUNT(*) FROM cash_period_closes WHERE 0)+(SELECT COUNT(*) FROM payout_approvals WHERE 0)+(SELECT COUNT(*) FROM order_receipts WHERE 0)+(SELECT COUNT(*) FROM receipt_refunds WHERE 0)+(SELECT COUNT(*) FROM all_order_settlements WHERE 0)+(SELECT COUNT(*) FROM seller_order_fees WHERE 0)+(SELECT COUNT(*) FROM order_cost_basis WHERE 0)+(SELECT COUNT(*) FROM investor_post_policies WHERE 0)+(SELECT COUNT(*) FROM investor_noncash_bonuses WHERE 0)+(SELECT COUNT(*) FROM ticket_closure_fences WHERE 0)+(SELECT COUNT(*) FROM service_policies WHERE 0)+(SELECT COUNT(*) FROM order_policy_snapshots WHERE 0)+(SELECT COUNT(*) FROM account_suspensions WHERE 0) AS probe').first();const trigger=await env.DB.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='trigger' AND name IN ('web_ticket_order_insert','rental_capacity_required','variant_parent_guard','ticket_closure_checkout_fence','ticket_closure_no_relink','seller_fee_guard','payout_balance_guard','order_policy_snapshot','receipt_guard','receipt_apply','receipt_invoice_lock','receipt_refund_guard','receipt_no_update','receipt_no_delete','receipt_refund_no_update','receipt_refund_no_delete','payout_paid_requires_approval','cash_period_close_guard','investor_distribution_post_guard','seller_fee_before_complete','suspension_revoke_sessions','suspended_session_insert','suspended_session_update')").first();ready=check?.probe===0&&trigger?.n===23;}}catch{}
-  return json({status:ready&&oauthReady(env)?'ok':'degraded',version:4,release:env.RELEASE_SHA||null,database_configured:Boolean(env.DB),database_ready:ready,login_configured:oauthReady(env),schema:ready?24:null,maintenance:env.MAINTENANCE_MODE==='true'},ready&&oauthReady(env)?200:503);
+  return json({status:ready&&oauthReady(env)?'ok':'degraded',version:4,release:env.RELEASE_SHA||null,database_configured:Boolean(env.DB),database_ready:ready,login_configured:oauthReady(env),schema:ready?24:null,random_assignment_exclusive:exclusiveDispatch(env),maintenance:env.MAINTENANCE_MODE==='true'},ready&&oauthReady(env)?200:503);
  }
  const limited=await publicRateLimit(r,env,p,m);if(limited)return limited;
  if(p==='/api/catalog'&&m==='GET'){const response=env.DB?json({services:await memberCatalog(env.DB),catalog_revision:1}):json({services:services.map(({id,name,category,desc,price})=>({id,name,category,desc,price})),baseline:true});response.headers.set('access-control-allow-origin','*');return response;}
@@ -117,7 +118,7 @@ async function handle(r,env){
  let diff=0;for(let i=0;i<expected.length;i++)diff|=actual.charCodeAt(i)^expected.charCodeAt(i);
  if(diff!==0)return err('Bot tidak terotorisasi.',401);
  if(r.headers.get('x-discord-guild-id')!=='1487728359482851348'||r.headers.has('x-discord-user-id'))return err('Identitas mesin tidak valid.',403);
- return ticketQueue({db:env.DB,r,m,readBody:body,maintenance:env.MAINTENANCE_MODE==='true',owner:env.OWNER_DISCORD_ID,verifyWorker:async id=>{const check=await guildMembership(env,id,env.DISCORD_MEMBERSHIP_FETCH||fetch);return check.status===200&&discordWorkerRole(check);}});
+ return ticketQueue({db:env.DB,r,m,readBody:body,maintenance:env.MAINTENANCE_MODE==='true',owner:env.OWNER_DISCORD_ID,exclusive:exclusiveDispatch(env),verifyWorker:async id=>{const check=await guildMembership(env,id,env.DISCORD_MEMBERSHIP_FETCH||fetch);return check.status===200&&discordWorkerRole(check);}});
  }
  const bot=p.startsWith('/api/bot/');
  let botUser=null;
@@ -227,6 +228,7 @@ async function handle(r,env){
   const [_,id,action]=match;const t=now();
   if(action==='claim'){
    if(user.role!=='worker')return err('Akses penjoki diperlukan.',403);
+   if(await manualClaimBlocked(env.DB,id,env))return err('Order website dibagikan otomatis. Konfirmasi ON untuk menerima order.',409);
    const presence=await env.DB.prepare('SELECT available FROM worker_presence WHERE worker_id=?').bind(user.id).first();if(presence?.available===0)return err('Aktifkan ketersediaan untuk mengambil order.',409);
    const results=await env.DB.batch([env.DB.prepare("UPDATE orders SET status='claimed',assigned_to=?,updated_at=? WHERE id=? AND status='requested' AND assigned_to IS NULL AND customer_id<>? AND NOT EXISTS(SELECT 1 FROM worker_presence WHERE worker_id=? AND available=0) AND EXISTS(SELECT 1 FROM users u WHERE u.id=? AND u.role='worker' AND NOT EXISTS(SELECT 1 FROM management_grants g WHERE g.user_id=u.id) AND NOT EXISTS(SELECT 1 FROM account_suspensions a WHERE a.user_id=u.id))").bind(user.id,t,id,user.id,user.id,user.id),env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'claim',?,? WHERE changes()=1").bind(user.id,id,t)]);
    return results[0].meta.changes?json({ok:true}):err('Order tidak tersedia.',409);
