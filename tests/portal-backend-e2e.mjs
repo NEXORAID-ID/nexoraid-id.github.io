@@ -89,6 +89,30 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  const endpoint='/api/orders/'+order.id;
  let p=await open('worker');await submit(p,p.getByRole('button',{name:'Ambil pesanan',exact:true}),endpoint+'/claim');
  assert.equal(db.prepare('SELECT assigned_to FROM orders WHERE id=?').get(order.id).assigned_to,ids.worker);
+ // Exercise shared and internal messages through the actual role dashboards.
+ const messagePath='/api/collaboration/orders/'+order.id+'/message';
+ const overviewPath='/api/collaboration/orders/'+order.id+'/overview';
+ const sharedMessage='Synthetic shared communication for acceptance';
+ const internalMessage='Synthetic internal management note';
+ for(const [role,visibility,message] of [['customer','shared',sharedMessage],['management','internal',internalMessage]]){
+  p=await open(role);
+  const form=p.locator('form').filter({has:p.getByRole('heading',{name:'Kirim pesan',exact:true})});
+  await form.getByLabel('Visibilitas',{exact:true}).selectOption(visibility);
+  await form.getByLabel('Pesan',{exact:true}).fill(message);
+  await submit(p,form.getByRole('button',{name:'Simpan'}),messagePath);
+  await p.locator('.order-messages').getByText(message,{exact:true}).waitFor();
+ }
+ for(const role of ['owner','management','worker','customer','seller']){
+  const response=await api(role,overviewPath);
+  if(role==='seller'){assert.equal(response.status,404);continue;}
+  assert.equal(response.status,200);
+  const {messages}=await response.json();
+  assert.ok(messages.some(m=>m.message===sharedMessage));
+  assert.equal(messages.some(m=>m.message===internalMessage),['owner','management'].includes(role));
+ }
+ for(const role of ['customer','worker'])assert.equal((await api(role,messagePath,{visibility:'internal',message:'Forbidden synthetic note'})).status,403);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM order_messages WHERE order_id=?').get(order.id).n,2);
+ console.log('Communication acceptance passed: shared/internal browser submissions and five-role privacy matrix.');
  // Actual Worker/SQLite-backed calendar: create and update a deadline from the UI, then verify every role.
  const planPath='/api/collaboration/orders/'+order.id+'/plan';
  const wibInput=seconds=>new Date(seconds*1000+25200000).toISOString().slice(0,16);
