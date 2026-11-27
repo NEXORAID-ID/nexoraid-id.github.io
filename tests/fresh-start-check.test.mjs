@@ -18,3 +18,13 @@ test('fresh-start report rejects existing operational rows without exposing data
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM orders').get().n,1);
  }finally{db.close();}
 });
+
+import {readdir,readFile} from 'node:fs/promises';
+test('actual migration tree creates every required fresh-start table without operational records',async()=>{
+ const dir=new URL('../v4/migrations/',import.meta.url);
+ const names=(await readdir(dir)).filter(n=>n.endsWith('.sql')).sort();
+ const db=new DatabaseSync(':memory:');
+ try{db.exec('PRAGMA foreign_keys=ON');for(const n of names)db.exec(await readFile(new URL(n,dir),'utf8'));
+ assert.equal(verifyFreshStart(db.prepare(inventoryQuery()).all()).ready,true);
+ }finally{db.close();}
+});
