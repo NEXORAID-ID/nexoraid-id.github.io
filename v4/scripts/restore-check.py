@@ -36,7 +36,7 @@ OPTIONAL_TOTALS = {
     "order_cost_basis": ("order_cost_basis", "SELECT COALESCE(SUM(amount),0) FROM order_cost_basis"),
     "investor_noncash_bonuses": ("noncash_bonus_value", "SELECT COALESCE(SUM(value_amount),0) FROM investor_noncash_bonuses"),
 }
-OPTIONAL_NAMES = ("cash_period_closes", "payout_approvals", "order_receipts", "receipt_refunds",
+OPTIONAL_NAMES = ("account_suspensions", "cash_period_closes", "payout_approvals", "order_receipts", "receipt_refunds",
                   "seller_order_fees", "seller_settlements", "order_cost_basis",
                   "investor_post_policies", "investor_noncash_bonuses",
                   "checkout_groups", "checkout_items", "service_policies",
