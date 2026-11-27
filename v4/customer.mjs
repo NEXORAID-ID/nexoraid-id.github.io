@@ -56,6 +56,7 @@ export async function createCheckout({env,user,items,key,single=false}){
  try{await db.batch(statements);}catch(e){
   const existing=await replay();if(existing)return existing;
   const reason=String(e?.message);
+  if(reason.includes('ticket_closure_pending'))return err('Tiket sebelumnya sedang ditutup. Coba kembali setelah proses selesai.',409);
   if(reason.includes('checkout_quota'))return err('Maksimal lima permintaan per jam.',429);
   if(reason.includes('rental_stock_unavailable'))return err('Stok sewa tidak tersedia.',409);
   if(reason.includes('catalog_disabled'))return err('Layanan sedang tidak tersedia.',409);
