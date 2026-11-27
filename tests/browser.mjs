@@ -35,6 +35,10 @@ try{
   // Exercise the authenticated portal with controlled API fixtures, never production user data.
   const {readFile}=await import('node:fs/promises');
   const portalFiles=Object.fromEntries(await Promise.all(['portal.html','portal.css','portal.mjs','portal-ui.mjs','portal-core.mjs'].map(async name=>[name,await readFile(new URL('../v4/'+name,import.meta.url),'utf8')])));
+  // Deterministic raw portal-shell budget; no claim about production network speed or Lighthouse.
+  const portalBytes=Object.values(portalFiles).reduce((n,s)=>n+Buffer.byteLength(s),0);
+  assert.ok(portalBytes<=150*1024,'Portal shell exceeds 150 KiB raw budget: '+portalBytes);
+  console.log('Portal raw shell bytes:',portalBytes);
   for(const role of ['owner','management','worker','seller','customer']){
    const ctx=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce'});
    const p=await ctx.newPage();p.on('pageerror',e=>errors.push(e.message));
@@ -46,7 +50,15 @@ try{
    const order={id:'11111111-1111-4111-8111-111111111111',service_id:'gta-heist',quantity:1,status:'requested',customer_id:role==='seller'?'seller-id':'customer-id',created_at:1,estimate:15000,invoice_amount:null,payment_state:null};
    await p.route('**/api/**',r=>{const path=new URL(r.request().url()).pathname;let data;
     if(path==='/api/health')data={login_configured:true};else if(path==='/api/me')data={user:{id:role+'-id',role,display_name:'Test '+role}};else if(path==='/api/catalog'||path==='/api/business/catalog')data={services:[{id:'gta-heist',name:'Heist',price:'Rp15.000'}]};else if(path==='/api/orders')data={orders:[order],next:null};else if(path==='/api/customer/saved')data={saved:[]};else if(path==='/api/customer/sessions')data={sessions:[{public_id:'session-1',device:'Windows · Chrome',current:true,expires_at:1900000000}]};else if(path==='/api/performance')data={items:[],scope:role==='worker'?'personal':'team'};else if(path==='/api/business/notifications')data={items:[],unread:0,latest:0};else if(path==='/api/dashboard')data={counts:{requested:1},total:1};else if(path==='/api/orders/'+order.id)data={order,evidence:null};else if(path.endsWith('/overview'))data={messages:[],attachments:[],plan:null};else if(path.endsWith('/ticket'))data={ticket:null,can_link:['customer','seller'].includes(role)};else if(path.endsWith('/timeline'))data={events:[{action:'order:create',created_at:1}],receipt:null,review:null,refund:null};else if(path==='/api/workspace/support')data={items:[],next:null};else if(path==='/api/workspace/payouts')data={items:[],next:null,balance:{earned:0,pending:0,paid:0,available:0}};else if(path==='/api/workspace/presence')data={available:true};else if(path==='/api/workspace/cash-ledger')data={opening:null,incoming:0,outgoing:0,estimated_balance:null,items:[],duplicate_references:[],requires_reconciliation:true};else if(path==='/api/workspace/expenses')data={items:[],next:null};else if(path==='/api/collaboration/calendar')data={items:[],truncated:false};else if(path==='/api/workspace/report')data={month:'2026-11',counts:[],workers:[],...(role==='owner'?{finance:{daily:[],received:0,refunded:0,paid_out:0,gross:0,owner_share:0,expenses:0,recorded_margin:0}}:{})};else return r.fulfill({status:404,json:{error:'Missing fixture'}});return r.fulfill({json:data});});
-   await p.goto(url+'portal.html');await p.locator('#orders article').waitFor();assert.deepEqual(await p.locator('.role-grid strong').allTextContents(),['Pelanggan','Penjoki','Manajemen','Pemilik','Penjual']);
+   const portalStart=Date.now();await p.goto(url+'portal.html');await p.locator('#orders article').waitFor();
+   console.log('Fixture dashboard ready ms:',role,Date.now()-portalStart);
+   assert.equal(await p.locator('html').getAttribute('lang'),'id');
+   assert.equal(await p.getByRole('navigation',{name:'Menu dasbor'}).count(),1);
+   assert.equal(await p.locator('#request').getByLabel('Layanan',{exact:true}).count(),1);
+   assert.equal(await p.locator('#request').getByLabel('Jumlah',{exact:true}).count(),1);
+   const navIntegrity=await p.locator('.dashboard-nav button[data-view]').evaluateAll(buttons=>buttons.every(b=>b.textContent.trim()&&document.getElementById(b.getAttribute('aria-controls'))));
+   assert.equal(navIntegrity,true,'Navigation accessible relationship '+role);
+   assert.equal(await p.locator('.dashboard-nav button[aria-pressed=true]').count(),1);assert.deepEqual(await p.locator('.role-grid strong').allTextContents(),['Pelanggan','Penjoki','Manajemen','Pemilik','Penjual']);
    // Shared controls exercise actual DOM events without creating orders or mutating the fixture.
    // A synthetic submit must not bypass required/range validation on the static request form.
    await p.evaluate(()=>{const form=document.querySelector('#request'),qty=form.querySelector('#quantity');qty.value='0';form.dispatchEvent(new Event('submit',{cancelable:true,bubbles:true}));qty.value='1';});
@@ -90,7 +102,7 @@ try{
    await p.getByRole('button',{name:'Detail & tindakan'}).click();await p.locator('#orderDialog[open]').waitFor();
    assert.equal(await p.getByRole('button',{name:'Ambil pesanan',exact:true}).isVisible(),role==='worker');assert.equal(await p.getByRole('button',{name:'Batalkan permintaan',exact:true}).isVisible(),['customer','seller'].includes(role));assert.equal(await p.getByRole('heading',{name:'Tugaskan penjoki'}).isVisible(),['owner','management'].includes(role));
    assert.equal(await p.locator('.qris-payment').count(),0);
-   await p.locator('#closeDetail').click();order.status='confirmed';order.payment_state='quoted';order.invoice_amount=15000;
+   await p.keyboard.press('Escape');await p.locator('#orderDialog').waitFor({state:'hidden'});order.status='confirmed';order.payment_state='quoted';order.invoice_amount=15000;
    await p.getByRole('button',{name:'Detail & tindakan'}).click();await p.locator('#orderDialog[open]').waitFor();
    assert.equal(await p.locator('.qris-payment').isVisible(),['customer','seller'].includes(role));
    if(['customer','seller'].includes(role)){const img=p.locator('.qris-payment img');await img.waitFor();assert.ok(await img.evaluate(e=>e.complete&&e.naturalWidth>0)||await img.evaluate(e=>new Promise(resolve=>{e.onload=()=>resolve(true);e.onerror=()=>resolve(false);})));assert.match(await p.locator('.qris-amount').innerText(),/15\.000/);}
