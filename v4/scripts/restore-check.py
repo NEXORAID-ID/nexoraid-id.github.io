@@ -12,8 +12,18 @@ import sqlite3
 import sys
 import tempfile
 
+# Required durable schema-15 inventory. Missing baseline tables fail verification.
+# Sessions/session_metadata are independently checked during copied-session cleanup;
+# rate-limit buckets are transient and excluded from business reconciliation.
 NAMES = ("users", "orders", "order_finance", "order_settlements", "order_attachments",
-         "web_ticket_outbox", "order_ticket_links", "rental_reservations", "investor_attestations")
+         "web_ticket_outbox", "order_ticket_links", "rental_reservations", "investor_attestations",
+         "audit_events", "management_grants", "order_work", "payout_requests",
+         "operating_expenses", "support_cases", "payment_claims", "order_reviews",
+         "worker_presence", "order_refunds", "catalog_overrides", "suppliers",
+         "supplier_movements", "investor_capital", "investor_distributions",
+         "notification_reads", "rejected_payment_claims", "order_messages", "order_plans",
+         "saved_services", "checkout_groups", "checkout_items", "completed_refunds",
+         "cash_opening", "rental_capacity")
 TOTALS = {
     "verified_invoice_amount": "SELECT COALESCE(SUM(amount),0) FROM order_finance WHERE state='paid'",
     "settlement_gross": "SELECT COALESCE(SUM(gross),0) FROM order_settlements",
@@ -36,14 +46,7 @@ OPTIONAL_TOTALS = {
     "order_cost_basis": ("order_cost_basis", "SELECT COALESCE(SUM(amount),0) FROM order_cost_basis"),
     "investor_noncash_bonuses": ("noncash_bonus_value", "SELECT COALESCE(SUM(value_amount),0) FROM investor_noncash_bonuses"),
 }
-OPTIONAL_NAMES = ("account_suspensions", "cash_period_closes", "payout_approvals", "order_receipts", "receipt_refunds",
-                  "seller_order_fees", "seller_settlements", "order_cost_basis",
-                  "investor_post_policies", "investor_noncash_bonuses",
-                  "checkout_groups", "checkout_items", "service_policies",
-                  "order_policy_snapshots", "ticket_closure_fences",
-                  "cash_opening", "payout_requests", "order_refunds", "completed_refunds",
-                  "supplier_movements", "operating_expenses", "investor_capital",
-                  "investor_distributions")
+OPTIONAL_NAMES = ("account_suspensions", "cash_period_closes", "payout_approvals", "order_receipts", "receipt_refunds", "seller_order_fees", "seller_settlements", "order_cost_basis", "investor_post_policies", "investor_noncash_bonuses", "service_policies", "order_policy_snapshots", "ticket_closure_fences")
 def snapshot_plan(existing):
     return NAMES + tuple(n for n in OPTIONAL_NAMES if n in existing), {
         **TOTALS, **{label: query for table, (label, query) in OPTIONAL_TOTALS.items() if table in existing}
