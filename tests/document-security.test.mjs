@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import worker from '../v4/worker.mjs';
+import worker,{documentPolicy} from '../v4/worker.mjs';
 const origin='https://nexoraid.example';
 const ASSETS={fetch:async r=>{
  const path=new URL(r.url).pathname;
@@ -31,4 +31,22 @@ test('non-HTML assets and public JSON do not receive document policy',async()=>{
  assert.equal(api.status,200);
  assert.equal(api.headers.get('access-control-allow-origin'),'*');
  assert.equal(api.headers.get('x-frame-options'),null);
+});
+
+test('A71 HTTP policy distinguishes portal and public resource requirements',async()=>{
+ const portal=documentPolicy('/portal.html'),offline=documentPolicy('/portal-offline.html'),catalog=documentPolicy('/layanan.html');
+ assert.equal(portal,offline);
+ for(const policy of [portal,catalog]){
+  for(const part of ["default-src 'self'","script-src 'self'","script-src-attr 'none'","frame-src 'none'","frame-ancestors 'none'","object-src 'none'","form-action 'self'","worker-src 'self'"])assert.ok(policy.includes(part),part);
+  assert.doesNotMatch(policy,/script-src[^;]*unsafe-inline|unsafe-eval/);
+ }
+ assert.ok(portal.includes("base-uri 'none'"));
+ assert.ok(portal.includes("connect-src 'self';"));
+ assert.doesNotMatch(portal,/unsafe-inline|fonts.googleapis|workers.dev/);
+ assert.ok(catalog.includes("https://nexoraid-v4.nexoraid.workers.dev"));
+ assert.ok(catalog.includes("https://fonts.googleapis.com"));
+ assert.ok(catalog.includes("https://fonts.gstatic.com"));
+ const r=await worker.fetch(new Request(origin+'/portal.html'),{ASSETS});
+ assert.ok(r.headers.get('content-security-policy').includes(portal));
+ assert.equal(r.headers.get('permissions-policy'),'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
 });

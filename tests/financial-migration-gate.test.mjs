@@ -1,8 +1,8 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {migrationInventory,pendingFinancialMigrations,verifyEvidence} from '../v4/scripts/financial-migration-gate.mjs';
+import {migrationInventory,pendingFinancialMigrations,verifyEvidence,requireMigrationFreeze} from '../v4/scripts/financial-migration-gate.mjs';
 const files=['0015_rental_investor_guard.sql','0016_installment_ledger.sql','0017_business_controls.sql'];
 const pending=files.slice(1),databaseId='fixture-db',digest='a'.repeat(64),now=Date.parse('2026-11-26T17:00:00Z');
-const evidence={database_id:databaseId,migration_digest:digest,backup_sha256:'b'.repeat(64),pending_migrations:pending,external_encrypted_copy:true,isolated_restore_verified:true,independent_totals_matched:true,attachment_checksums_matched:true,verified_at:new Date(now-60000).toISOString()};
+const evidence={database_id:databaseId,migration_digest:digest,backup_sha256:'b'.repeat(64),pending_migrations:pending,external_encrypted_copy:true,isolated_restore_verified:true,independent_totals_matched:true,attachment_checksums_matched:true,isolated_upgrade_rehearsed:true,rehearsal_candidate_sha:'d'.repeat(40),verified_at:new Date(now-60000).toISOString()};
 const check=e=>verifyEvidence(e,{databaseId,pending,digest,now});
 test('gate detects only unapplied financial schema and rejects divergent inventory',()=>{
  assert.deepEqual(pendingFinancialMigrations(files,[files[0]]),pending);
@@ -15,9 +15,11 @@ test('missing or mismatched owner evidence blocks exact pending migration',()=>{
  assert.throws(()=>check({...evidence,migration_digest:'c'.repeat(64)}));
  assert.throws(()=>check({...evidence,pending_migrations:[pending[0]]}));
  assert.throws(()=>check({...evidence,backup_sha256:'bad'}));
+ assert.throws(()=>check({...evidence,rehearsal_candidate_sha:'bad'}));
+ assert.throws(()=>check({...evidence,isolated_upgrade_rehearsed:undefined}));
 });
 test('backup, restore, source totals and attachment checks must all be attested',()=>{
- for(const key of ['external_encrypted_copy','isolated_restore_verified','independent_totals_matched','attachment_checksums_matched'])assert.throws(()=>check({...evidence,[key]:false}));
+ for(const key of ['external_encrypted_copy','isolated_restore_verified','independent_totals_matched','attachment_checksums_matched','isolated_upgrade_rehearsed'])assert.throws(()=>check({...evidence,[key]:false}));
  assert.doesNotThrow(()=>check(evidence));
 });
 test('stale and future evidence fail, no pending migrations needs no attestation',()=>{
@@ -40,4 +42,17 @@ test('rejects out-of-order applied history and incomplete baseline; pending orde
 test('read-only migration report exposes only validated filenames and identifies unknown history',()=>{
  assert.deepEqual(migrationInventory(files,[files[0],'0019_other.sql']),{local:files,applied:[files[0],'0019_other.sql'],pending,unknown:['0019_other.sql']});
  assert.throws(()=>migrationInventory(files,['secret value\n']),/Invalid migration inventory/);
+});
+
+test('financial migration requires active live freeze and candidate maintenance',async()=>{
+ const config={vars:{PUBLIC_ORIGIN:'https://fixture.invalid',MAINTENANCE_MODE:'true'}};
+ const ready={status:'ok',database_ready:true,maintenance:true};
+ let calls=0;
+ const probe=async(url,options)=>{calls++;assert.equal(url,'https://fixture.invalid/api/health');assert.equal(options.redirect,'error');assert.equal(options.cache,'no-store');return Response.json(ready);};
+ await requireMigrationFreeze(config,probe);
+ await assert.rejects(()=>requireMigrationFreeze({vars:{...config.vars,MAINTENANCE_MODE:'false'}},probe),/Candidate must keep/);
+ assert.equal(calls,1);
+ for(const patch of [{maintenance:false},{maintenance:undefined},{database_ready:false},{status:'degraded'}])
+  await assert.rejects(()=>requireMigrationFreeze(config,async()=>Response.json({...ready,...patch})),/Live production maintenance/);
+ await assert.rejects(()=>requireMigrationFreeze(config,async()=>new Response('',{status:503})),/health unavailable/);
 });

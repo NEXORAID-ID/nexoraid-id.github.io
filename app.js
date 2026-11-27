@@ -1,11 +1,10 @@
 import { CONFIG, services as baselineServices } from './services-data.js';
 import { getLiveCatalog } from './live-catalog.js';
-import { categories, escapeHTML as esc, queryCatalog, orderText, fixedPriceValue, comparisonTotals, PAGE_SIZE, safeSelection, safeBasket, basketTotals, basketText, packageOptions, pricingInfo, priceCSV, effectiveCatalogUnit, activePromotions } from './catalog.js';
+import { categories, escapeHTML as esc, queryCatalog, orderText, fixedPriceValue, comparisonTotals, PAGE_SIZE, safeSelection, savedBasket, basketTotals, basketText, packageOptions, pricingInfo, priceCSV, effectiveCatalogUnit, activePromotions, rentalStockBlocked as stockBlocked, basketHasUnavailable } from './catalog.js';
 
 const catalogue=await getLiveCatalog(baselineServices,location);
 const services=catalogue.services;
 const stockLabel=s=>s.availability==='sold_out'?'Stok habis':s.availability==='unconfigured'?'Stok belum dikonfirmasi':s.availability==='available'?'Stok tersedia saat diperiksa':'';
-const stockBlocked=s=>['sold_out','unconfigured'].includes(s.availability);
 if(catalogue.production){const notice=document.createElement('p');notice.className='catalog-source-notice';notice.textContent=catalogue.live?'Katalog aktif terhubung ke NEXORAID V4. Harga akhir mengikuti tagihan portal.':'Katalog cadangan: harga dan ketersediaan belum tersinkron. Konfirmasi melalui portal sebelum membayar.';document.querySelector('main')?.prepend(notice);}
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -16,7 +15,7 @@ const serviceHref = id => builtSite ? 'layanan-'+encodeURIComponent(id)+'.html' 
 function readStore(key, fallback) { try {return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback;} catch {return fallback;} }
 function saveStore(key, value) { try {localStorage.setItem(key,JSON.stringify(value));return true;} catch {return false;} }
 let favorites = safeSelection(readStore('nexoraid-favorites',[]), services);
-let basket = safeBasket(readStore('nexoraid-basket',[]), services);
+let basket = savedBasket(readStore('nexoraid-basket',[]), services);
 const basketNav=$('#basketNav');
 function updateBasketNav(){if(basketNav)basketNav.textContent='Keranjang ('+basket.reduce((n,r)=>n+r.quantity,0)+')';}
 function updateFavorites(){ $$('[data-favorite]').forEach(b=>{const selected=favorites.includes(b.dataset.favorite);b.setAttribute('aria-pressed',String(selected));b.textContent=selected?'♥ Tersimpan':'♡ Favorit';}); }
@@ -395,8 +394,8 @@ reveal();
 
 function renderBasket(){
  const host=$('#basketItems');if(!host)return;
- host.innerHTML=basket.length?basket.map(row=>{const s=services.find(x=>x.id===row.id);return '<article class="basket-row"><div><h3><a href="'+esc(serviceHref(s.id))+'">'+esc(s.name)+'</a></h3><p>'+esc(s.price)+'</p></div><label>Jumlah <input type="number" min="1" max="99" value="'+row.quantity+'" data-quantity="'+esc(s.id)+'"></label><button type="button" class="btn btn-ghost" data-remove-basket="'+esc(s.id)+'">Hapus</button></article>';}).join(''):'<div class="empty-state"><h2>Keranjang masih kosong</h2><p>Pilih layanan yang ingin dikonsultasikan.</p><a class="btn btn-primary" href="layanan.html">Jelajahi katalog</a></div>';
- const sums=basketTotals(basket,services);$('#basketTotal').textContent='Subtotal harga tetap (indikatif): '+money(sums.total)+'. '+sums.needsQuote+' layanan perlu penawaran.';$('#basketCopy').disabled=!basket.length;$('#basketClear').disabled=!basket.length;
+ host.innerHTML=basket.length?basket.map(row=>{const s=services.find(x=>x.id===row.id);return '<article class="basket-row"><div><h3><a href="'+esc(serviceHref(s.id))+'">'+esc(s.name)+'</a></h3><p>'+esc(s.price)+'</p>'+(stockLabel(s)?'<p>'+esc(stockLabel(s))+'</p>':'')+'</div><label>Jumlah <input type="number" min="1" max="99" value="'+row.quantity+'" data-quantity="'+esc(s.id)+'"></label><button type="button" class="btn btn-ghost" data-remove-basket="'+esc(s.id)+'">Hapus</button></article>';}).join(''):'<div class="empty-state"><h2>Keranjang masih kosong</h2><p>Pilih layanan yang ingin dikonsultasikan.</p><a class="btn btn-primary" href="layanan.html">Jelajahi katalog</a></div>';
+ const sums=basketTotals(basket,services);$('#basketTotal').textContent='Subtotal harga tetap (indikatif): '+money(sums.total)+'. '+sums.needsQuote+' layanan perlu penawaran.';const unavailable=basketHasUnavailable(basket,services);if(unavailable)$('#basketTotal').textContent+=' Hapus rental yang stoknya belum tersedia sebelum menyalin pesanan.';$('#basketCopy').disabled=!basket.length||unavailable;$('#basketClear').disabled=!basket.length;
 }
 document.addEventListener('click',event=>{
  const fav=event.target.closest('[data-favorite]');const add=event.target.closest('[data-basket]');const rem=event.target.closest('[data-remove-basket]');
@@ -407,7 +406,7 @@ document.addEventListener('click',event=>{
 $('#basketItems')?.addEventListener('change',event=>{const id=event.target.dataset.quantity;if(!id)return;const row=basket.find(r=>r.id===id);if(!row)return;const value=Number(event.target.value);row.quantity=Number.isInteger(value)?Math.max(1,Math.min(99,value)):1;saveStore('nexoraid-basket',basket);updateBasketNav();renderBasket();});
 $('#basketClear')?.addEventListener('click',()=>{basket=[];saveStore('nexoraid-basket',basket);updateBasketNav();renderBasket();});
 $('#favoritesClear')?.addEventListener('click',()=>{favorites=[];saveStore('nexoraid-favorites',favorites);updateFavorites();showToast('Favorit dihapus.');});
-$('#basketForm')?.addEventListener('submit',event=>{event.preventDefault();if(basket.length)copyText(basketText(basket,services,$('#basketNote').value),'Ringkasan disalin. Tempelkan di tiket Discord.');});
+$('#basketForm')?.addEventListener('submit',event=>{event.preventDefault();if(basketHasUnavailable(basket,services)){showToast('Stok rental belum tersedia. Hapus layanan tersebut atau muat ulang katalog.');return;}if(basket.length)copyText(basketText(basket,services,$('#basketNote').value),'Ringkasan disalin. Tempelkan di tiket Discord.');});
 renderBasket();updateFavorites();
 // Branch publishing fallback: prices and downloads work even without generated artifacts.
 const priceHost = $('#priceListStatic');

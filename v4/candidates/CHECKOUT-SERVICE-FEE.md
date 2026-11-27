@@ -1,0 +1,29 @@
+# Biaya Layanan Rp500 — integration candidate (#50)
+
+Owner price formula: harga dasar + Biaya Layanan Rp500 once per paid checkout. Catalog price is unchanged. Promotions apply to the base. HyperBoostX is non-orderable/free. An unknown request price is not a fixed invoice. Existing orders and checkouts are never backfilled.
+
+This draft contains executable integer-money calculation and a provisional immutable checkout-group policy snapshot. The SQL is deliberately OUTSIDE v4/migrations because PR #31/#29/#44 migration numbering is unresolved. The SQL captures the policy amount, not payment; it must never be mistaken for receipt, revenue, or a verified invoice. Do not merge or deploy this draft as an active charge.
+
+Integration requirements:
+- Apply the uniquely numbered snapshot migration in the coordinated finance branch, after owner-approved backup/restore evidence. New groups snapshot the fee inside their existing atomic checkout transaction; replay uses the stored snapshot, legacy groups use zero.
+- Wire checkoutTotals to authenticated create/replay responses and cart/single-order presentation. Show subtotal, Biaya Layanan, and total separately, using persisted snapshots and actual accepted quotes. Bot single-order path must consume the same response.
+- Existing order_finance is per order, whereas the charge is per checkout group. A single group fee must be collected exactly once across multiple invoices, cancellations, partial receipts and overpayments. Do not simply add Rp500 to each order estimate or quote. Resolve allocation and fee treatment for cancelled/refunded groups and settlement (owner/worker/investor allocation) with the owner; existing split rules stay unchanged until confirmed.
+- Verify quote/receipt/QRIS total, partial payments, refunds, ledger/reconciliation, settlement, request-price and historical orders, concurrency, retries and bot parity in one integrated test. No actual transfers or production mutation during testing.
+
+## Candidate integration increment
+An explicitly enabled synthetic environment (`CHECKOUT_FEE_PREVIEW=true`) now returns `checkout_pricing` from both cart and single-order create/replay paths based on persisted group snapshots. Legacy rows have zero fee. Response status is `estimate_only`; no invoice or payment changes. The default production path has no new field and no snapshot lookup. A real checkout lifecycle test uses the current migrations and separately applies the provisional SQL in memory. Do not enable preview in production or treat it as a collected charge.
+
+Preview fails closed before any new order is written if either the snapshot table or its trigger is absent. Regression verifies both missing-schema scenarios do not create checkout groups.
+
+## Integrated finance candidate PR #57
+The preview and its isolated tests now also run against the reconciled finance and ticket-closure schema 23. The existing ticket closure checkout fence is retained. The provisional SQL remains outside active migrations; the preview flag is not configured by production deployment. No actual fee collection, allocation or refund policy is activated.
+
+The isolated workerd/D1 checkout fixture now also applies the provisional fee schema exclusively to its temporary local state. It checks website/cart/bot parity, concurrent replay, payload conflict, post-promo fee, rollback, quota and absence of payable invoices (19 checks total). It does not alter the production migration inventory.
+
+## Stacked finance integration
+This branch is based on PR #57, preserves the 0019–0023 finance migrations and ports the invoice/refund calculation and portal estimate from PR #56. The additional provisional `checkout-fee-allocation.sql` provides a durable unique group allocation, invoice component view, minimum service principal checks, and explicit fail-closed guards for payment, settlement and refund. The SQL stays outside the production migrations. Do not install it on production: it deliberately blocks money receipt on fee-bearing invoices until the owner approves and the transactional fee settlement/refund policy is implemented. Regression tests use isolated SQLite. No change to production settings, historic tickets or funds.
+
+## Isolated policy trial
+The optional `checkout-fee-policy-trial.sql` runs only after both provisional SQL files, never under production migrations. Proposed (not approved): owner retains Rp500, joki 60/40 uses base principal, seller commission cannot consume fee, installments and refunds are attributed base-first, full cancellation returns all received invoice components, excess is returned separately. If the selected anchor is cancelled, its fee is waived/refunded rather than silently reassigned, even if another group item remains paid; this exception requires owner approval. The canonical receipt/refund tables remain the single cash ledger; component totals are a read-only projection. Tests cover actual synthetic receipt transitions, settlement, excess and full/partial cancellation. API/UI quote allocation and production policy acceptance remain open. The stacked PR has a dedicated no-deploy npm test/build workflow.
+
+The quote adapter now atomically allocates the fee to the first eligible quoted order and upserts the invoice using service principal plus its allocated fee. The actual order operations and invoice UI expose this trial only when CHECKOUT_FEE_POLICY_TRIAL=true AND PUBLIC_ORIGIN=https://staging.invalid (synthetic only). Regression covers re-quote, second order and receipt lock. No production activation. The policy trial still needs actual execution evidence and review of the cancelled-anchor exception.

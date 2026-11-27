@@ -108,14 +108,16 @@ export async function business({p,m,url,user,env,readBody,r}){
  if(p==='/api/business/investors'&&get){
   const capital=(await db.prepare('SELECT c.id,c.name,c.amount,EXISTS(SELECT 1 FROM investor_attestations a WHERE a.capital_id=c.id) AS agreement_verified,COALESCE(SUM(d.principal_return),0) AS returned FROM investor_capital c LEFT JOIN investor_distributions d ON d.capital_id=c.id GROUP BY c.id ORDER BY c.created_at DESC LIMIT 100').all()).results;
   const distributions=(await db.prepare('SELECT capital_id,period,profit,owner_share,investor_share,principal_return,reference FROM investor_distributions ORDER BY period DESC LIMIT 100').all()).results;
-  return json({capital,distributions});
+  const policies=(await db.prepare('SELECT capital_id,investor_percent,agreement_reference FROM investor_post_policies').all()).results;
+  const bonuses=(await db.prepare('SELECT id,capital_id,item,quantity,value_amount,reference,expense_id,created_at FROM investor_noncash_bonuses ORDER BY created_at DESC LIMIT 100').all()).results;
+  return json({capital,distributions,policies,bonuses});
  }
  if(p==='/api/business/investors'&&post){
   const b=await readBody(r),name=str(b?.name,2,100),ref=str(b?.reference,4,80);
   const agreement=str(b?.agreement_reference,4,120);
   if(!name||!ref||!integer(b?.amount)||!agreement||b.received_confirmed!==true)return err('Modal nyata, nama, bukti penerimaan dan referensi perjanjian wajib.');
   const id=crypto.randomUUID();
-  const [result]=await db.batch([db.prepare("INSERT INTO investor_capital SELECT ?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM investor_capital WHERE reference=?) AND NOT EXISTS(SELECT 1 FROM investor_capital c WHERE c.amount>(SELECT COALESCE(SUM(principal_return),0) FROM investor_distributions WHERE capital_id=c.id))").bind(id,name,b.amount,ref,t,user.id,ref),db.prepare("INSERT INTO investor_attestations SELECT id,?,?,? FROM investor_capital WHERE id=?").bind(agreement,user.id,t,id),db.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'investor:capital',id,? FROM investor_capital WHERE id=?").bind(user.id,t,id)]);
+  const [result]=await db.batch([db.prepare("INSERT INTO investor_capital SELECT ?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM investor_capital WHERE reference=?) AND NOT EXISTS(SELECT 1 FROM investor_post_policies WHERE investor_percent>0) AND NOT EXISTS(SELECT 1 FROM investor_capital c WHERE c.amount>(SELECT COALESCE(SUM(principal_return),0) FROM investor_distributions WHERE capital_id=c.id))").bind(id,name,b.amount,ref,t,user.id,ref),db.prepare("INSERT INTO investor_attestations SELECT id,?,?,? FROM investor_capital WHERE id=?").bind(agreement,user.id,t,id),db.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,'investor:capital',id,? FROM investor_capital WHERE id=?").bind(user.id,t,id)]);
   return result.meta.changes?json({ok:true,id}):err('Modal sudah tercatat atau modal aktif masih ada.',409);
  }
  if(p==='/api/business/investors/attest'&&post){
@@ -123,11 +125,24 @@ export async function business({p,m,url,user,env,readBody,r}){
   if(!uuid.test(b?.capital_id||'')||!agreement||b.received_confirmed!==true)return err('Referensi perjanjian dan konfirmasi penerimaan wajib.');
   return record(db,db.prepare('INSERT INTO investor_attestations SELECT id,?,?,? FROM investor_capital WHERE id=? ON CONFLICT(capital_id) DO NOTHING').bind(agreement,user.id,t,b.capital_id),user,'investor:attest',b.capital_id,t);
  }
+ if(p==='/api/business/investors/post-policy'&&post){
+  const b=await readBody(r),agreement=str(b?.agreement_reference,4,120);
+  if(!uuid.test(b?.capital_id||'')||!Number.isInteger(b.investor_percent)||b.investor_percent<0||b.investor_percent>100||!agreement||b.confirmed!==true)return err('Persentase, kesepakatan baru dan konfirmasi wajib.');
+  try{return await record(db,db.prepare('INSERT INTO investor_post_policies VALUES(?,?,?,?,?) ON CONFLICT(capital_id) DO NOTHING').bind(b.capital_id,b.investor_percent,agreement,user.id,t),user,'investor:post-policy',b.capital_id,t);}catch(e){if(/investor_not_repaid|investor_policy_conflict/.test(String(e.message)))return err('Modal belum lunas, belum diverifikasi atau ada perjanjian investor aktif lain.',409);throw e;}
+ }
+ if(p==='/api/business/investors/bonus'&&post){
+  const b=await readBody(r),item=str(b?.item,3,120),ref=str(b?.reference,4,80),expense=b?.expense_id||null;
+  if(!uuid.test(b?.capital_id||'')||!item||!ref||!integer(b?.value_amount)||b.quantity!==1||b.value_amount>=1000000||expense&&!uuid.test(expense)||b.confirmed!==true)return err('Catat satu set perangkat non-tunai per serah terima dengan nilai di bawah Rp1.000.000 dan konfirmasi owner.');
+  const id=crypto.randomUUID();
+  try{return await record(db,db.prepare('INSERT INTO investor_noncash_bonuses SELECT ?,c.id,?,?,?,?,?,?,? FROM investor_capital c WHERE c.id=? AND EXISTS(SELECT 1 FROM investor_attestations WHERE capital_id=c.id) ON CONFLICT(reference) DO NOTHING').bind(id,item,b.quantity,b.value_amount,ref,expense,user.id,t,b.capital_id),user,'investor:bonus',id,t);}catch(e){if(/bonus_expense_invalid|UNIQUE constraint/.test(String(e.message)))return err('Biaya sudah tertaut atau tidak valid.',409);throw e;}
+ }
  if(p==='/api/business/distributions'&&post){
   const b=await readBody(r),ref=str(b?.reference,4,80);
   if(!uuid.test(b?.capital_id||'')||!integer(b?.profit)||!ref||!/^\d{4}-(0[1-9]|1[0-2])$/.test(b?.period||''))return err('Data distribusi tidak valid.');
   const c=await db.prepare('SELECT c.amount-COALESCE(SUM(d.principal_return),0) AS remaining FROM investor_capital c LEFT JOIN investor_distributions d ON d.capital_id=c.id WHERE c.id=? AND EXISTS(SELECT 1 FROM investor_attestations a WHERE a.capital_id=c.id) GROUP BY c.id').bind(b.capital_id).first();
-  const split=c&&splitInvestor(b.profit,c.remaining);if(!split)return err('Modal tidak aktif, belum diverifikasi perjanjiannya, atau sudah lunas.',409);
+  const policy=c?.remaining===0?await db.prepare('SELECT investor_percent FROM investor_post_policies WHERE capital_id=?').bind(b.capital_id).first():null;
+  const postShare=policy?.investor_percent>0?Math.floor(b.profit*policy.investor_percent/100):null;
+  const split=c?.remaining===0&&postShare!==null?{owner_share:b.profit-postShare,investor_share:postShare,principal_return:0}:c&&splitInvestor(b.profit,c.remaining);if(!split)return err('Modal tidak aktif, belum diverifikasi perjanjiannya, atau sudah lunas.',409);
   const id=crypto.randomUUID();
   // A manually approved realized distributable profit, not an automatic claim on gross sales.
   return record(db,db.prepare('INSERT INTO investor_distributions SELECT ?,?,?,?,?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM investor_distributions WHERE period=? OR reference=?) AND ?=(SELECT amount FROM investor_capital WHERE id=?)-(SELECT COALESCE(SUM(principal_return),0) FROM investor_distributions WHERE capital_id=?)').bind(id,b.capital_id,b.period,b.profit,split.owner_share,split.investor_share,split.principal_return,ref,t,user.id,b.period,ref,c.remaining,b.capital_id,b.capital_id),user,'investor:distribution',id,t);

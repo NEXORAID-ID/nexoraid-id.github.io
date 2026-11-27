@@ -1,0 +1,17 @@
+# A68: owner-triaged public Discord identifiers in historical test fixtures only.
+# Exact commit:path:rule:line fingerprints; no token/secret rules or path-wide exclusions.
+421dff4b8a19c2d12f865c0e704566d5dba8536e:tests/maintenance-oauth.test.mjs:discord-client-id:7
+9063359190ab9992126fe5391dd3c0815083233b:tests/maintenance-oauth.test.mjs:discord-client-id:7
+f8f1d74008f26fa374f1f8ca71e912be90b25737:tests/maintenance-oauth.test.mjs:discord-client-id:7
+d315f4b702d40ea7d988a1e52296973d0e18046c:tests/maintenance-oauth.test.mjs:discord-client-id:7
+73acddba15c6136e0ef57ba7f98e2d6f71b426fd:tests/maintenance-oauth.test.mjs:discord-client-id:7
+92d0776782287f50472651c10c584b05337e5eaf:tests/v4.test.mjs:discord-client-id:190
+232bde9a63639581f4678d3014ab9c2381b2f6e2:tests/v4.test.mjs:discord-client-id:187
+4cef248bc0537c064a1829581aaf45ea851569f8:tests/v4.test.mjs:discord-client-id:187
+2b8e1a45946a4d1b1b26f6178e3affe88574aab8:tests/v4.test.mjs:discord-client-id:187
+b21f6c1a34071fae9bd43bf2decb2b2516a86ea1:tests/v4.test.mjs:discord-client-id:29
+b21f6c1a34071fae9bd43bf2decb2b2516a86ea1:tests/v4.test.mjs:discord-client-id:30
+b21f6c1a34071fae9bd43bf2decb2b2516a86ea1:tests/v4.test.mjs:discord-client-id:31
+305f91c6f2b9e45bba192f896d3d770eb8941980:tests/v4.test.mjs:discord-client-id:27
+b21f13e383491ee8217582cb29540c05a94eb901:tests/v4.test.mjs:discord-client-id:18
+e801b3576d540884814421ccbefe4f01c1750add:tests/v4.test.mjs:discord-client-id:15

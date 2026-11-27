@@ -11,7 +11,7 @@ export default {async fetch(request,bindings){
  let checks=0;
  const eq=(actual,expected,label)=>{if(actual!==expected)throw Error(label+': expected '+expected+', got '+actual);checks++;};
  const db=bindings.DB;
- const env={DB:db,PUBLIC_ORIGIN:origin,OWNER_DISCORD_ID:owner,NEXORAID_BOT_API_KEY:key,DISCORD_MEMBERSHIP_BOT_TOKEN:'synthetic-local',DISCORD_MEMBERSHIP_FETCH:async url=>Response.json({user:{id:url.split('/').at(-1)},roles:[]})};
+ const env={DB:db,CHECKOUT_FEE_PREVIEW:'true',PUBLIC_ORIGIN:origin,OWNER_DISCORD_ID:owner,NEXORAID_BOT_API_KEY:key,DISCORD_MEMBERSHIP_BOT_TOKEN:'synthetic-local',DISCORD_MEMBERSHIP_FETCH:async url=>Response.json({user:{id:url.split('/').at(-1)},roles:[]})};
  const call=(path,body)=>worker.fetch(new Request(origin+path,{method:'POST',headers:{'content-type':'application/json',...(path.startsWith('/api/bot/')?{authorization:'Bearer '+key,'x-discord-user-id':customer,'x-discord-guild-id':guild}:{origin,cookie:'nexo_session='+token})},body:JSON.stringify(body)}),env);
  const single=(request_id,quantity=1,path='/api/orders')=>call(path,{request_id,service_id:'optiwindows',quantity});
  const cart=(request_id,items)=>call('/api/customer/checkout',{request_id,items});
@@ -24,18 +24,25 @@ export default {async fetch(request,bindings){
   const data=await Promise.all(results.map(r=>r.json()));const id=data[0].order.id;
   eq(data[1].orders[0].id,id,'cart identity');eq(data[2].order.id,id,'bot identity');
   eq(await count('orders'),1,'only one order');eq(await count('web_ticket_outbox'),1,'only one outbox');
+  eq(data.every(x=>x.checkout_pricing?.total===150500&&x.checkout_pricing?.service_fee===500&&x.checkout_pricing?.status==='estimate_only'),true,'website cart and bot fee parity');
+  eq(await count('checkout_service_fees'),1,'only one fee snapshot');
   eq((await single('cross-route-key-0001',2)).status,409,'payload conflict');
+  eq(await count('checkout_service_fees'),1,'payload conflict does not create fee');
   await db.prepare('INSERT INTO catalog_overrides VALUES(?,?,?,?,?,?)').bind('optiwindows',123456,1,25,owner,1).run();
-  const price=(await (await single('price-snapshot-0001',2)).json()).order;
-  eq(price.estimate,185184,'integer promo');
+  const pricing=await (await single('price-snapshot-0001',2)).json();
+  eq(pricing.order.estimate,185184,'integer promo');
+  eq(pricing.checkout_pricing.total,185684,'fee applied after quantity and promo');
   await db.prepare("UPDATE catalog_overrides SET amount=100000,enabled=0 WHERE service_id='optiwindows'").run();
   eq((await (await single('price-snapshot-0001',2)).json()).order.estimate,185184,'immutable replay');
   eq((await cart('disabled-basket-0001',[{service_id:'gta-heist',quantity:1},item])).status,409,'disabled basket rollback');
   eq(await count('orders'),2,'no partial insert');
+  eq(await count('checkout_service_fees'),2,'failed basket rolls back fee');
   await db.prepare("UPDATE catalog_overrides SET enabled=1 WHERE service_id='optiwindows'").run();
   const remaining=await Promise.all(Array.from({length:5},(_,i)=>single('quota-runtime-000'+i)));
   eq(remaining.map(r=>r.status).sort().join(','),'201,201,201,429,429','concurrent quota');
   eq(await count('orders'),5,'rolling limit');
+  eq(await count('checkout_service_fees'),5,'quota failures do not create fees');
+  eq(await count('order_finance'),0,'preview does not create payable invoice');
   // Fresh synthetic customer: real D1 stock, promo, snapshots and public catalog parity.
   const other='555555555555555555',otherToken='c'.repeat(72);
   await db.batch([db.prepare('INSERT INTO users(id,display_name,created_at) VALUES(?,?,1)').bind(other,'CI rental customer'),db.prepare('INSERT INTO sessions VALUES(?,?,?)').bind(await hash(otherToken),other,Math.floor(Date.now()/1000)+600)]);

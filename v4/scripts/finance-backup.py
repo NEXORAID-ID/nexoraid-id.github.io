@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 from datetime import datetime, timezone
+from urllib.request import Request, urlopen
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CONFIG = ROOT / "v4/.generated/wrangler.json"
@@ -46,8 +47,10 @@ def scalar(sql):
     return value
 
 def source_snapshot():
-    counts={name:scalar(f'SELECT COUNT(*) FROM "{name}"') for name in restore.NAMES}
-    totals={name:scalar(sql) for name,sql in restore.TOTALS.items()}
+    existing={r["name"] for r in query("SELECT name FROM sqlite_master WHERE type='table'")}
+    names, queries=restore.snapshot_plan(existing)
+    counts={name:scalar(f'SELECT COUNT(*) FROM "{name}"') for name in names}
+    totals={name:scalar(sql) for name,sql in queries.items()}
     attachments={}
     # IDs are UUIDs in the actual application; quote literal regardless of content.
     rows=query("SELECT id FROM order_attachments ORDER BY id")
@@ -79,15 +82,15 @@ def pending_digest(ref,applied):
         raise ValueError("Invalid candidate")
     names=run(["git","ls-tree","--name-only",commit+":v4/migrations"]).decode().splitlines()
     files=sorted(n for n in names if n.endswith(".sql"))
-    if not files or any(not PATTERN.fullmatch(n) for n in files):
-        raise ValueError("Invalid migration inventory")
+    if not files or not files[0].startswith("0001_") or any(not PATTERN.fullmatch(n) for n in files):
+        raise ValueError("Invalid local migration inventory")
     versions=[int(n[:4]) for n in files]
-    if versions!=list(range(1,len(files)+1)):
+    if any(v!=i+1 for i,v in enumerate(versions)):
         raise ValueError("Migration sequence has a gap or duplicate version")
     actual=sorted(applied)
-    if actual!=files[:len(actual)] or len(actual)>len(files):
+    if actual!=files[:len(actual)]:
         raise ValueError("Divergent migration history")
-    if any(int(n[:4])>=16 for n in files) and any(int(n[:4])<16 for n in files[len(actual):]):
+    if any(int(n[:4])<16 and n not in actual for n in files):
         raise ValueError("Divergent migration history: baseline not applied")
     pending=[n for n in files[len(actual):] if int(n[:4])>=16]
     if not pending:
@@ -98,6 +101,18 @@ def pending_digest(ref,applied):
         digest.update(run(["git","show",commit+":v4/migrations/"+name]))
         digest.update(b"\0")
     return pending,digest.hexdigest()
+
+def verify_live_freeze(opener=urlopen):
+    url="https://nexoraid-v4.nexoraid.workers.dev/api/health"
+    with opener(Request(url,headers={"Cache-Control":"no-cache","Accept":"application/json","User-Agent":"NEXORAID-Backup/1.0"}),timeout=15) as response:
+        if response.status!=200 or response.geturl()!=url:
+            raise ValueError("Production maintenance health unavailable")
+        raw=response.read(16385)
+        if len(raw)>16384:
+            raise ValueError("Invalid health payload")
+        health=json.loads(raw)
+    if not isinstance(health,dict) or health.get("status")!="ok" or health.get("database_ready") is not True or health.get("maintenance") is not True:
+        raise ValueError("Live production maintenance must be active")
 
 def main():
     parser=argparse.ArgumentParser()
@@ -125,7 +140,18 @@ def main():
         if not recipient.startswith("age1") or "\n" in recipient:
             raise ValueError("Invalid public recipient")
         applied=[r["name"] for r in query("SELECT name FROM d1_migrations ORDER BY name")]
-        pending,digest=pending_digest(args.candidate,applied)
+        # Pin once so a moving branch cannot change the SQL between hashing and rehearsal.
+        candidate=run(["git","rev-parse","--verify",args.candidate+"^{commit}"]).decode().strip()
+        pending,digest=pending_digest(candidate,applied)
+        migration_sql=[]
+        actual_digest=hashlib.sha256()
+        for name in pending:
+            raw=run(["git","show",candidate+":v4/migrations/"+name])
+            actual_digest.update(name.encode()+b"\0"+raw+b"\0")
+            migration_sql.append(raw.decode("utf-8"))
+        if actual_digest.hexdigest()!=digest:
+            raise ValueError("Rehearsal migration digest mismatch")
+        verify_live_freeze()
         before=source_snapshot()
         with tempfile.TemporaryDirectory(prefix="nexoraid-finance-") as work:
             work=pathlib.Path(work)
@@ -153,14 +179,16 @@ def main():
                 raise ValueError("Encrypted copy mismatch")
             # Restore from the actual external ciphertext, not the original plaintext.
             recovered=run(["age","-d","-i",str(identity),str(target)])
-            restore.verify(recovered.decode("utf-8"),before)
+            restore.verify(recovered.decode("utf-8"),before,migrations=migration_sql)
             if source_snapshot()!=before:
                 raise ValueError("Source changed during restore")
+            verify_live_freeze()
             evidence={"database_id":dbs[0]["database_id"],"migration_digest":digest,
                       "pending_migrations":pending,"backup_sha256":checksum_value,
                       "verified_at":datetime.now(timezone.utc).isoformat(),
                       "external_encrypted_copy":True,"isolated_restore_verified":True,
-                      "independent_totals_matched":True,"attachment_checksums_matched":True}
+                      "independent_totals_matched":True,"attachment_checksums_matched":True,
+                      "isolated_upgrade_rehearsed":True,"rehearsal_candidate_sha":candidate}
             with (dest/"NEXORAID-FINANCE-EVIDENCE.json").open("x") as f:
                 json.dump(evidence,f,indent=2);f.write("\n")
         print("Encrypted backup, external copy checksum, isolated restore and independent reconciliation passed.")

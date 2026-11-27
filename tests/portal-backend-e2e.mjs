@@ -22,11 +22,11 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  const page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));let lastOrderBody,lostOrderResponse=true;
  for(const [name,body] of Object.entries(portalFiles))await page.route('**/'+name,r=>r.fulfill({contentType:name.endsWith('.html')?'text/html':name.endsWith('.css')?'text/css':'text/javascript',body}));
  await page.route('**/api/**',async route=>{
-  const req=route.request(),u=new URL(req.url()),method=req.method(),body=req.postData();
-  if(u.pathname==='/api/orders'&&method==='POST')lastOrderBody=body;
-  const response=await worker.fetch(new Request(origin+u.pathname+u.search,{method,headers:{cookie,origin,'content-type':'application/json'},...(body?{body}:{})}),env);
+  const req=route.request(),u=new URL(req.url()),method=req.method(),body=req.postDataBuffer();
+  if(u.pathname==='/api/orders'&&method==='POST')lastOrderBody=req.postData();
+  const response=await worker.fetch(new Request(origin+u.pathname+u.search,{method,headers:{cookie,origin,'content-type':req.headers()['content-type']||'application/json'},...(body?{body}:{})}),env);
   if(lostOrderResponse&&u.pathname==='/api/orders'&&method==='POST'&&response.status===201){lostOrderResponse=false;await route.abort('failed');return;}
-  await route.fulfill({status:response.status,contentType:response.headers.get('content-type')||'application/json',body:await response.text()});
+  await route.fulfill({status:response.status,headers:Object.fromEntries(response.headers),body:Buffer.from(await response.arrayBuffer())});
  });
  await page.goto(url+'portal.html');await page.waitForFunction(()=>document.querySelector('#status')?.textContent==='Terhubung.');
  assert.equal(await page.locator('#roleBadge').innerText(),'Pelanggan');
@@ -71,9 +71,9 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
   const context=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce',serviceWorkers:'block'});roleContexts.push(context);
   const p=await context.newPage();pages[role]=p;p.on('pageerror',e=>errors.push(e.message));p.on('dialog',d=>d.accept());
   for(const [name,body] of Object.entries(portalFiles))await p.route('**/'+name,r=>r.fulfill({contentType:name.endsWith('.html')?'text/html':name.endsWith('.css')?'text/css':'text/javascript',body}));
-  await p.route('**/api/**',async route=>{const req=route.request(),u=new URL(req.url()),method=req.method(),body=req.postData();
-   const response=await worker.fetch(new Request(origin+u.pathname+u.search,{method,headers:{cookie:session,origin,'content-type':'application/json'},...(body?{body}:{})}),{...env,DISCORD_MEMBERSHIP_FETCH:async url=>Response.json({user:{id:url.split('/').at(-1)},roles:url.endsWith(ids.worker)?['1511392414516903966']:[]})});
-   await route.fulfill({status:response.status,contentType:response.headers.get('content-type')||'application/json',body:await response.text()});
+  await p.route('**/api/**',async route=>{const req=route.request(),u=new URL(req.url()),method=req.method(),body=req.postDataBuffer();
+   const response=await worker.fetch(new Request(origin+u.pathname+u.search,{method,headers:{cookie:session,origin,'content-type':req.headers()['content-type']||'application/json'},...(body?{body}:{})}),{...env,DISCORD_MEMBERSHIP_FETCH:async url=>Response.json({user:{id:url.split('/').at(-1)},roles:url.endsWith(ids.worker)?['1511392414516903966']:[]})});
+   await route.fulfill({status:response.status,headers:Object.fromEntries(response.headers),body:Buffer.from(await response.arrayBuffer())});
   });
   await p.goto(url+'portal.html');await p.waitForFunction(()=>document.querySelector('#status')?.textContent==='Terhubung.');
   assert.equal(await p.locator('#roleBadge').innerText(),labels[role]);
@@ -143,11 +143,55 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  p=await open('management');let form=p.locator('form').filter({has:p.getByRole('heading',{name:'Tetapkan tagihan',exact:true})});await form.getByLabel('Nominal rupiah').fill('150000');await submit(p,form.getByRole('button',{name:'Simpan'}),endpoint+'/quote');
  p=await open('management');await submit(p,p.getByRole('button',{name:'Konfirmasi pesanan',exact:true}),endpoint+'/status');
  p=await open('customer');assert.ok(await p.locator('.qris-payment').isVisible());
+ // Binary-safe browser transport: exercise attachment upload/download against the actual Worker.
+ const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC','base64');
+ const attachmentBase='/api/collaboration/orders/'+order.id+'/attachment/';
+ const uploadFixture=async(page,kind)=>{
+  const input=page.locator('#orderDetail input[type=file]');
+  await input.setInputFiles({name:'synthetic.png',mimeType:'image/png',buffer:png});
+  await submit(page,page.getByRole('button',{name:'Unggah file',exact:true}),attachmentBase+kind);
+  const label=kind==='payment'?'pembayaran':'pengerjaan';
+  await page.getByRole('link',{name:new RegExp('Unduh bukti '+label)}).waitFor();
+  const record=db.prepare('SELECT id,bytes FROM order_attachments WHERE order_id=? AND kind=?').get(order.id,kind);
+  assert.deepEqual(Buffer.from(record.bytes),png);
+  return record.id;
+ };
+ const downloadFixture=async(page,kind)=>{
+  const label=kind==='payment'?'pembayaran':'pengerjaan';
+  const pending=page.waitForEvent('download');
+  await page.getByRole('link',{name:new RegExp('Unduh bukti '+label)}).click();
+  const file=await pending;assert.match(file.suggestedFilename(),/\.png$/);
+  assert.deepEqual(await readFile(await file.path()),png);
+ };
+ const fileInput=p.locator('#orderDetail input[type=file]');
+ await fileInput.setInputFiles({name:'invalid.png',mimeType:'image/png',buffer:Buffer.from('not a PNG')});
+ const rejected=p.waitForResponse(r=>new URL(r.url()).pathname===attachmentBase+'payment'&&r.request().method()==='POST');
+ await p.getByRole('button',{name:'Unggah file',exact:true}).click();
+ assert.equal((await rejected).status(),400);
+ await p.locator('#orderDetail .form-feedback[role=alert]').waitFor();
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM order_attachments WHERE order_id=?').get(order.id).n,0);
+ const paymentAttachment=await uploadFixture(p,'payment');
+ await downloadFixture(p,'payment');
+ for(const role of ['owner','management','worker','customer','seller']){
+  const response=await api(role,attachmentBase+paymentAttachment);
+  assert.equal(response.status,['owner','customer'].includes(role)?200:404);
+  if(response.status===200)assert.deepEqual(Buffer.from(await response.arrayBuffer()),png);
+ }
+
  form=p.locator('form').filter({has:p.getByRole('heading',{name:'Laporkan pembayaran',exact:true})});await form.getByLabel('Referensi pembayaran (bukan PIN/OTP)').fill('fixture-ui-receipt');await submit(p,form.getByRole('button',{name:'Simpan'}),'/api/workspace/orders/'+order.id+'/receipt');
  p=await open('management');assert.equal(await p.getByRole('heading',{name:'Verifikasi pembayaran manual',exact:true}).count(),0);
  assert.equal((await api('management',endpoint+'/payment',{amount:150000,reference:'fixture-forbidden'})).status,403);
  p=await open('owner');form=p.locator('form').filter({has:p.getByRole('heading',{name:'Verifikasi pembayaran manual',exact:true})});await form.getByLabel('Referensi transaksi (bukan data rekening)').fill('fixture-ui-payment');await submit(p,form.getByRole('button',{name:'Simpan'}),endpoint+'/payment');
  p=await open('worker');await submit(p,p.getByRole('button',{name:'Mulai pengerjaan',exact:true}),endpoint+'/status');
+ p=await open('worker');
+ const workAttachment=await uploadFixture(p,'work');
+ await downloadFixture(p,'work');
+ for(const role of ['owner','management','worker','customer','seller']){
+  const response=await api(role,attachmentBase+workAttachment);
+  assert.equal(response.status,['owner','management','worker'].includes(role)?200:404);
+  if(response.status===200)assert.deepEqual(Buffer.from(await response.arrayBuffer()),png);
+ }
+ console.log('Attachment acceptance passed: invalid PNG rejection, payment/work browser upload/download, byte integrity and five-role privacy.');
  p=await open('worker');form=p.locator('form').filter({has:p.getByRole('heading',{name:'Kirim bukti pengerjaan',exact:true})});await form.getByLabel('Catatan hasil / referensi bukti. Jangan kirim password atau OTP.').fill('Synthetic browser work evidence');await submit(p,form.getByRole('button',{name:'Simpan'}),endpoint+'/evidence');
  p=await open('management');await submit(p,p.getByRole('button',{name:'Setujui hasil & selesaikan',exact:true}),endpoint+'/status');
  const settlement=db.prepare('SELECT worker_share,owner_share,gross FROM order_settlements WHERE order_id=?').get(order.id);
@@ -210,6 +254,22 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  assert.equal((await (await api('seller','/api/orders')).json()).orders.length,1);
  assert.equal((await (await api('customer','/api/orders')).json()).orders.length,1);
  assert.deepEqual(errors,[]);
+ // Actual browser/API backed D1 fence: preserve the completed order and its settlement.
+ const previousGroups=db.prepare('SELECT COUNT(*) n FROM checkout_groups WHERE customer_id=?').get(id).n;
+ const closing={closure_id:'00000000-0000-4000-8000-000000000099',customer_id:id,channel_id:'666666666666666666',ticket_id:'0001'};
+ assert.equal((await queue({...closing,action:'closure-begin'})).status,200);
+ const request={service_id:'optiwindows',quantity:1,request_id:'fixture-closure-request-001'};
+ const blocked=await api('customer','/api/orders',request);assert.equal(blocked.status,409);assert.match((await blocked.json()).error,/sedang ditutup/);
+ const cart={request_id:'fixture-closure-checkout-001',items:[{service_id:'optiwindows',quantity:1}]};
+ const blockedCart=await api('customer','/api/customer/checkout',cart);assert.equal(blockedCart.status,409);assert.match((await blockedCart.json()).error,/sedang ditutup/);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM checkout_groups WHERE customer_id=?').get(id).n,previousGroups);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM orders WHERE customer_id=?').get(id).n,1);
+ const finish={...closing,action:'closure-finish',transcript_channel_id:'999999999999999999',transcript_message_id:'999999999999999998'};
+ assert.equal((await queue(finish)).status,200);assert.equal((await queue(finish)).status,200);
+ assert.equal((await api('customer','/api/orders',request)).status,201);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM orders WHERE customer_id=?').get(id).n,2);
+ assert.deepEqual(db.prepare('SELECT worker_share,owner_share,gross FROM order_settlements WHERE order_id=?').get(order.id),settlement);
+ console.log('Closure fence E2E passed: single and cart checkout blocked, receipt replay, new checkout after closure, historical settlement unchanged.');
  // Recover an already-committed cart after a retry fails BEFORE transmission.
  // Use synthetic local D1 only; keep the original key and payload locked.
  const cartKey='fixture-cart-recovery-0001',cartItems=[{service_id:'optiwindows',quantity:1}];

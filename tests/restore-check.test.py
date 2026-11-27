@@ -42,6 +42,25 @@ class RestoreTests(unittest.TestCase):
         self.assertEqual(self.expected["totals"]["worker_share"], 60000)
         self.assertEqual(self.expected["totals"]["owner_share"], 40000)
         self.assertEqual(restore.verify(self.dump,self.expected)["orders"],1)
+    def test_required_baseline_catalog_access_and_supplier_inventory(self):
+        self.db.execute("INSERT INTO management_grants(user_id,granted_at) VALUES('c',1)")
+        self.db.execute("INSERT INTO catalog_overrides(service_id,amount,enabled,actor_id,updated_at) VALUES('fixture-sku',15000,1,'o',1)")
+        self.db.execute("INSERT INTO suppliers(id,name,created_at) VALUES('fixture-supplier','Synthetic supplier',1)")
+        self.db.commit()
+        expected = restore.snapshot(self.db)
+        dump = "\n".join(self.db.iterdump())
+        counts = restore.verify(dump, expected)
+        for name in ("management_grants", "catalog_overrides", "suppliers"):
+            self.assertEqual(counts[name], 1)
+            changed = {"counts": dict(expected["counts"]), "totals": expected["totals"],
+                       "attachments": expected["attachments"]}
+            changed["counts"][name] = 0
+            with self.assertRaisesRegex(ValueError, "Source snapshot mismatch"):
+                restore.verify(dump, changed)
+        for name in ("cash_opening", "checkout_groups", "checkout_items", "rental_capacity",
+                     "supplier_movements", "investor_capital", "investor_distributions",
+                     "audit_events", "order_messages", "order_work"):
+            self.assertIn(name, counts)
     def test_source_mismatch(self):
         self.expected["totals"]["verified_invoice_amount"] += 1
         with self.assertRaisesRegex(ValueError,"Source snapshot mismatch"):
@@ -50,6 +69,32 @@ class RestoreTests(unittest.TestCase):
         self.expected["attachments"]["fixture-attachment"] = "0" * 64
         with self.assertRaisesRegex(ValueError,"Source snapshot mismatch"):
             restore.verify(self.dump,self.expected)
+    def test_snapshot_includes_catalog_checkout_ticket_and_financial_inventory(self):
+        counts = self.expected["counts"]
+        for name in ("checkout_groups", "checkout_items", "service_policies",
+                     "order_policy_snapshots", "ticket_closure_fences", "cash_opening",
+                     "payout_requests", "order_refunds", "completed_refunds",
+                     "supplier_movements", "operating_expenses", "investor_capital",
+                     "investor_distributions"):
+            self.assertIn(name, counts)
+        self.assertEqual(counts["order_policy_snapshots"], 1)
+        for name in ("seller_fee_total", "paid_payout_total", "order_refund_total",
+                     "completed_refund_total", "operating_expense_total",
+                     "investor_capital_total", "investor_principal_return_total"):
+            self.assertIn(name, self.expected["totals"])
+        self.expected["counts"]["order_policy_snapshots"] += 1
+        with self.assertRaisesRegex(ValueError, "Source snapshot mismatch"):
+            restore.verify(self.dump, self.expected)
+
+    def test_optional_inventory_compatible_with_earlier_schema(self):
+        names, totals = restore.snapshot_plan(set(restore.NAMES))
+        self.assertEqual(names, restore.NAMES)
+        self.assertEqual(totals, {**restore.TOTALS, **{
+            label: query for table, (label, query) in restore.OPTIONAL_TOTALS.items()
+            if table in restore.NAMES}})
+        self.assertFalse(set(restore.NAMES) & set(restore.OPTIONAL_NAMES))
+        self.assertNotIn("account_suspensions", names)
+
     def test_malformed_export(self):
         with self.assertRaises(sqlite3.Error):
             restore.verify("not SQL")
@@ -65,6 +110,32 @@ class OwnerBackupTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("finance_backup", ROOT / "v4/scripts/finance-backup.py")
         cls.helper = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.helper)
+
+    def test_owner_backup_requires_live_maintenance(self):
+        import io
+        import json
+        from unittest.mock import MagicMock
+        def opener(payload, status=200, redirected=False):
+            response=MagicMock()
+            response.__enter__.return_value=response
+            response.status=status
+            response.geturl.return_value=("https://other.invalid" if redirected else
+                "https://nexoraid-v4.nexoraid.workers.dev/api/health")
+            response.read.side_effect=io.BytesIO(json.dumps(payload).encode()).read
+            def request_health(request, timeout):
+                self.assertEqual(request.get_header("User-agent"), "NEXORAID-Backup/1.0")
+                self.assertEqual(request.get_header("Accept"), "application/json")
+                self.assertEqual(request.get_header("Cache-control"), "no-cache")
+                return response
+            return request_health
+        ready={"status":"ok","database_ready":True,"maintenance":True}
+        self.helper.verify_live_freeze(opener(ready))
+        for patch in ({"maintenance":False},{"maintenance":1},{"database_ready":False},{"status":"degraded"}):
+            with self.assertRaisesRegex(ValueError,"maintenance must be active"):
+                self.helper.verify_live_freeze(opener({**ready,**patch}))
+        for probe in (opener(ready,status=503),opener(ready,redirected=True)):
+            with self.assertRaisesRegex(ValueError,"health unavailable"):
+                self.helper.verify_live_freeze(probe)
 
     def test_pending_digest_matches_node_gate_byte_for_byte(self):
         import hashlib
@@ -104,6 +175,7 @@ class OwnerBackupTests(unittest.TestCase):
             if sql.startswith("SELECT length(bytes)"): return len(data)
             return 1 if "order_attachments" in sql else 0
         def query(sql):
+            if sql.startswith("SELECT name FROM sqlite_master"): return [{"name":"order_receipts"}]
             if sql.startswith("SELECT id"): return [{"id":"fixture"}]
             if "substr(bytes,1,65536)" in sql: return [{"data":data[:65536].hex()}]
             if "substr(bytes,65537,65536)" in sql: return [{"data":data[65536:].hex()}]
@@ -116,6 +188,26 @@ class OwnerBackupTests(unittest.TestCase):
 
 
 class RecoveryDrill(unittest.TestCase):
+    def test_production_style_rehearsal_requires_unchanged_baseline(self):
+        fixture = RestoreTests("test_nonempty_finance_snapshot_and_session_cleanup")
+        fixture.schema_limit = 15
+        fixture.setUp()
+        self.addCleanup(fixture.tearDown)
+        dump = "\n".join(fixture.db.iterdump())
+        expected = fixture.expected
+        migrations = [p.read_text() for p in sorted((ROOT / "v4/migrations").glob("*.sql"))
+                      if int(p.name[:4]) > 15]
+        self.assertEqual(restore.verify(dump, expected, migrations=migrations)["orders"], 1)
+        with self.assertRaisesRegex(ValueError, "requires source snapshot"):
+            restore.verify(dump, migrations=migrations)
+        with self.assertRaisesRegex(ValueError, "requires source snapshot"):
+            restore.verify(dump, expected, migrations=[])
+        with self.assertRaisesRegex(ValueError, "Upgrade changed baseline"):
+            restore.verify(dump, expected, migrations=migrations+[
+                "INSERT INTO users(id,display_name,created_at) VALUES('unexpected','fixture',6);"])
+        self.assertEqual(restore.snapshot(fixture.db), expected)
+        self.assertEqual(fixture.db.execute("SELECT COUNT(*) FROM sessions").fetchone()[0], 1)
+
     def test_pre_upgrade_backup_recovers_populated_baseline_without_touching_source(self):
         # All three databases are local synthetic fixtures, never Cloudflare D1.
         fixture = RestoreTests("test_nonempty_finance_snapshot_and_session_cleanup")
@@ -139,17 +231,17 @@ class RecoveryDrill(unittest.TestCase):
                 for path in migrations:
                     candidate.executescript(path.read_text())
                 upgraded = restore.snapshot(candidate)
-                # Compare every pre-upgrade measure, including attachment hashes.
-                # New ledger tables may appear in the expanded snapshot plan,
-                # but this fixture has no new financial events and no backfill.
-                for section in ("counts", "totals"):
-                    self.assertTrue(set(original[section]).issubset(upgraded[section]))
-                    self.assertEqual({k: upgraded[section][k] for k in original[section]},
-                                     original[section])
-                    for name in set(upgraded[section]) - set(original[section]):
-                        self.assertEqual(upgraded[section][name], 0,
-                                         f"Unexpected new business data: {section}/{name}")
+                self.assertEqual(set(upgraded), set(original))
                 self.assertEqual(upgraded["attachments"], original["attachments"])
+                for section in ("counts", "totals"):
+                    self.assertEqual({name: upgraded[section][name] for name in original[section]}, original[section])
+                    # Newly introduced tables and totals must not fabricate historical activity.
+                    for name in upgraded[section].keys() - original[section].keys():
+                        self.assertEqual(upgraded[section][name], 0, name)
+                self.assertIn("order_receipts", upgraded["counts"])
+                self.assertIn("cash_period_closes", upgraded["counts"])
+                self.assertIn("seller_settlements", upgraded["counts"])
+                self.assertEqual(restore.verify("\n".join(candidate.iterdump()), upgraded)["orders"], 1)
                 self.assertEqual(candidate.execute("PRAGMA foreign_key_check").fetchall(), [])
                 # Simulate failed release validation following a business write
                 # in the disposable candidate. The pre-upgrade copy is untouched.

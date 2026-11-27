@@ -26,11 +26,22 @@ export function verifyEvidence(evidence,{databaseId,pending,digest,now=Date.now(
     !sha(evidence.backup_sha256)||!Array.isArray(evidence.pending_migrations)||
     JSON.stringify(evidence.pending_migrations)!==JSON.stringify(pending)||
     evidence.external_encrypted_copy!==true||evidence.isolated_restore_verified!==true||
-    evidence.independent_totals_matched!==true||evidence.attachment_checksums_matched!==true)
+    evidence.independent_totals_matched!==true||evidence.attachment_checksums_matched!==true||
+    evidence.isolated_upgrade_rehearsed!==true||!(/^[a-f0-9]{40}$/).test(evidence.rehearsal_candidate_sha||''))
   throw Error('Owner-approved encrypted backup and restore evidence required');
  const time=Date.parse(evidence.verified_at);
  if(!Number.isFinite(time)||time>now||now-time>24*60*60*1000)
   throw Error('Backup restore evidence must be recent (24 hours)');
+}
+// Check both the existing live Worker and the intended deployment. An owner
+// attestation alone is not evidence that the public write freeze is active.
+export async function requireMigrationFreeze(config,fetcher=fetch){
+ if(config?.vars?.MAINTENANCE_MODE!=='true')throw Error('Candidate must keep maintenance enabled during migration');
+ const response=await fetcher(config.vars.PUBLIC_ORIGIN+'/api/health',{redirect:'error',cache:'no-store',signal:AbortSignal.timeout(15000)});
+ if(!response.ok)throw Error('Live maintenance health unavailable');
+ const health=await response.json();
+ if(health?.status!=='ok'||health.database_ready!==true||health.maintenance!==true)
+  throw Error('Live production maintenance must be active');
 }
 async function main(){
  const dir=new URL('../migrations/',import.meta.url);
@@ -55,6 +66,7 @@ async function main(){
  console.log('Migration digest: '+digest);
  let evidence=null;try{evidence=JSON.parse(process.env.NEXORAID_FINANCE_BACKUP_EVIDENCE||'null');}catch{}
  verifyEvidence(evidence,{databaseId,pending,digest});
+ await requireMigrationFreeze(config);
  console.log('Owner backup/restore attestation accepted for exact pending migrations. Independent restore remains owner responsibility.');
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
