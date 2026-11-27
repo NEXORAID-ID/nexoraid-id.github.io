@@ -1,6 +1,6 @@
 // Preserve source descriptions and package contents; live price overrides replace stale monetary rows.
 export function mergeLiveCatalog(baseline,response){
- if(response?.catalog_revision!==1||response.baseline===true||!Array.isArray(response.services))throw Error('Live catalogue unavailable');
+ if(response?.catalog_revision!==1||response.baseline===true||!Array.isArray(response.services)||!response.services.length)throw Error('Live catalogue unavailable');
  const byId=new Map(response.services.map(s=>[s.id,s]));
  if(byId.size!==response.services.length)throw Error('Duplicate catalogue service');
  return baseline.flatMap(s=>{
@@ -31,5 +31,5 @@ export async function getLiveCatalog(baseline,location,fetcher=fetch){
   const r=await fetcher('https://nexoraid-v4.nexoraid.workers.dev/api/catalog',{credentials:'omit',cache:'no-store',signal:AbortSignal.timeout(3500)});
   if(!r.ok)throw Error('Catalogue offline');
   return {services:mergeLiveCatalog(baseline,await r.json()),live:true,production:true};
- }catch{return {services:baseline,live:false,production:true};}
+ }catch{return {services:baseline.map(s=>['cherax-rental-standard','cherax-rental-premium'].includes(s.id)?{...s,availability:'unconfigured'}:s),live:false,production:true};}
 }
