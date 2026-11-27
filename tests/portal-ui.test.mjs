@@ -51,3 +51,9 @@ test('toast deduplicates same severity, caps visible items, and expires without 
   timers[2]();assert.equal(children.length,0);
  }finally{if(old===undefined)delete globalThis.document;else globalThis.document=old;}
 });
+
+test('catalog search stops once the requested result limit is reached',()=>{
+ let reads=0;const catalog=Array.from({length:500},(_,i)=>({id:String(i),get name(){reads++;return 'Heist';}}));
+ assert.deepEqual(searchCatalog(catalog,'heist',3).map(s=>s.id),['0','1','2']);
+ assert.equal(reads,3);assert.deepEqual(searchCatalog(catalog,'heist',0),[]);assert.equal(reads,3);
+});
