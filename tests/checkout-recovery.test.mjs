@@ -17,3 +17,14 @@ test('only a complete matching receipt can clear an uncertain checkout',()=>{
  assert.deepEqual(validateCheckoutReceipt({order:a},[items[0]],{single:true}),{order:a});
  assert.throws(()=>validateCheckoutReceipt({order:b},[items[0]],{single:true}),/belum dapat dipastikan/);
 });
+
+test('receipt validation rejects blank IDs, malformed quantities and duplicated expected lines',()=>{
+ const a={id:'order-a',service_id:'a',quantity:1};
+ for(const [receipt,items,options] of [
+  [{checkout_id:' ',orders:[a]},[{service_id:'a',quantity:1}],{}],
+  [{checkout_id:'group',orders:[{...a,id:' '}]},[{service_id:'a',quantity:1}],{}],
+  [{checkout_id:'group',orders:[a,{...a,id:'b'}]},[{service_id:'a',quantity:1},{service_id:'a',quantity:1}],{}],
+  [{order:{...a,quantity:0}},[{service_id:'a',quantity:0}],{single:true}],
+  [{checkout_id:'group',orders:[]},[],{}],
+ ])assert.throws(()=>validateCheckoutReceipt(receipt,items,options),/belum dapat dipastikan/);
+});
