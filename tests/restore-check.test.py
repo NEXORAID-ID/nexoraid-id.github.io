@@ -69,17 +69,30 @@ class OwnerBackupTests(unittest.TestCase):
         from unittest.mock import patch
         sha="a"*40
         name="0016_installment_ledger.sql"
+        baseline=[f"{n:04d}_fixture.sql" for n in range(1,16)]
         sql=b"CREATE TABLE fixture(id TEXT);\n"
         def git(args):
             if args[1]=="rev-parse": return (sha+"\n").encode()
-            if args[1]=="ls-tree": return ("0015_rental_investor_guard.sql\n"+name+"\n").encode()
+            if args[1]=="ls-tree": return ("\n".join(baseline+[name])+"\n").encode()
             if args[1]=="show": return sql
             raise AssertionError("unexpected command")
         with patch.object(self.helper,"run",side_effect=git):
-            self.assertEqual(self.helper.pending_digest("fixture",["0015_rental_investor_guard.sql"]),
+            self.assertEqual(self.helper.pending_digest("fixture",baseline),
                 ([name],hashlib.sha256(name.encode()+b"\0"+sql+b"\0").hexdigest()))
             with self.assertRaisesRegex(ValueError,"Divergent migration"):
                 self.helper.pending_digest("fixture",["0015_other.sql"])
+            with self.assertRaisesRegex(ValueError,"baseline not applied"):
+                self.helper.pending_digest("fixture",baseline[:-1])
+            with self.assertRaisesRegex(ValueError,"Divergent migration"):
+                self.helper.pending_digest("fixture",baseline[:-2]+[baseline[-1]])
+        for suffix in [["0017_gap.sql"],["0016_one.sql","0016_two.sql"]]:
+            def invalid_git(args):
+                if args[1]=="rev-parse": return (sha+"\n").encode()
+                if args[1]=="ls-tree": return ("\n".join(baseline+suffix)+"\n").encode()
+                raise AssertionError("must reject before digest")
+            with patch.object(self.helper,"run",side_effect=invalid_git):
+                with self.assertRaisesRegex(ValueError,"gap or duplicate"):
+                    self.helper.pending_digest("fixture",baseline)
 
     def test_source_attachment_hash_is_independent_and_chunked(self):
         import hashlib

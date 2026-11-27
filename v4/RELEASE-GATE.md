@@ -12,7 +12,7 @@ Do not declare stable merely because a GitHub Pages deployment succeeds.
 - Confirm completed-refund owner-borne policy, seller policy, and supplier/investor accounting rules.
 
 ## After deployment
-- /api/health must return HTTP 200 with database_ready, schema >= 14 and release matching deployed Git SHA.
+- /api/health must return HTTP 200 with database_ready, schema >= 18 and release matching deployed Git SHA.
 - Test owner, management, worker, seller and customer sessions in controlled accounts, including unauthorized paths.
 - Test quote, payment, claim, evidence, completion, payout, refund, notification, checkout retry and attachment isolation without actual money transfers.
 - Verify bot /weborder health and test bridge with a test order; verify music separately.
@@ -49,7 +49,15 @@ After obtaining the encrypted off-device backup, verifying its ciphertext SHA-25
 Use a trusted local terminal with authenticated Wrangler access, existing generated production configuration, Python 3.11+, age and the owner's existing age identity. Keep the identity offline/owner-controlled. Mount an external or off-host storage destination; never choose a repository or a public share. Coordinate a write freeze for all writers first. Fetch the intended candidate ref, then run:
 
 ```bash
-python3 v4/scripts/finance-backup.py --candidate origin/fix/installment-ledger-1126 --identity /secure/owner.agekey --external-dir /mounted/private-backup --confirm-write-freeze
+python3 v4/scripts/finance-backup.py --candidate origin/main --identity /secure/owner.agekey --external-dir /mounted/private-backup --confirm-write-freeze
 ```
 
-The helper compares independently queried source counts, finance totals and SHA-256 for attachment bytes before and after export/restore, verifies an encrypted copy from the destination in a temporary SQLite database, and writes NEXORAID-FINANCE-EVIDENCE.json only after checks pass. The operator must independently ensure the destination is off-host and all writes remain paused; aggregate comparisons do not prove every individual row remained unchanged. Keep earlier evidence files in a private archive; helper refuses to overwrite. It never migrates production, changes Cloudflare settings, or uploads a key or data. After owner review, use `gh secret set NEXORAID_FINANCE_BACKUP_EVIDENCE --repo NEXORAID-ID/nexoraid-id.github.io --env cloudflare-v4 < /mounted/private-backup/NEXORAID-FINANCE-EVIDENCE.json`. Schema 17 needs a fresh evidence run against its exact pending migration after schema 16 is deployed.
+The helper compares independently queried source counts, finance totals and SHA-256 for attachment bytes before and after export/restore, verifies an encrypted copy from the destination in a temporary SQLite database, and writes NEXORAID-FINANCE-EVIDENCE.json only after checks pass. The operator must independently ensure the destination is off-host and all writes remain paused; aggregate comparisons do not prove every individual row remained unchanged. Keep earlier evidence files in a private archive; helper refuses to overwrite. It never migrates production, changes Cloudflare settings, or uploads a key or data. After owner review, use `gh secret set NEXORAID_FINANCE_BACKUP_EVIDENCE --repo NEXORAID-ID/nexoraid-id.github.io --env cloudflare-v4 < /mounted/private-backup/NEXORAID-FINANCE-EVIDENCE.json`. Every changed pending migration set requires fresh evidence for its exact filenames and contents. Fetch current main, verify inventory, and do not use evidence from a superseded candidate.
+
+## Section C acceptance — 27 Nov 2026 WIB
+
+Catalog PR #59 merged at `ac926e89276d6ecdc7966c36b8827d5c96637b1f`; [real isolated D1 45946803086](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45946803086) reports 23/23 checks, including concurrent last-slot reservation, missing capacity rejection, release on cancellation, scheduled price and immutable warranty. [Browser CI 45946803087](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45946803087) and [security 45946803093](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45946803093) passed.
+
+Production run [45939897706](https://github.com/NEXORAID-ID/nexoraid-id.github.io/actions/runs/45939897706) observed applied 0001–0015 and pending 0016_rental_capacity_required.sql, 0017_variant_parent_guard.sql, 0018_catalog_policy.sql, with no unknown files. Gate blocked pending owner-approved encrypted backup and restore evidence. Do not bypass. Current inventory and digest must be re-read before the owner runs the helper. No live order or slot allocation is authorized by this document.
+
+Owner acceptance: verify actual remaining independent rental package pools against existing obligations; configure approved warranty per SKU (unknown is not zero days), and confirmed promo dates/eligibility. Game top-up remains informational until approved per-denomination rates are provided. After schema migration, compare live public catalog and Discord /katalog, verify available/unconfigured/sold-out display, exercise isolated authorized test orders and verify immutable snapshots; no real funds or customer data should be fabricated. Do not mark A36–A41 production stable based solely on CI.

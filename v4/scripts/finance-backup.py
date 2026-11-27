@@ -78,10 +78,18 @@ def pending_digest(ref,applied):
     if not re.fullmatch("[0-9a-f]{40}",commit):
         raise ValueError("Invalid candidate")
     names=run(["git","ls-tree","--name-only",commit+":v4/migrations"]).decode().splitlines()
-    files=sorted(n for n in names if PATTERN.fullmatch(n))
-    if len(set(applied))!=len(applied) or any(n not in files for n in applied):
+    files=sorted(n for n in names if n.endswith(".sql"))
+    if not files or any(not PATTERN.fullmatch(n) for n in files):
+        raise ValueError("Invalid migration inventory")
+    versions=[int(n[:4]) for n in files]
+    if versions!=list(range(1,len(files)+1)):
+        raise ValueError("Migration sequence has a gap or duplicate version")
+    actual=sorted(applied)
+    if actual!=files[:len(actual)] or len(actual)>len(files):
         raise ValueError("Divergent migration history")
-    pending=[n for n in files if int(n[:4])>=16 and n not in applied]
+    if any(int(n[:4])>=16 for n in files) and any(int(n[:4])<16 for n in files[len(actual):]):
+        raise ValueError("Divergent migration history: baseline not applied")
+    pending=[n for n in files[len(actual):] if int(n[:4])>=16]
     if not pending:
         raise ValueError("No pending financial migrations")
     digest=hashlib.sha256()
