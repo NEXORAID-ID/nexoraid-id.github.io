@@ -102,7 +102,7 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await call('owner','orders/'+id+'/status',{status:'cancelled'})).status,409);
   assert.equal(db.prepare('SELECT status FROM orders WHERE id=?').get(id).status,'confirmed');
   assert.equal((await call('management','orders/'+id+'/quote',{amount:20000})).status,409);assert.equal((await call('management','workspace/orders/'+id+'/reject-receipt',{reason:'Not found in provider'})).status,403);assert.equal((await call('owner','workspace/orders/'+id+'/reject-receipt',{reason:'Not found in provider'})).status,200);assert.equal(db.prepare('SELECT COUNT(*) AS n FROM rejected_payment_claims').get().n,1);assert.equal((await call('customer','workspace/orders/'+id+'/receipt',{amount:15000,reference:'claim-002'})).status,200);
-  const bytes=Uint8Array.from([137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,1]);
+  const bytes=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC','base64'));
   const upload=async(role)=>worker.fetch(req('/api/collaboration/orders/'+id+'/attachment/payment',{method:'POST',headers:{cookie:cookies[role],origin:env.PUBLIC_ORIGIN,'content-type':'image/png'},body:bytes}),env);
   assert.equal((await upload('other')).status,404);assert.equal((await upload('customer')).status,200);
   const attached=(await (await call('customer','collaboration/orders/'+id+'/overview')).json()).attachments[0];
