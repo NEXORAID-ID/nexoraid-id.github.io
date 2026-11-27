@@ -37,3 +37,11 @@ export function validateCheckoutReceipt(result,items,{single=false}={}){
  }
  return result;
 }
+
+export function checkoutPricingPreview(pricing){
+ if(pricing?.status!=='estimate_only')return '';
+ const {known_subtotal,unknown_count,service_fee,total}=pricing;
+ if(!Number.isSafeInteger(known_subtotal)||known_subtotal<0||!Number.isInteger(unknown_count)||unknown_count<0||unknown_count>5||![0,500].includes(service_fee)||(!unknown_count&&(!Number.isSafeInteger(total)||total!==known_subtotal+service_fee))||(unknown_count&&total!==null))return '';
+ const rupiah=n=>'Rp'+n.toLocaleString('id-ID');
+ return ' Estimasi saja (bukan tagihan): subtotal '+rupiah(known_subtotal)+(unknown_count?' + '+unknown_count+' penawaran tertunda':'')+'; biaya layanan '+rupiah(service_fee)+'; total '+(total===null?'menunggu penawaran':rupiah(total))+'.';
+}
