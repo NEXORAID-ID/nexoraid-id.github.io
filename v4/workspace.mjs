@@ -1,3 +1,4 @@
+import {activePresence,PRESENCE_TTL} from './worker-dispatch.mjs';
 // Workspace records are manual attestations; no bank transfer or payment gateway is called.
 const staff=u=>['owner','management'].includes(u.role),owner=u=>u.role==='owner';
 const idRe=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -75,7 +76,7 @@ export async function workspace({p,m,url,user,env,readBody,r}){
  }
  if(p==='/api/workspace/presence'&&(get||post)){
   if(user.role!=='worker')return deny();
-  if(get){const row=await db.prepare('SELECT available,updated_at FROM worker_presence WHERE worker_id=?').bind(user.id).first();return json({available:row?Boolean(row.available):true});}
+  if(get){const row=await db.prepare('SELECT available,updated_at FROM worker_presence WHERE worker_id=?').bind(user.id).first();return json({available:activePresence(row,t),expires_at:activePresence(row,t)?row.updated_at+PRESENCE_TTL:null});}
   const b=await readBody(r);if(typeof b?.available!=='boolean')return err('Status tidak valid.');
   return write(db,db.prepare('INSERT INTO worker_presence VALUES(?,?,?) ON CONFLICT(worker_id) DO UPDATE SET available=excluded.available,updated_at=excluded.updated_at').bind(user.id,Number(b.available),t),user,'worker:presence',user.id,t);
  }

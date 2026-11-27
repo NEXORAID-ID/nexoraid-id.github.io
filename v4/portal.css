@@ -81,3 +81,5 @@ body.session-expired>:not(#sessionExpired){display:none!important}
 
 /* Keep mobile detail focused and avoid giant nested panels. */
 #orderDialog .sectionhead{position:sticky;top:-22px;z-index:3;background:var(--panel);padding:10px 0;border-bottom:1px solid var(--line)}#orderDetail .assignment-panel{margin:12px 0}#orderDetail .controls{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}#orderDetail .order-communication .order-messages{max-height:240px;overflow:auto;overscroll-behavior:contain}#orderDetail .order-communication form textarea{min-height:72px}@media(max-width:600px){#orderDialog .sectionhead{top:-16px}#orderDetail .controls>button{flex:1 1 140px}#orderDetail .timeline{padding:10px}#orderDetail form,#orderDetail article{padding:12px;margin:8px 0}#orderDetail .sectionhead h2{overflow-wrap:anywhere}}
+
+.worker-availability{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:14px}.worker-availability button{margin:4px 6px 0 0}.checkout-focus #workerAvailability{display:none!important}

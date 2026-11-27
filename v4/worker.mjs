@@ -117,7 +117,7 @@ async function handle(r,env){
  let diff=0;for(let i=0;i<expected.length;i++)diff|=actual.charCodeAt(i)^expected.charCodeAt(i);
  if(diff!==0)return err('Bot tidak terotorisasi.',401);
  if(r.headers.get('x-discord-guild-id')!=='1487728359482851348'||r.headers.has('x-discord-user-id'))return err('Identitas mesin tidak valid.',403);
- return ticketQueue({db:env.DB,r,m,readBody:body,maintenance:env.MAINTENANCE_MODE==='true'});
+ return ticketQueue({db:env.DB,r,m,readBody:body,maintenance:env.MAINTENANCE_MODE==='true',owner:env.OWNER_DISCORD_ID,verifyWorker:async id=>{const check=await guildMembership(env,id,env.DISCORD_MEMBERSHIP_FETCH||fetch);return check.status===200&&discordWorkerRole(check);}});
  }
  const bot=p.startsWith('/api/bot/');
  let botUser=null;
@@ -138,7 +138,7 @@ async function handle(r,env){
   }
   if(m==='GET'&&(p==='/api/bot/health'||p==='/api/bot/orders'&&url.searchParams.get('probe')==='1'))return json({ok:true});
   p=p.replace('/api/bot/','/api/');
-  if(!((p==='/api/orders'&&['GET','POST'].includes(m))||(m==='GET'&&/^\/api\/orders\/[a-f0-9-]{36}\/finance$/.test(p))||(m==='POST'&&/^\/api\/orders\/[a-f0-9-]{36}\/(claim|status|evidence)$/.test(p))||(['GET','POST'].includes(m)&&/^\/api\/orders\/[a-f0-9-]{36}\/ticket$/.test(p))))return err('Endpoint bot tidak diizinkan.',404);
+  if(!((p==='/api/workspace/presence'&&['GET','POST'].includes(m))||(p==='/api/orders'&&['GET','POST'].includes(m))||(m==='GET'&&/^\/api\/orders\/[a-f0-9-]{36}\/finance$/.test(p))||(m==='POST'&&/^\/api\/orders\/[a-f0-9-]{36}\/(claim|status|evidence)$/.test(p))||(['GET','POST'].includes(m)&&/^\/api\/orders\/[a-f0-9-]{36}\/ticket$/.test(p))))return err('Endpoint bot tidak diizinkan.',404);
   // In maintenance, authenticated bot mutations must stop before any actor provisioning.
   // Existing actors can still read orders; unknown actors cannot create a row via GET.
   if(env.MAINTENANCE_MODE==='true'&&!['GET','HEAD'].includes(m))return err('Sistem sedang dalam pemeliharaan. Tidak ada perubahan yang disimpan.',503);
@@ -245,7 +245,7 @@ async function handle(r,env){
  if(p.endsWith('/ticket')){const linked=await ticketLinks({p,m,user,env,bot,r,readBody:body});if(linked)return linked;}
  if(!bot&&p.startsWith('/api/collaboration/')){const extra=await collaboration({p,m,url,user,env,r,readBody:body});if(extra)return extra;}
  if(!bot&&p==='/api/workspace/cash-ledger')return cashLedger({p,m,user,env,r,readBody:body});
- if(!bot&&p.startsWith('/api/workspace/')){const extra=await workspace({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
+ if((!bot||p==='/api/workspace/presence')&&p.startsWith('/api/workspace/')){const extra=await workspace({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
  if(!bot||p.endsWith('/evidence')||p.endsWith('/finance')){const extra=await operations({p,m,url,user,env,readBody:body,r});if(extra)return extra;}
  if(p==='/api/security/retention-review'&&m==='GET'&&!bot){
   if(user.role!=='owner')return err('Akses owner diperlukan.',403);

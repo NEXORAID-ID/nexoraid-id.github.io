@@ -1,3 +1,4 @@
+import {PRESENCE_TTL} from './worker-dispatch.mjs';
 import {feeTrialEnabled,trialQuote} from './checkout-fee-trial.mjs';
 const staff=r=>r==='owner'||r==='management';
 const statuses=['requested','claimed','confirmed','processing','completed','cancelled'];
@@ -75,7 +76,7 @@ export async function operations({p,m,url,user,env,readBody,r}){
   if(m!=='GET')return err('Metode tidak diizinkan.',405);
   if(!over)return err('Akses management diperlukan.',403);
   if(!['requested','claimed','confirmed'].includes(order.status))return json({workers:[],truncated:false});
-  const rows=(await db.prepare("SELECT u.id,u.display_name,COALESCE(w.available,1) AS available FROM users u LEFT JOIN worker_presence w ON w.worker_id=u.id WHERE u.role='worker' AND u.id<>? AND u.id<>? AND NOT EXISTS(SELECT 1 FROM management_grants g WHERE g.user_id=u.id) AND NOT EXISTS(SELECT 1 FROM account_suspensions a WHERE a.user_id=u.id) ORDER BY COALESCE(w.available,1) DESC,u.display_name,u.id LIMIT 101").bind(order.customer_id,env.OWNER_DISCORD_ID||'').all()).results;
+  const rows=(await db.prepare("SELECT u.id,u.display_name,CASE WHEN w.available=1 AND w.updated_at>? AND w.updated_at<=? THEN 1 ELSE 0 END AS available FROM users u LEFT JOIN worker_presence w ON w.worker_id=u.id WHERE u.role='worker' AND u.id<>? AND u.id<>? AND NOT EXISTS(SELECT 1 FROM management_grants g WHERE g.user_id=u.id) AND NOT EXISTS(SELECT 1 FROM account_suspensions a WHERE a.user_id=u.id) ORDER BY available DESC,u.display_name,u.id LIMIT 101").bind(now()-PRESENCE_TTL,now(),order.customer_id,env.OWNER_DISCORD_ID||'').all()).results;
   return json({workers:rows.slice(0,100),truncated:rows.length>100});
  }
  if(action==='finance'){
