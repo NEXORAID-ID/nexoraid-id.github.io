@@ -181,6 +181,9 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await call('customer','business/investors/bonus',{capital_id:cap,item:'Streaming gear',quantity:1,value_amount:800000,reference:'bonus-001',confirmed:true})).status,403);
   assert.equal((await call('owner','business/investors/bonus',{capital_id:cap,item:'Streaming gear',quantity:1,value_amount:1000000,reference:'bonus-limit',confirmed:true})).status,400);
   assert.equal((await call('owner','business/investors/bonus',{capital_id:cap,item:'Streaming gear',quantity:2,value_amount:800000,reference:'bonus-batch',confirmed:true})).status,400);
+  const directBonus=db.prepare('INSERT INTO investor_noncash_bonuses(id,capital_id,item,quantity,value_amount,reference,expense_id,actor_id,created_at) VALUES(?,?,?,?,?,?,NULL,?,?)');
+  assert.throws(()=>directBonus.run(crypto.randomUUID(),cap,'Streaming gear',1,1000000,'bonus-direct-limit',ids.owner,at),/bonus_set_budget_invalid/);
+  assert.throws(()=>directBonus.run(crypto.randomUUID(),cap,'Streaming gear',2,800000,'bonus-direct-batch',ids.owner,at),/bonus_set_budget_invalid/);
   assert.equal((await call('owner','business/investors/bonus',{capital_id:cap,item:'Streaming gear',quantity:1,value_amount:800000,reference:'bonus-001',confirmed:true})).status,200);
   assert.equal((await call('owner','business/investors/bonus',{capital_id:cap,item:'Streaming gear',quantity:1,value_amount:800000,reference:'bonus-001',confirmed:true})).status,409);
   assert.equal((await call('owner','orders/'+id+'/cost-basis',{amount:2000,reference:'cost-001',note:'Actual supplier cost'})).status,200);
