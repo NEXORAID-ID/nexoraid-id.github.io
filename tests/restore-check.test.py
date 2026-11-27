@@ -162,6 +162,26 @@ class OwnerBackupTests(unittest.TestCase):
 
 
 class RecoveryDrill(unittest.TestCase):
+    def test_production_style_rehearsal_requires_unchanged_baseline(self):
+        fixture = RestoreTests("test_nonempty_finance_snapshot_and_session_cleanup")
+        fixture.schema_limit = 15
+        fixture.setUp()
+        self.addCleanup(fixture.tearDown)
+        dump = "\n".join(fixture.db.iterdump())
+        expected = fixture.expected
+        migrations = [p.read_text() for p in sorted((ROOT / "v4/migrations").glob("*.sql"))
+                      if int(p.name[:4]) > 15]
+        self.assertEqual(restore.verify(dump, expected, migrations=migrations)["orders"], 1)
+        with self.assertRaisesRegex(ValueError, "requires source snapshot"):
+            restore.verify(dump, migrations=migrations)
+        with self.assertRaisesRegex(ValueError, "requires source snapshot"):
+            restore.verify(dump, expected, migrations=[])
+        with self.assertRaisesRegex(ValueError, "Upgrade changed baseline"):
+            restore.verify(dump, expected, migrations=migrations+[
+                "INSERT INTO users(id,display_name,created_at) VALUES('unexpected','fixture',6);"])
+        self.assertEqual(restore.snapshot(fixture.db), expected)
+        self.assertEqual(fixture.db.execute("SELECT COUNT(*) FROM sessions").fetchone()[0], 1)
+
     def test_pre_upgrade_backup_recovers_populated_baseline_without_touching_source(self):
         # All three databases are local synthetic fixtures, never Cloudflare D1.
         fixture = RestoreTests("test_nonempty_finance_snapshot_and_session_cleanup")
