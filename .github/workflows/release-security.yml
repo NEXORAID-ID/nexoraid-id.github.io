@@ -13,10 +13,66 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+          fetch-depth: 0
+      - name: Scan fetched Git history for secrets (A68)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse --is-shallow-repository)" = false
+          image=ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+          work="$(mktemp -d)"
+          trap 'rm -rf -- "$work"' EXIT
+          mkdir "$work/config" "$work/fixture"
+          printf '[extend]\nuseDefault = true\n' > "$work/config/gitleaks.toml"
+          touch "$work/config/.gitleaksignore"
+          # Separate image acquisition from the offline scan.
+          docker pull "$image"
+          scan() {
+            docker run --rm --network none --read-only --tmpfs /tmp \
+              --user "$(id -u):$(id -g)" \
+              -e HOME=/tmp -e GIT_CONFIG_COUNT=1 \
+              -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/repo \
+              -v "$1:/repo:ro" -v "$work/config:/scan-config:ro" \
+              "$image" git --config /scan-config/gitleaks.toml \
+              --gitleaks-ignore-path /scan-config/.gitleaksignore \
+              --ignore-gitleaks-allow --redact=100 --exit-code 42 \
+              --log-opts="--all --full-history -m" /repo
+          }
+          # Validate a clean repository before inspecting the real history.
+          git -C "$work/fixture" init -q
+          git -C "$work/fixture" -c user.name=CI -c user.email=ci@example.invalid commit -q --allow-empty -m baseline
+          if ! scan "$work/fixture" > "$work/fixture.log" 2>&1; then
+            echo "::error::A68 scanner failed on clean fixture (tool/configuration failure)."
+            exit 1
+          fi
+          # A synthetic custom rule checks detection, even after removal from HEAD.
+          printf '\n[[rules]]\nid = "nexo-ci-canary"\ndescription = "Synthetic test marker"\nregex = "NEXO-CI-CANARY-[0-9]{8}"\n' >> "$work/config/gitleaks.toml"
+          printf 'NEXO-CI-CANARY-12345678\n' > "$work/fixture/marker.txt"
+          git -C "$work/fixture" add marker.txt
+          git -C "$work/fixture" -c user.name=CI -c user.email=ci@example.invalid commit -q -m marker
+          git -C "$work/fixture" rm -q marker.txt
+          git -C "$work/fixture" -c user.name=CI -c user.email=ci@example.invalid commit -q -m remove
+          rc=0
+          scan "$work/fixture" > "$work/fixture.log" 2>&1 || rc=$?
+          if [ "$rc" != 42 ]; then
+            echo "::error::A68 historical detection fixture failed."
+            exit 1
+          fi
+          printf '[extend]\nuseDefault = true\n' > "$work/config/gitleaks.toml"
+          rc=0
+          scan "$PWD" > "$work/scan.log" 2>&1 || rc=$?
+          case "$rc" in
+            0) echo "A68: history scan and synthetic fixture passed" ;;
+            42) echo "::error::A68 potential secrets detected; investigate privately before release."; exit 1 ;;
+            *) echo "::error::A68 scanner execution failed (exit $rc)."; exit 1 ;;
+          esac
       - uses: actions/setup-node@v4
+        if: ${{ !cancelled() }}
         with:
           node-version: '22'
       - name: Audit exact release-tool versions
+        if: ${{ !cancelled() }}
         run: bash v4/scripts/release-security.sh
       - name: Run source and authorization regression tests
+        if: ${{ !cancelled() }}
         run: npm test
