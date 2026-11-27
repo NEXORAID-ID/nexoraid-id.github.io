@@ -47,6 +47,26 @@ try{
    await p.route('**/api/**',r=>{const path=new URL(r.request().url()).pathname;let data;
     if(path==='/api/health')data={login_configured:true};else if(path==='/api/me')data={user:{id:role+'-id',role,display_name:'Test '+role}};else if(path==='/api/catalog'||path==='/api/business/catalog')data={services:[{id:'gta-heist',name:'Heist',price:'Rp15.000'}]};else if(path==='/api/orders')data={orders:[order],next:null};else if(path==='/api/customer/saved')data={saved:[]};else if(path==='/api/customer/sessions')data={sessions:[{public_id:'session-1',device:'Windows · Chrome',current:true,expires_at:1900000000}]};else if(path==='/api/performance')data={items:[],scope:role==='worker'?'personal':'team'};else if(path==='/api/business/notifications')data={items:[],unread:0,latest:0};else if(path==='/api/dashboard')data={counts:{requested:1},total:1};else if(path==='/api/orders/'+order.id)data={order,evidence:null};else if(path.endsWith('/overview'))data={messages:[],attachments:[],plan:null};else if(path.endsWith('/ticket'))data={ticket:null,can_link:['customer','seller'].includes(role)};else if(path.endsWith('/timeline'))data={events:[{action:'order:create',created_at:1}],receipt:null,review:null,refund:null};else if(path==='/api/workspace/support')data={items:[],next:null};else if(path==='/api/workspace/payouts')data={items:[],next:null,balance:{earned:0,pending:0,paid:0,available:0}};else if(path==='/api/workspace/presence')data={available:true};else if(path==='/api/workspace/cash-ledger')data={opening:null,incoming:0,outgoing:0,estimated_balance:null,items:[],duplicate_references:[],requires_reconciliation:true};else if(path==='/api/workspace/expenses')data={items:[],next:null};else if(path==='/api/collaboration/calendar')data={items:[],truncated:false};else if(path==='/api/workspace/report')data={month:'2026-11',counts:[],workers:[],...(role==='owner'?{finance:{daily:[],received:0,refunded:0,paid_out:0,gross:0,owner_share:0,expenses:0,recorded_margin:0}}:{})};else return r.fulfill({status:404,json:{error:'Missing fixture'}});return r.fulfill({json:data});});
    await p.goto(url+'portal.html');await p.locator('#orders article').waitFor();assert.deepEqual(await p.locator('.role-grid strong').allTextContents(),['Pelanggan','Penjoki','Manajemen','Pemilik','Penjual']);
+   // Shared controls exercise actual DOM events without creating orders or mutating the fixture.
+   const controlResult=await p.evaluate(async()=>{
+    const {createControls}=await import('/portal-ui.mjs'),errors=[],values=[],host=document.createElement('section');document.body.append(host);
+    let release;const controls=createControls({onError:e=>errors.push(e.message)});
+    const form=controls.fields(host,'Uji formulir',[{key:'name',label:'Nama',max:20},{key:'qty',label:'Jumlah',type:'number',min:1,upper:5},{key:'choice',label:'Pilihan',options:[['x','X'],['y','Y']],value:'y'}],async data=>{values.push(data);if(values.length===1){await new Promise(r=>release=r);throw Error('Uji validasi server');}});
+    const submit=form.querySelector('button'),send=()=>form.dispatchEvent(new Event('submit',{cancelable:true,bubbles:true}));
+    try{
+     send();if(values.length!==0)throw Error('Invalid form submitted');
+     form.elements.name.value='  Contoh  ';form.elements.qty.value='2';send();send();
+     if(values.length!==1||!submit.disabled||form.getAttribute('aria-busy')!=='true')throw Error('Duplicate submission or busy state');
+     release();await new Promise(r=>setTimeout(r,0));
+     if(form.querySelector('[role=alert]')?.textContent!=='Uji validasi server'||submit.disabled)throw Error('Missing recoverable error');
+     send();await new Promise(r=>setTimeout(r,0));
+     if(form.querySelector('[role=alert]')||form.hasAttribute('aria-busy')||submit.disabled)throw Error('Stale form state');
+     let actions=0,finish;const action=controls.button(host,'Uji aksi',async()=>{actions++;await new Promise(r=>finish=r);});
+     const first=action.onclick();await action.onclick();if(actions!==1||!action.disabled)throw Error('Duplicate action');finish();await first;if(action.disabled||action.hasAttribute('aria-busy'))throw Error('Action not recovered');
+     return {values,errors,actions};
+    }finally{host.remove();}
+   });
+   assert.deepEqual(controlResult,{values:[{name:'Contoh',qty:2,choice:'y'},{name:'Contoh',qty:2,choice:'y'}],errors:['Uji validasi server'],actions:1});
    for(const width of [320,390,768,1024,1440]){await p.setViewportSize({width,height:900});assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'portal width '+width);assert.ok(await p.locator('#request').evaluate(el=>[...el.querySelectorAll('input,select,button')].every(c=>c.getBoundingClientRect().right<=el.getBoundingClientRect().right+1)),'form overflow '+width);}
    await p.setViewportSize({width:390,height:844});
    const skip=p.getByRole('link',{name:'Lewati menu dasbor'});await skip.focus();await skip.press('Enter');assert.equal(await p.locator('#globalSearchPanel').evaluate(el=>el===document.activeElement),true);
