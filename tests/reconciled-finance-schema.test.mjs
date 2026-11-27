@@ -5,19 +5,18 @@ import {DatabaseSync} from 'node:sqlite';
 import {pendingFinancialMigrations} from '../v4/scripts/financial-migration-gate.mjs';
 test('reconciled finance and closure schema upgrades populated schema 15 through current catalog 18 to 23',async()=>{
  const active=new URL('../v4/migrations/',import.meta.url);
- const candidate=new URL('../v4/candidates/finance-schema/',import.meta.url);
  const baseline=(await readdir(active)).filter(x=>x.endsWith('.sql')).sort();
- const staged=(await readdir(candidate)).filter(x=>x.endsWith('.sql')).sort();
- assert.deepEqual(baseline.map(x=>Number(x.slice(0,4))),Array.from({length:18},(_,i)=>i+1));
- assert.deepEqual(pendingFinancialMigrations([...baseline,...staged],baseline.slice(0,15)).map(x=>Number(x.slice(0,4))),[16,17,18,19,20,21,22,23]);
+ const staged=baseline.slice(18);
+ assert.deepEqual(baseline.map(x=>Number(x.slice(0,4))),Array.from({length:23},(_,i)=>i+1));
+ assert.deepEqual(pendingFinancialMigrations(baseline,baseline.slice(0,15)).map(x=>Number(x.slice(0,4))),[16,17,18,19,20,21,22,23]);
  const db=new DatabaseSync(':memory:');
  try{
   db.exec('PRAGMA foreign_keys=ON');
   for(const n of baseline.slice(0,15))db.exec(await readFile(new URL(n,active),'utf8'));
   db.exec("INSERT INTO users(id,display_name,role,created_at) VALUES('c','Synthetic','customer',1); INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,estimate,status,created_at,updated_at) VALUES('old-order','c','gta-heist',1,'Rp100.000',100000,'requested',1,1)");
   const before=db.prepare("SELECT * FROM orders WHERE id='old-order'").get();
-  for(const n of baseline.slice(15))db.exec(await readFile(new URL(n,active),'utf8'));
-  for(const n of staged)db.exec(await readFile(new URL(n,candidate),'utf8'));
+  for(const n of baseline.slice(15,18))db.exec(await readFile(new URL(n,active),'utf8'));
+  for(const n of staged)db.exec(await readFile(new URL(n,active),'utf8'));
   assert.deepEqual(db.prepare("SELECT * FROM orders WHERE id='old-order'").get(),before);
   assert.equal(db.prepare('PRAGMA integrity_check').get().integrity_check,'ok');
   assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(),[]);
