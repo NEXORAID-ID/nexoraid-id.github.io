@@ -2,10 +2,65 @@ const idPattern=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer'}});
 const err=(error,status=400)=>json({error},status);
 const now=()=>Math.floor(Date.now()/1000);
+// Structural validation, not a full image decoder or malware scan.
+const MAX_IMAGE_BYTES=524288;
+const dimensions=(w,h)=>w>0&&h>0&&w<=8192&&h<=8192&&w*h<=33554432;
+function crc32(bytes,start,end){
+ let crc=0xffffffff;
+ for(let i=start;i<end;i++){crc^=bytes[i];for(let bit=0;bit<8;bit++)crc=(crc>>>1)^((crc&1)?0xedb88320:0);}
+ return (crc^0xffffffff)>>>0;
+}
+function validPng(bytes){
+ const v=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+ let p=8,header=false,data=false,closedData=false;
+ while(p+12<=bytes.length){
+  const length=v.getUint32(p);
+  if(length>bytes.length-p-12)return false;
+  const type=String.fromCharCode(...bytes.subarray(p+4,p+8)),next=p+12+length;
+  if(!/^[A-Za-z]{4}$/.test(type)||crc32(bytes,p+4,p+8+length)!==v.getUint32(p+8+length))return false;
+  if(!header){
+   if(type!=='IHDR'||length!==13||!dimensions(v.getUint32(p+8),v.getUint32(p+12)))return false;
+   const depth=bytes[p+16],color=bytes[p+17];
+   if(!({0:[1,2,4,8,16],2:[8,16],3:[1,2,4,8],4:[8,16],6:[8,16]})[color]?.includes(depth)||bytes[p+18]!==0||bytes[p+19]!==0||bytes[p+20]>1)return false;
+   header=true;
+  }else if(type==='IHDR')return false;
+  else if(type==='IDAT'){if(closedData)return false;if(length>0)data=true;}
+  else if(type==='IEND')return length===0&&data&&next===bytes.length;
+  else if(data)closedData=true;
+  p=next;
+ }
+ return false;
+}
+function validJpeg(bytes){
+ const v=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+ let p=2,frame=false;
+ // Inspect the pre-scan marker segments, and require a scan and terminal EOI.
+ while(p+1<bytes.length){
+  if(bytes[p++]!==255)return false;
+  while(p<bytes.length&&bytes[p]===255)p++;
+  if(p>=bytes.length)return false;
+  const marker=bytes[p++];
+  if(marker===0||marker===216||marker===217||marker===1||(marker>=208&&marker<=215)||p+2>bytes.length)return false;
+  const length=v.getUint16(p),next=p+length;
+  if(length<2||next>bytes.length)return false;
+  if([192,193,194,195,197,198,199,201,202,203,205,206,207].includes(marker)){
+   if(frame||length<8||!dimensions(v.getUint16(p+5),v.getUint16(p+3)))return false;
+   const components=bytes[p+7];if(components<1||components>4||length!==8+3*components)return false;
+   frame=true;
+  }
+  if(marker===218){
+   if(length<6||!frame||next>=bytes.length-2)return false;
+   const components=bytes[p+2];
+   return components>=1&&components<=4&&length===6+2*components&&bytes.at(-2)===255&&bytes.at(-1)===217;
+  }
+  p=next;
+ }
+ return false;
+}
 export function imageMime(bytes){
- if(bytes.length<16)return null;
- if([137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82].every((x,i)=>bytes[i]===x))return 'image/png';
- if(bytes[0]===255&&bytes[1]===216&&bytes[2]===255&&bytes.at(-2)===255&&bytes.at(-1)===217)return 'image/jpeg';
+ if(!(bytes instanceof Uint8Array)||bytes.length<16||bytes.length>MAX_IMAGE_BYTES)return null;
+ if([137,80,78,71,13,10,26,10].every((x,i)=>bytes[i]===x))return validPng(bytes)?'image/png':null;
+ if(bytes[0]===255&&bytes[1]===216)return validJpeg(bytes)?'image/jpeg':null;
  return null;
 }
 async function boundedImage(r){
