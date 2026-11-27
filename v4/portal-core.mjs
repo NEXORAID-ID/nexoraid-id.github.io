@@ -28,13 +28,17 @@ export function shouldClearPendingCheckout({sent,retry,error}){
 }
 // Do not discard a persisted request on a malformed or mismatched success response.
 export function validateCheckoutReceipt(result,items,{single=false}={}){
+ const fail=()=>{throw Error('Respons pesanan belum dapat dipastikan.');};
+ if(!Array.isArray(items)||items.length<1||items.length>5||(single&&items.length!==1)||items.some(x=>typeof x?.service_id!=='string'||!x.service_id.trim()||!Number.isSafeInteger(x.quantity)||x.quantity<1||x.quantity>99))fail();
  const rows=single?[result?.order]:result?.orders;
- if(!Array.isArray(rows)||rows.length!==items.length||(!single&&typeof result?.checkout_id!=='string'))throw Error('Respons pesanan belum dapat dipastikan.');
+ if(!Array.isArray(rows)||rows.length!==items.length||(!single&&(typeof result?.checkout_id!=='string'||!result.checkout_id.trim())))fail();
  const expected=new Map(items.map(x=>[x.service_id,x.quantity])),ids=new Set();
+ if(expected.size!==items.length)fail();
  for(const row of rows){
-  if(!row||typeof row.id!=='string'||!row.id||ids.has(row.id)||!expected.has(row.service_id)||expected.get(row.service_id)!==row.quantity)throw Error('Respons pesanan belum dapat dipastikan.');
+  if(!row||typeof row.id!=='string'||!row.id.trim()||ids.has(row.id)||!expected.has(row.service_id)||expected.get(row.service_id)!==row.quantity)throw Error('Respons pesanan belum dapat dipastikan.');
   ids.add(row.id);expected.delete(row.service_id);
  }
+ if(expected.size!==0)fail();
  return result;
 }
 
