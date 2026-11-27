@@ -149,6 +149,14 @@ async function handle(r,env){
    if(!discordWorkerRole(verified))return err('Role Penjoki Discord tidak lagi terverifikasi.',403);
   }
  }else if(m!=='GET'&&r.headers.get('origin')!==env.PUBLIC_ORIGIN)return err('Origin tidak diizinkan.',403);
+ // OAuth GET endpoints also mutate sessions and roles. Block new login and
+ // callback during maintenance; existing authenticated read sessions remain usable.
+ if(env.MAINTENANCE_MODE==='true'&&m==='GET'&&(p==='/api/auth/login'||p==='/api/auth/callback')){
+  const response=err('Sistem sedang dalam pemeliharaan. Login baru sementara dinonaktifkan.',503);
+  response.headers.append('set-cookie',cookie('nexo_state','',0));
+  response.headers.append('set-cookie',cookie('nexo_pkce','',0));
+  return response;
+ }
  if(p==='/api/auth/login'&&m==='GET'){
   if(!oauthReady(env))return err('Login belum dikonfigurasi.',503);
   const state=random(),verifier=pkceVerifier(),challenge=await pkceChallenge(verifier);const q=new URLSearchParams({client_id:env.DISCORD_CLIENT_ID.trim(),response_type:'code',redirect_uri:env.PUBLIC_ORIGIN+'/api/auth/callback',scope:'identify guilds.members.read',state,prompt:'consent',code_challenge:challenge,code_challenge_method:'S256'});
