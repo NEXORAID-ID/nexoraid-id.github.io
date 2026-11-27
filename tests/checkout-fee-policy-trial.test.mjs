@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFile,readdir} from 'node:fs/promises';
-async function fixture(){
+import {feeTrialEnabled,trialQuote} from '../v4/checkout-fee-trial.mjs';
+async function fixture({prequote=true}={}){
  const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON');
  try{
  const dir=new URL('../v4/migrations/',import.meta.url);
@@ -14,8 +15,8 @@ async function fixture(){
  db.prepare("INSERT INTO orders(id,customer_id,service_id,quantity,catalog_price,estimate,status,assigned_to,created_at,updated_at) VALUES(?,'c',?,1,'Rp100.000',100000,'claimed','w',100,100)").run(id,service);
  db.prepare("INSERT INTO checkout_items VALUES('g',?)").run(id);
  }
- db.exec("INSERT INTO checkout_fee_allocations VALUES('g','a',500,'o',101)");
- db.exec("INSERT INTO order_finance(order_id,amount,kind,quoted_by,quoted_at) VALUES('a',100500,'joki','o',101),('b',100000,'other','o',101)");
+ if(prequote){db.exec("INSERT INTO checkout_fee_allocations VALUES('g','a',500,'o',101)");
+ db.exec("INSERT INTO order_finance(order_id,amount,kind,quoted_by,quoted_at) VALUES('a',100500,'joki','o',101),('b',100000,'other','o',101)");}
  const receipt=(id,amount,t)=>db.prepare("INSERT INTO order_receipts VALUES(?,'a',?,?,'o',?)").run(id,amount,'receipt-'+id,t);
  const ledger=()=>({...db.prepare("SELECT * FROM checkout_fee_ledger_components WHERE order_id='a'").get()});
  return {db,receipt,ledger};
@@ -50,4 +51,21 @@ test('fee trial: full cancellation returns fee; partial cancellation returns onl
  assert.equal(db.prepare("SELECT SUM(delta) n FROM cash_order_movements").get().n,0);
  }finally{db.close();}
  }
+});
+
+test('atomic quote assigns fee once, subsequent quote and re-quote never duplicate it',async()=>{
+ const {db}=await fixture({prequote:false});try{
+ const DB={prepare(sql){return {args:[],bind(...args){this.args=args;return this;},execute(){return {meta:{changes:Number(db.prepare(sql).run(...this.args).changes)}};}};},async batch(stmts){db.exec('BEGIN');try{const out=stmts.map(s=>s.execute());db.exec('COMMIT');return out;}catch(e){db.exec('ROLLBACK');throw e;}}};
+ const quote=(id,amount,kind)=>trialQuote(DB,{id,amount,kind,actor:'o',time:101});
+ assert.equal(feeTrialEnabled({CHECKOUT_FEE_POLICY_TRIAL:'true',PUBLIC_ORIGIN:'https://production.invalid'}),false);
+ assert.equal(feeTrialEnabled({CHECKOUT_FEE_POLICY_TRIAL:'true',PUBLIC_ORIGIN:'https://staging.invalid'}),true);
+ assert.equal(await quote('a',100000,'joki'),true);
+ assert.equal(await quote('b',100000,'other'),true);
+ assert.equal(await quote('a',110000,'joki'),true);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM checkout_fee_allocations').get().n,1);
+ assert.equal(db.prepare('SELECT SUM(amount) n FROM order_finance').get().n,210500);
+ db.exec("INSERT INTO order_receipts VALUES('r','a',1,'receipt-lock','o',102)");
+ assert.equal(await quote('a',100000,'joki'),false);
+ assert.equal(db.prepare("SELECT amount FROM order_finance WHERE order_id='a'").get().amount,110500);
+ }finally{db.close();}
 });
