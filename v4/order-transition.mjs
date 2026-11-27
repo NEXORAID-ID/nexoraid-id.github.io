@@ -1,5 +1,5 @@
 // Bind target status, time, order id, prior status, prior assignee,
-// target status x3, then (authorized role, actor id) x3.
+// target status x3, then (authorized role, actor id) x3, then actor id.
 // Owner identity is verified against the server configuration in worker.mjs.
 // Recheck mutable permissions, payment, evidence, and cancellation conditions
 // in the UPDATE itself; a stale pre-read cannot authorize the write.
@@ -23,4 +23,5 @@ AND (
   AND u.id=orders.assigned_to AND u.role='worker'
   AND NOT EXISTS(SELECT 1 FROM management_grants g WHERE g.user_id=u.id)))
 )
+AND NOT EXISTS(SELECT 1 FROM account_suspensions WHERE user_id=?)
 `;
