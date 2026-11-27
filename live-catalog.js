@@ -3,7 +3,7 @@ const rentalIds=new Set(['cherax-rental-standard','cherax-rental-premium']);
 export function offlineCatalog(baseline){return baseline.map(s=>rentalIds.has(s.id)?{...s,availability:'unconfigured'}:s);}
 // Preserve source descriptions and package contents; live price overrides replace stale monetary rows.
 export function mergeLiveCatalog(baseline,response){
- if(response?.catalog_revision!==1||response.baseline===true||!Array.isArray(response.services))throw Error('Live catalogue unavailable');
+ if(response?.catalog_revision!==1||response.baseline===true||!Array.isArray(response.services)||!response.services.length)throw Error('Live catalogue unavailable');
  const byId=new Map(response.services.map(s=>[s.id,s]));
  if(byId.size!==response.services.length)throw Error('Duplicate catalogue service');
  return baseline.flatMap(s=>{
