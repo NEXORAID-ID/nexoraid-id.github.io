@@ -231,6 +231,12 @@ test('combined release health requires closure, catalog and finance schema guard
  const DB={prepare(q){return {first:async()=>sql.prepare(q).get()}}};const env={DB,PUBLIC_ORIGIN:'https://nexoraid.example',DISCORD_CLIENT_ID:'123',DISCORD_CLIENT_SECRET:'synthetic'};
  const health=()=>worker.fetch(req('/api/health'),env);
  let response=await health();assert.equal(response.status,200);assert.equal((await response.json()).schema,23);
- sql.exec('DROP TRIGGER ticket_closure_checkout_fence');response=await health();assert.equal(response.status,503);assert.equal((await response.json()).schema,null);
+ for(const name of ["ticket_closure_checkout_fence","receipt_guard","receipt_apply","receipt_invoice_lock","receipt_refund_guard","receipt_no_update","receipt_no_delete","receipt_refund_no_update","receipt_refund_no_delete","payout_paid_requires_approval","cash_period_close_guard","investor_distribution_post_guard","seller_fee_before_complete"]){
+  sql.exec('SAVEPOINT health_probe');
+  try{
+   sql.exec('DROP TRIGGER '+name);response=await health();assert.equal(response.status,503,name);assert.equal((await response.json()).schema,null,name);
+  }finally{sql.exec('ROLLBACK TO health_probe; RELEASE health_probe');}
+ }
+ response=await health();assert.equal(response.status,200);
  }finally{sql.close();}
 });
