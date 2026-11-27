@@ -90,3 +90,9 @@ export function priceCSV(services) {
 export function orderText(service, url) {
   return `Halo admin NEXORAID!\n\nSaya ingin order:\nLayanan: ${service.name}\nHarga katalog: ${service.price}\nDetail: ${url}\n\nGame / platform / perangkat: \nPaket / spesifikasi / request: \n\nMohon konfirmasi stok, harga final, dan estimasi proses. Terima kasih!`;
 }
+
+// Only owner-scheduled, live, currently eligible promotions may be advertised publicly.
+export function activePromotions(services,live,at=Math.floor(Date.now()/1000)){
+ if(live!==true)return [];
+ return services.filter(s=>{const p=s.policy?.promo;return s.orderable!==false&&s.enabled!==false&&!['sold_out','unconfigured'].includes(s.availability)&&Number.isSafeInteger(s.base_unit_amount)&&s.base_unit_amount>0&&p?.legacy===false&&Number.isSafeInteger(p.start)&&Number.isSafeInteger(p.end)&&p.start<=at&&at<p.end&&Number.isInteger(p.percent)&&p.percent>=1&&p.percent<=90&&Number.isInteger(p.min_quantity)&&p.min_quantity>=1&&p.min_quantity<=99&&typeof p.terms==='string'&&p.terms.trim().length>=4;});
+}

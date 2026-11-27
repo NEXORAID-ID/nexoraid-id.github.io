@@ -1,6 +1,6 @@
 import { CONFIG, services as baselineServices } from './services-data.js';
 import { getLiveCatalog } from './live-catalog.js';
-import { categories, escapeHTML as esc, queryCatalog, orderText, fixedPriceValue, comparisonTotals, PAGE_SIZE, safeSelection, safeBasket, basketTotals, basketText, packageOptions, pricingInfo, priceCSV, effectiveCatalogUnit } from './catalog.js';
+import { categories, escapeHTML as esc, queryCatalog, orderText, fixedPriceValue, comparisonTotals, PAGE_SIZE, safeSelection, safeBasket, basketTotals, basketText, packageOptions, pricingInfo, priceCSV, effectiveCatalogUnit, activePromotions } from './catalog.js';
 
 const catalogue=await getLiveCatalog(baselineServices,location);
 const services=catalogue.services;
@@ -420,3 +420,10 @@ if (priceDownload && (!builtSite||catalogue.live)) {
   priceDownload.download = 'pricelist.csv';
 }
 
+
+const promotionHost=$('#livePromotions');
+if(promotionHost){
+ const dateFmt=new Intl.DateTimeFormat('id-ID',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Jakarta'});
+ const renderPromotions=()=>{const rows=activePromotions(services,catalogue.live);promotionHost.innerHTML=rows.length?'<ul>'+rows.map(s=>{const p=s.policy.promo;return '<li><a href="'+esc(serviceHref(s.id))+'">'+esc(s.name)+'</a> — diskon '+p.percent+'%, minimum '+p.min_quantity+' paket. '+esc(dateFmt.format(new Date(p.start*1000)))+' – '+esc(dateFmt.format(new Date(p.end*1000)))+' WIB. '+esc(p.terms)+'</li>';}).join('')+'</ul>':'<p>'+(catalogue.live?'Tidak ada promo aktif yang terverifikasi saat ini.':'Katalog aktif tidak tersedia; promo tidak dapat dikonfirmasi.')+'</p>';};
+ renderPromotions();window.addEventListener('focus',renderPromotions);setInterval(renderPromotions,30000);
+}
