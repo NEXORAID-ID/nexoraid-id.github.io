@@ -127,7 +127,17 @@ def main():
         if not recipient.startswith("age1") or "\n" in recipient:
             raise ValueError("Invalid public recipient")
         applied=[r["name"] for r in query("SELECT name FROM d1_migrations ORDER BY name")]
-        pending,digest=pending_digest(args.candidate,applied)
+        # Pin once so a moving branch cannot change the SQL between hashing and rehearsal.
+        candidate=run(["git","rev-parse","--verify",args.candidate+"^{commit}"]).decode().strip()
+        pending,digest=pending_digest(candidate,applied)
+        migration_sql=[]
+        actual_digest=hashlib.sha256()
+        for name in pending:
+            raw=run(["git","show",candidate+":v4/migrations/"+name])
+            actual_digest.update(name.encode()+b"\0"+raw+b"\0")
+            migration_sql.append(raw.decode("utf-8"))
+        if actual_digest.hexdigest()!=digest:
+            raise ValueError("Rehearsal migration digest mismatch")
         before=source_snapshot()
         with tempfile.TemporaryDirectory(prefix="nexoraid-finance-") as work:
             work=pathlib.Path(work)
@@ -155,14 +165,15 @@ def main():
                 raise ValueError("Encrypted copy mismatch")
             # Restore from the actual external ciphertext, not the original plaintext.
             recovered=run(["age","-d","-i",str(identity),str(target)])
-            restore.verify(recovered.decode("utf-8"),before)
+            restore.verify(recovered.decode("utf-8"),before,migrations=migration_sql)
             if source_snapshot()!=before:
                 raise ValueError("Source changed during restore")
             evidence={"database_id":dbs[0]["database_id"],"migration_digest":digest,
                       "pending_migrations":pending,"backup_sha256":checksum_value,
                       "verified_at":datetime.now(timezone.utc).isoformat(),
                       "external_encrypted_copy":True,"isolated_restore_verified":True,
-                      "independent_totals_matched":True,"attachment_checksums_matched":True}
+                      "independent_totals_matched":True,"attachment_checksums_matched":True,
+                      "isolated_upgrade_rehearsed":True,"rehearsal_candidate_sha":candidate}
             with (dest/"NEXORAID-FINANCE-EVIDENCE.json").open("x") as f:
                 json.dump(evidence,f,indent=2);f.write("\n")
         print("Encrypted backup, external copy checksum, isolated restore and independent reconciliation passed.")
