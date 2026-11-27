@@ -1,3 +1,4 @@
+import {sharedCart} from './shared-cart.mjs';
 import {services} from '../services-data.js';
 import {fixedPriceValue} from '../catalog.js';
 import {checkoutTotals} from './checkout-fee.mjs';
@@ -86,6 +87,10 @@ export async function createCheckout({env,user,items,key,single=false}){
 export function deviceLabel(ua=''){return (/Android/i.test(ua)?'Android':/iPhone|iPad/i.test(ua)?'iOS':/Windows/i.test(ua)?'Windows':/Macintosh/i.test(ua)?'macOS':/Linux/i.test(ua)?'Linux':'Perangkat lain')+' · '+(/Edg\//i.test(ua)?'Edge':/Firefox|FxiOS/i.test(ua)?'Firefox':/Chrome|CriOS/i.test(ua)?'Chrome':/Safari/i.test(ua)?'Safari':'Browser');}
 export async function customer({p,m,user,env,r,readBody,sessionHash}){
  const db=env.DB,t=Math.floor(Date.now()/1000);
+ if(p==='/api/customer/cart'){
+  if(env.SHARED_CART_CANDIDATE!=='true'||env.PUBLIC_ORIGIN!=='https://staging.invalid')return err('Keranjang akun belum tersedia.',503);
+  return sharedCart({db,user,m,readBody:()=>readBody(r),normalize:normalizeCart});
+ }
  if(p==='/api/customer/saved'&&m==='GET'){const rows=(await db.prepare('SELECT service_id FROM saved_services WHERE user_id=? ORDER BY service_id').bind(user.id).all()).results;return json({saved:rows.map(x=>x.service_id)});}
  if(p==='/api/customer/saved'&&m==='POST'){const b=await readBody(r);if(!services.some(s=>s.id===b?.service_id)||typeof b.saved!=='boolean')return err('Layanan tidak valid.');if(b.saved)await db.prepare('INSERT INTO saved_services VALUES(?,?,?) ON CONFLICT(user_id,service_id) DO NOTHING').bind(user.id,b.service_id,t).run();else await db.prepare('DELETE FROM saved_services WHERE user_id=? AND service_id=?').bind(user.id,b.service_id).run();return json({ok:true});}
  if(p==='/api/customer/sessions'&&m==='GET'){const rows=(await db.prepare('SELECT m.public_id,m.device,m.created_at,s.expires_at,s.token_hash FROM sessions s JOIN session_metadata m ON m.token_hash=s.token_hash WHERE s.user_id=? AND s.expires_at>? ORDER BY m.created_at DESC LIMIT 100').bind(user.id,t).all()).results;return json({sessions:rows.map(({token_hash,...x})=>({...x,current:token_hash===sessionHash}))});}
