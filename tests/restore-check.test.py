@@ -122,7 +122,12 @@ class OwnerBackupTests(unittest.TestCase):
             response.geturl.return_value=("https://other.invalid" if redirected else
                 "https://nexoraid-v4.nexoraid.workers.dev/api/health")
             response.read.side_effect=io.BytesIO(json.dumps(payload).encode()).read
-            return lambda request, timeout: response
+            def request_health(request, timeout):
+                self.assertEqual(request.get_header("User-agent"), "NEXORAID-Backup/1.0")
+                self.assertEqual(request.get_header("Accept"), "application/json")
+                self.assertEqual(request.get_header("Cache-control"), "no-cache")
+                return response
+            return request_health
         ready={"status":"ok","database_ready":True,"maintenance":True}
         self.helper.verify_live_freeze(opener(ready))
         for patch in ({"maintenance":False},{"maintenance":1},{"database_ready":False},{"status":"degraded"}):
