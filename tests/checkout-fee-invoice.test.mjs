@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {checkoutPricingPreview} from '../v4/portal-core.mjs';
 import {planCheckoutInvoices,planInvoiceRefund} from '../v4/checkout-fee-invoice.mjs';
 const orders=[{id:'a',base_amount:150000},{id:'b',base_amount:50000}];
 const plan=()=>planCheckoutInvoices({orders,fee:500,feeOrderId:'b'});
@@ -25,4 +26,12 @@ test('receipt cap protects installments and malformed refund history',()=>{
  assert.throws(()=>planInvoiceRefund({invoice,received:10000,previous:[],baseRefund:10000,feeRefund:500}),/refund_limit/);
  assert.throws(()=>planInvoiceRefund({invoice,received:50500,previous:[{reference:'x',base_amount:1,service_fee:0},{reference:'x',base_amount:1,service_fee:0}],baseRefund:1,feeRefund:0}),/invalid_refund_history/);
  assert.throws(()=>planInvoiceRefund({invoice,received:50500,previous:[],baseRefund:50000}),/invalid_refund/);
+});
+
+test('portal fee preview is explicitly non-payable, including pending quotes and absent preview',()=>{
+ assert.equal(checkoutPricingPreview(undefined),'');
+ assert.equal(checkoutPricingPreview({status:'paid',known_subtotal:200000,unknown_count:0,service_fee:500,total:200500}),'');
+ assert.match(checkoutPricingPreview({status:'estimate_only',known_subtotal:200000,unknown_count:0,service_fee:500,total:200500}),/bukan tagihan.*Rp200\.000.*Rp500.*Rp200\.500/);
+ assert.match(checkoutPricingPreview({status:'estimate_only',known_subtotal:150000,unknown_count:1,service_fee:500,total:null}),/menunggu penawaran/);
+ assert.equal(checkoutPricingPreview({status:'estimate_only',known_subtotal:1000,unknown_count:0,service_fee:500,total:1000}),'');
 });
