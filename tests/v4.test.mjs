@@ -108,6 +108,9 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   const attached=(await (await call('customer','collaboration/orders/'+id+'/overview')).json()).attachments[0];
   const download=await call('owner','collaboration/orders/'+id+'/attachment/'+attached.id);assert.equal(download.status,200);assert.equal(download.headers.get('content-type'),'application/octet-stream');assert.equal((await call('worker','collaboration/orders/'+id+'/attachment/'+attached.id)).status,404);
   assert.equal((await call('owner','orders/'+id+'/payment',{amount:15000,reference:'transfer-001'})).status,200);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM audit_events WHERE actor_id=? AND target_id=? AND action='security:payment:quoted->paid'").get(ids.owner,id).n,1);
+  assert.equal((await call('owner','orders/'+id+'/payment',{amount:15000,reference:'transfer-001'})).status,409);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM audit_events WHERE target_id=? AND action='security:payment:quoted->paid'").get(id).n,1);
   assert.equal((await call('worker','orders/'+id+'/status',{status:'processing'})).status,200);
   assert.equal((await call('management','orders/'+id+'/status',{status:'completed'})).status,409);
   const bridge=await worker.fetch(req('/api/bot/orders/'+id+'/evidence',{method:'POST',headers:{authorization:'Bearer '+env.NEXORAID_BOT_API_KEY,'x-discord-user-id':ids.worker,'x-discord-guild-id':'1487728359482851348','content-type':'application/json'},body:JSON.stringify({evidence:'Work completed; reference #1'})}),env);assert.equal(bridge.status,200);
