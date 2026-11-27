@@ -33,6 +33,16 @@ export function verifyEvidence(evidence,{databaseId,pending,digest,now=Date.now(
  if(!Number.isFinite(time)||time>now||now-time>24*60*60*1000)
   throw Error('Backup restore evidence must be recent (24 hours)');
 }
+// Check both the existing live Worker and the intended deployment. An owner
+// attestation alone is not evidence that the public write freeze is active.
+export async function requireMigrationFreeze(config,fetcher=fetch){
+ if(config?.vars?.MAINTENANCE_MODE!=='true')throw Error('Candidate must keep maintenance enabled during migration');
+ const response=await fetcher(config.vars.PUBLIC_ORIGIN+'/api/health',{redirect:'error',cache:'no-store',signal:AbortSignal.timeout(15000)});
+ if(!response.ok)throw Error('Live maintenance health unavailable');
+ const health=await response.json();
+ if(health?.status!=='ok'||health.database_ready!==true||health.maintenance!==true)
+  throw Error('Live production maintenance must be active');
+}
 async function main(){
  const dir=new URL('../migrations/',import.meta.url);
  const files=(await readdir(dir)).filter(x=>x.endsWith('.sql')).sort();
@@ -56,6 +66,7 @@ async function main(){
  console.log('Migration digest: '+digest);
  let evidence=null;try{evidence=JSON.parse(process.env.NEXORAID_FINANCE_BACKUP_EVIDENCE||'null');}catch{}
  verifyEvidence(evidence,{databaseId,pending,digest});
+ await requireMigrationFreeze(config);
  console.log('Owner backup/restore attestation accepted for exact pending migrations. Independent restore remains owner responsibility.');
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
