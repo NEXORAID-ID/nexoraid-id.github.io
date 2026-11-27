@@ -205,13 +205,19 @@ $('filter').onchange=safe(()=>load());$('orderSearch').onchange=safe(()=>load())
 function globalSearch(){
  const input=$('globalSearch'),raw=input.value.trim(),q=searchKey(raw),host=$('globalResults');host.replaceChildren();host.hidden=!q;input.setAttribute('aria-expanded',String(Boolean(q)));if(!q||sessionInvalid||!user)return;
  const close=()=>{host.hidden=true;input.setAttribute('aria-expanded','false');};let n=0;
- for(const menu of document.querySelectorAll('.dashboard-nav button:not([hidden])'))if(searchKey(menu.textContent).includes(q)){button(host,'Menu: '+menu.textContent,async()=>{close();await view(menu.dataset.view);});n++;}
+ for(const menu of document.querySelectorAll('.dashboard-nav button:not([hidden])'))if(searchKey(menu.textContent).includes(q)){button(host,'Menu: '+menu.textContent,async()=>{close();await view(menu.dataset.view);menu.focus();});n++;}
  for(const item of searchCatalog(catalog,raw)){button(host,'Layanan: '+item.name,async()=>{await view('orders');$('service').value=item.id;$('service').focus();close();});n++;}
  if(!n)host.append(node('p','Tidak ada menu atau layanan yang cocok. Coba cari pesanan.','empty'));
- button(host,'Cari pada pesanan yang dapat diakses',async()=>{close();await view('orders');$('filter').value='';$('orderSearch').value=raw;await load();});
+ button(host,'Cari pada pesanan yang dapat diakses',async()=>{close();await view('orders');$('filter').value='';$('orderSearch').value=raw;$('orderSearch').focus();await load();});
 }
 $('globalSearch').addEventListener('input',globalSearch);
-$('globalSearch').addEventListener('keydown',e=>{if(e.key==='Escape'){$('globalResults').hidden=true;e.currentTarget.setAttribute('aria-expanded','false');}else if(e.key==='Enter'){e.preventDefault();$('globalResults').querySelector('button')?.focus();}});
+$('globalSearchPanel').addEventListener('keydown',e=>{
+ const input=$('globalSearch'),results=$('globalResults');
+ if(e.key==='Escape'&&!results.hidden){e.preventDefault();results.hidden=true;input.setAttribute('aria-expanded','false');input.focus();}
+ else if(e.target===input&&(e.key==='Enter'||e.key==='ArrowDown')){
+  e.preventDefault();if(results.hidden)globalSearch();if(!results.hidden)results.querySelector('button')?.focus();
+ }
+});
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'&&user&&!sessionInvalid&&!$('orderDialog').open){e.preventDefault();$('globalSearch').focus();globalSearch();}});
 if(window.isSecureContext&&'serviceWorker' in navigator){
  navigator.serviceWorker.register('/portal-sw.js',{scope:'/portal.html'}).catch(()=>{});
