@@ -45,7 +45,8 @@ jobs:
       - name: Browser regression tests (Chromium)
         run: |
           npm install --no-save --package-lock=false playwright@1.56.1
-          npx playwright install --with-deps chromium
+          # Hosted Ubuntu runner includes Chromium runtime libraries; avoid unrelated apt repositories.
+          npx playwright install chromium
           node tests/browser.mjs
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'

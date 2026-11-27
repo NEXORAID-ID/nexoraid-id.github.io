@@ -23,13 +23,26 @@ export function xlsxBytes(rows){
  const all=new Uint8Array(offset+size+end.length);let p=0;for(const a of [...parts,...central,end]){all.set(a,p);p+=a.length;}return all;
 }
 export function exportXlsx(name,rows){const a=document.createElement('a'),u=URL.createObjectURL(new Blob([xlsxBytes(rows)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);}
-export function exportRows(name,rows){const clean=v=>{const s=String(v??'');return '"'+(/^[=+\-@\t\r]/.test(s)?"'"+s:s).replaceAll('"','""')+'"';};const a=document.createElement('a');const u=URL.createObjectURL(new Blob(['\uFEFF'+rows.map(r=>r.map(clean).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);}
+// Keep actual numeric cells numeric; neutralize spreadsheet formulas in untrusted text,
+ // including leading whitespace, control characters and BOM before a formula prefix.
+export function csvText(rows){
+ const clean=v=>{
+  const s=String(v??'');
+  const unsafe=typeof v!=='number'||!Number.isFinite(v);
+  const formula=unsafe&&(/^[\s\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060-\u206f]*[=+\-@]/u.test(s)||/^[\t\r\n]/.test(s));
+  return '"'+(formula?"'"+s:s).replaceAll('"','""')+'"';
+ };
+ return '\uFEFF'+rows.map(r=>r.map(clean).join(',')).join('\r\n');
+}
+export function exportRows(name,rows){const a=document.createElement('a');const u=URL.createObjectURL(new Blob([csvText(rows)],{type:'text/csv;charset=utf-8'}));a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);}
 
 export const searchKey=value=>String(value??'').normalize('NFKD').replace(/\p{M}/gu,'').toLocaleLowerCase('id-ID').trim();
 export function searchCatalog(catalog,query,limit=8){
  const terms=searchKey(query).split(/\s+/).filter(Boolean);
  if(!terms.length)return [];
- return catalog.filter(s=>terms.every(t=>searchKey([s.name,s.id,s.category,s.desc].join(' ')).includes(t))).slice(0,limit);
+ if(!Number.isInteger(limit)||limit<=0)return [];
+ const matches=[];for(const s of catalog){const key=searchKey([s.name,s.id,s.category,s.desc].join(' '));if(terms.every(t=>key.includes(t))){matches.push(s);if(matches.length>=limit)break;}}
+ return matches;
 }
 export function deadlineLabel(order,now=Date.now()){
  if(!order.due_at)return '';
@@ -63,10 +76,22 @@ export function createViewData({isExpired,onError}){
   // Coalesce repeated requests to the same view; prevent stale writes and duplicated rows.
   if(pending.has(host)){const e=Error('Data sedang dimuat.');e.busy=true;throw e;}
   if(!append)loading(host);
-  const work=(async()=>{try{const data=await read();if(isExpired())throw Error('Sesi sudah berakhir.');
+  const work=(async()=>{try{const data=await Promise.resolve().then(read);if(isExpired())throw Error('Sesi sudah berakhir.');
    if(!append){finishLoading(host);host.replaceChildren();}return data;
   }catch(e){if(!append){finishLoading(host);if(!isExpired())showLoadError(host,()=>retry().catch(onError));}throw e;}
   finally{pending.delete(host);}})();
   pending.set(host,work);return work;
  };
+}
+
+// Shared DOM controls: the portal injects its status/session-aware error reporter.
+export function node(tag,text,cls){const e=document.createElement(tag);e.textContent=text;if(cls)e.className=cls;return e;}
+export function createControls({onError,onActionError=onError}){
+ function button(parent,label,fn){
+  const b=node('button',label);b.type='button';
+  b.onclick=async()=>{if(b.disabled)return;b.disabled=true;b.setAttribute('aria-busy','true');try{await fn();}catch(e){onActionError(e);}finally{b.removeAttribute('aria-busy');b.disabled=false;}};
+  parent.append(b);return b;
+ }
+ function fields(parent,label,items,fn){const form=document.createElement('form');form.append(node('h3',label));const inputs={};for(const item of items){const l=node('label',item.label);const inp=document.createElement(item.options?'select':item.type==='textarea'?'textarea':'input');if(item.options){for(const [value,label] of item.options){const option=node('option',label);option.value=value;inp.append(option);}}else if(item.type!=='textarea')inp.type=item.type||'text';inp.required=item.required!==false;if(item.max)inp.maxLength=item.max;if(item.min!=null)inp.min=item.min;if(item.value!=null)inp.value=item.value;if(item.type==='number'){inp.step='1';if(item.upper!=null)inp.max=item.upper;}inp.name=item.key;inputs[item.key]=inp;l.append(inp);form.append(l);}const b=node('button','Simpan','primary');b.type='submit';form.append(b);form.onsubmit=async e=>{e.preventDefault();if(b.disabled||!form.reportValidity())return;b.disabled=true;form.querySelector(':scope > .form-feedback')?.remove();form.setAttribute('aria-busy','true');try{await fn(Object.fromEntries(Object.entries(inputs).map(([k,v])=>[k,v.type==='number'?Number(v.value):v.value.trim()])));}catch(e){onError(e);const feedback=node('p',e.message,'action-error form-feedback');feedback.setAttribute('role','alert');form.prepend(feedback);}finally{form.removeAttribute('aria-busy');b.disabled=false;}};parent.append(form);return form;}
+ return {button,fields};
 }

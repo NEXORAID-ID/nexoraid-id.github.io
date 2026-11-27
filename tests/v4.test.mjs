@@ -158,6 +158,7 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await call('management','workspace/orders/'+second+'/refund',{amount:20000,reference:'refund-001'})).status,403);
   assert.equal((await call('owner','workspace/orders/'+second+'/refund',{amount:20000,reference:'refund-001'})).status,200);
   const refunded=(await (await call('other','orders/'+second)).json()).order;assert.equal(refunded.status,'cancelled');assert.equal(refunded.refunded_amount,20000);
+  const cancelledFinance=(await (await call('other','orders/'+second+'/finance')).json()).finance;assert.equal(cancelledFinance.status,'cancelled');assert.equal(cancelledFinance.invoice_refunded_amount,20000);assert.equal(cancelledFinance.outstanding_amount,0);assert.equal(cancelledFinance.received_amount,20000);assert.equal('payment_ref' in cancelledFinance,false);
   assert.equal((await call('owner','workspace/orders/'+second+'/refund',{amount:20000,reference:'refund-002'})).status,409);
   const report=await (await call('owner','workspace/report')).json();assert.equal(report.finance.refunded,21000);assert.equal(report.finance.recorded_margin,5500);
   assert.equal((await (await call('management','workspace/report')).json()).finance,undefined);

@@ -1,3 +1,4 @@
+import {verifyProductionMigrations,verifyReleaseHealth} from './deployment-verification.mjs';
 const origin=process.env.PUBLIC_ORIGIN;
 if(!origin||!/^https:\/\/[a-z0-9.-]+$/i.test(origin))throw Error('PUBLIC_ORIGIN required');
 async function check(path,validate,expected=200,headers={}){
@@ -11,7 +12,14 @@ async function check(path,validate,expected=200,headers={}){
  }
  throw Error(path+': '+last.message);
 }
-await check('/api/health',async r=>{const h=await r.json();if(h.status!=='ok'||!h.database_ready||!h.login_configured||h.schema<23)throw Error('Database or schema not ready');const expected=process.env.RELEASE_SHA||process.env.GITHUB_SHA;if(expected&&h.release!==expected)throw Error('Wrong release: '+h.release);});
+const expected=process.env.RELEASE_SHA||process.env.GITHUB_SHA;
+const appliedCount=await verifyProductionMigrations();
+console.log('Exact production migration inventory verified: '+appliedCount+' migrations');
+await check('/api/health',async r=>{
+ const state=verifyReleaseHealth(await r.json(),expected);
+ if(state.runtime_schema!==appliedCount)throw Error('Runtime schema differs from exact migration inventory');
+ console.log('Release readiness: '+JSON.stringify(state));
+});
 await check('/api/catalog',async r=>{const c=await r.json();if(!Array.isArray(c.services)||!c.services.length)throw Error('Empty catalog');});
 for(const p of ['/','/login.html','/portal.html'])await check(p,async r=>{if(!r.headers.get('content-type')?.includes('text/html'))throw Error('Not HTML');});
 await check('/api/auth/login',async r=>{const url=new URL(r.headers.get('location'));if(url.hostname!=='discord.com'||url.searchParams.get('redirect_uri')!==origin+'/api/auth/callback'||url.searchParams.get('code_challenge_method')!=='S256'||!url.searchParams.get('code_challenge')||!url.searchParams.get('scope')?.split(' ').includes('guilds.members.read'))throw Error('Wrong OAuth redirect');},303,{'Sec-Fetch-Mode':'navigate'});

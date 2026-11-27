@@ -9,3 +9,6 @@ test('API expires active session on 401 and never replays offline writes',async(
  let expired=false,online=true,calls=0;const api=createPortalApi({isExpired:()=>expired,expiredError:()=>Error('expired'),hasUser:()=>true,expireSession:()=>{expired=true},isOnline:()=>online,fetcher:async()=>{calls++;return new Response('{}',{status:401})}});
  online=false;await assert.rejects(api('orders',{}),/koneksi/);assert.equal(calls,0);online=true;await assert.rejects(api('me'),/expired/);assert.equal(expired,true);await assert.rejects(api('orders',{}),/expired/);assert.equal(calls,1);
 });
+
+import {latestRequest} from '../v4/portal-core.mjs';
+test('latest request rejects both prior responses in an A-B-A sequence',()=>{const begin=latestRequest(),first=begin(),second=begin(),third=begin();assert.equal(first(),false);assert.equal(second(),false);assert.equal(third(),true);});
