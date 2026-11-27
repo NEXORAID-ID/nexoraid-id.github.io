@@ -33,7 +33,7 @@ test('D1 sync grants only verified worker, revokes stale sessions, preserves own
 
 test('actual OAuth callback creates verified worker session and /api/me resolves role without manual grant',async()=>{
  const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON');
- for(const n of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_workspace.sql','0006_business.sql','0007_ticket_links.sql','0008_integrity.sql','0009_order_collaboration.sql','0010_checkout.sql'])db.exec(await readFile(new URL('../v4/migrations/'+n,import.meta.url),'utf8'));
+ for(const n of ['0001_initial.sql','0002_management.sql','0003_operations.sql','0004_payment_reference.sql','0005_workspace.sql','0006_business.sql','0007_ticket_links.sql','0008_integrity.sql','0009_order_collaboration.sql','0010_checkout.sql','0024_account_suspension.sql'])db.exec(await readFile(new URL('../v4/migrations/'+n,import.meta.url),'utf8'));
  const DB={prepare(sql){return {bind(...args){return {async run(){return {meta:{changes:Number(db.prepare(sql).run(...args).changes)}};},async first(){return db.prepare(sql).get(...args)||null;}};}};},async batch(stmts){db.exec('BEGIN');try{const out=[];for(const s of stmts)out.push(await s.run());db.exec('COMMIT');return out;}catch(e){db.exec('ROLLBACK');throw e;}}};
  const state='a'.repeat(72),verifier='b'.repeat(43);
  const config={...env,DB,OWNER_DISCORD_ID:'999999999999999999'};
