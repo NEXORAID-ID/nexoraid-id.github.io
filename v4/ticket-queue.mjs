@@ -7,7 +7,7 @@ const err=(error,status)=>json({error},status);
 const uuid=x=>typeof x==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(x);
 const snow=x=>typeof x==='string'&&/^\d{17,20}$/.test(x);
 const guild='1487728359482851348';
-export async function ticketQueue({db,r,m,readBody,clock=()=>Math.floor(Date.now()/1000),token=()=>crypto.randomUUID(),maintenance=false,owner,verifyWorker}){
+export async function ticketQueue({db,r,m,readBody,clock=()=>Math.floor(Date.now()/1000),token=()=>crypto.randomUUID(),maintenance=false,owner,verifyWorker,exclusive=false}){
  if(m!=='POST')return err('Metode tidak diizinkan.',405);
  const b=await readBody(r),t=clock();
  if(b?.action==='health'){const probe=await db.prepare('SELECT COUNT(*) AS probe FROM web_ticket_outbox WHERE 0').first();return probe?.probe===0?json({ok:true}):err('Queue tidak siap.',503);}
@@ -29,7 +29,7 @@ export async function ticketQueue({db,r,m,readBody,clock=()=>Math.floor(Date.now
  if(b?.action==='message-status'){
   if(!snow(b.customer_id)||!snow(b.channel_id)||typeof b.ticket_id!=='string'||!/^[a-zA-Z0-9_-]{1,80}$/.test(b.ticket_id))return err('Identitas tiket tidak valid.',400);
   // Only acknowledged canonical web messages, never arbitrary orders or legacy tickets.
-  const rows=(await db.prepare(`SELECT o.id,o.status,o.updated_at,q.message_id,
+  const rows=(await db.prepare(`SELECT o.id,o.status,o.updated_at,q.message_id,o.assigned_to,
    CASE
     WHEN EXISTS(SELECT 1 FROM order_refunds r WHERE r.order_id=o.id) OR EXISTS(SELECT 1 FROM completed_refunds r WHERE r.order_id=o.id) OR EXISTS(SELECT 1 FROM receipt_refunds r WHERE r.order_id=o.id AND r.kind='partial_cancel') THEN 'refund_recorded'
     WHEN f.state='paid' THEN 'verified'
@@ -44,8 +44,8 @@ export async function ticketQueue({db,r,m,readBody,clock=()=>Math.floor(Date.now
    LEFT JOIN order_finance f ON f.order_id=o.id LEFT JOIN order_payment_totals pt ON pt.order_id=o.id
    WHERE l.guild_id=? AND l.customer_id=? AND l.channel_id=? AND l.ticket_id=? AND q.delivered_at IS NOT NULL AND q.message_id IS NOT NULL
    ORDER BY o.id LIMIT 101`).bind(guild,b.customer_id,b.channel_id,b.ticket_id).all()).results;
-  if(rows.length>100||rows.some(x=>!uuid(x.id)||!snow(x.message_id)||!['requested','claimed','confirmed','processing','completed','cancelled'].includes(x.status)||!Number.isSafeInteger(x.updated_at)||!['refund_recorded','verified','cancelled','reported','partial','awaiting','unquoted'].includes(x.payment_status)))return err('Pemetaan pesan memerlukan pemeriksaan.',409);
-  return json({ok:true,read_only:true,orders:rows});
+  if(rows.length>100||rows.some(x=>!uuid(x.id)||!snow(x.message_id)||!['requested','claimed','confirmed','processing','completed','cancelled'].includes(x.status)||!Number.isSafeInteger(x.updated_at)||(x.assigned_to!=null&&!snow(x.assigned_to))||!['refund_recorded','verified','cancelled','reported','partial','awaiting','unquoted'].includes(x.payment_status)))return err('Pemetaan pesan memerlukan pemeriksaan.',409);
+  return json({ok:true,read_only:true,random_assignment_exclusive:exclusive,orders:rows});
  }
  if(maintenance)return err('Antrean dalam pemeliharaan.',503);
  if(b?.action==='dispatch'){if(typeof verifyWorker!=='function')return err('Verifikasi penjoki belum siap.',503);return json(await dispatchAvailableOrder(db,{now:t,owner,verifyWorker}));}
