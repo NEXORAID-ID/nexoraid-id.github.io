@@ -11,6 +11,7 @@ export async function ticketQueue({db,r,m,readBody,clock=()=>Math.floor(Date.now
  if(m!=='POST')return err('Metode tidak diizinkan.',405);
  const b=await readBody(r),t=clock();
  if(b?.action==='health'){const probe=await db.prepare('SELECT COUNT(*) AS probe FROM web_ticket_outbox WHERE 0').first();return probe?.probe===0?json({ok:true}):err('Queue tidak siap.',503);}
+ if(b?.action==='dispatch-policy')return json({ok:true,read_only:true,random_assignment_exclusive:exclusive===true});
  if(b?.action==='readiness'){
   // Single read-only snapshot: never lease, backfill, mutate orders, or expose customer IDs.
   const counts=await db.prepare(`SELECT
@@ -75,7 +76,7 @@ export async function ticketQueue({db,r,m,readBody,clock=()=>Math.floor(Date.now
   const result=await db.prepare("UPDATE web_ticket_outbox SET lease_token=?,lease_until=?,attempts=attempts+1 WHERE order_id=(SELECT q.order_id FROM web_ticket_outbox q JOIN orders o ON o.id=q.order_id WHERE q.delivered_at IS NULL AND q.next_attempt<=? AND (q.lease_until IS NULL OR q.lease_until<=?) AND o.status NOT IN ('completed','cancelled') ORDER BY q.next_attempt,o.created_at,o.id LIMIT 1) RETURNING order_id").bind(lease,t+180,t,t).first();
   if(!result)return json({order:null});
   const o=await db.prepare('SELECT id,customer_id,service_id,quantity,estimate,status,created_at FROM orders WHERE id=?').bind(result.order_id).first();
-  return json({order:{...o,service_name:services.find(s=>s.id===o.service_id)?.name||o.service_id},lease_token:lease,lease_until:t+180});
+  return json({order:{...o,service_name:services.find(s=>s.id===o.service_id)?.name||o.service_id},lease_token:lease,lease_until:t+180,random_assignment_exclusive:exclusive===true});
  }
  if(!uuid(b?.order_id)||!uuid(b?.lease_token))return err('Order atau lease tidak valid.',400);
  if(b.action==='renew'){
