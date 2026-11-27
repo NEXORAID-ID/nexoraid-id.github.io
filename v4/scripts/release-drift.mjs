@@ -1,5 +1,7 @@
 import {writeFile} from 'node:fs/promises';
 import {verifyReleaseHealth} from './deployment-verification.mjs';
+import {inspectCatalog} from './catalog-readiness.mjs';
+import {services} from '../../services-data.js';
 const expected=process.env.GITHUB_SHA;
 if(!/^[a-f0-9]{40}$/i.test(expected||''))throw Error('Expected Git SHA missing');
 const report={checked_at:new Date().toISOString(),repository_sha:expected,production_sha:null,health:null,sha_match:false,match:false,public_ready:false,migration_inventory_verified:false};
@@ -16,6 +18,11 @@ try{
    report.public_ready=state.public_ready;
  }
 }catch{report.error='Production release health unavailable or invalid';}
+try{
+ const r=await fetch('https://nexoraid-v4.nexoraid.workers.dev/api/catalog',{redirect:'error',cache:'no-store',signal:AbortSignal.timeout(15000)});
+ report.catalog_http_status=r.status;
+ report.catalog=inspectCatalog(r.ok?await r.json():null,services);
+}catch{report.catalog={contract_ok:false,errors:['catalog_request_failed']};}
 console.log(JSON.stringify(report,null,2));
 await writeFile('release-drift-evidence.json',JSON.stringify(report,null,2)+'\n');
 if(!report.match||!report.public_ready)process.exitCode=1;
