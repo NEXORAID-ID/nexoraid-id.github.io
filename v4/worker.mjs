@@ -142,7 +142,9 @@ async function handle(r,env){
   // In maintenance, authenticated bot mutations must stop before any actor provisioning.
   // Existing actors can still read orders; unknown actors cannot create a row via GET.
   if(env.MAINTENANCE_MODE==='true'&&!['GET','HEAD'].includes(m))return err('Sistem sedang dalam pemeliharaan. Tidak ada perubahan yang disimpan.',503);
-  if(env.MAINTENANCE_MODE!=='true')await env.DB.prepare("INSERT INTO users(id,display_name,created_at) SELECT ?,?,? WHERE NOT EXISTS(SELECT 1 FROM account_suspensions WHERE user_id=?) ON CONFLICT(id) DO NOTHING").bind(actor,'Discord '+actor,now(),actor).run();
+  // Finance status is strictly read-only: even an unknown actor must not create a user.
+  const financeRead=m==='GET'&&/^\/api\/orders\/[a-f0-9-]{36}\/finance$/.test(p);
+  if(env.MAINTENANCE_MODE!=='true'&&!financeRead)await env.DB.prepare("INSERT INTO users(id,display_name,created_at) SELECT ?,?,? WHERE NOT EXISTS(SELECT 1 FROM account_suspensions WHERE user_id=?) ON CONFLICT(id) DO NOTHING").bind(actor,'Discord '+actor,now(),actor).run();
   const u=await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+',EXISTS(SELECT 1 FROM account_suspensions a WHERE a.user_id=u.id) AS suspended FROM users u WHERE u.id=?').bind(actor).first();
   if(u?.suspended)return err('Akun ditangguhkan.',403);
   botUser=u?{id:u.id,display_name:u.display_name,role:roleFor(u,env)}:null;
