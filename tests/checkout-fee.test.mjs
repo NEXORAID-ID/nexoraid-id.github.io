@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
+import {readFile,readdir} from 'node:fs/promises';
+import {createCheckout} from '../v4/customer.mjs';
 import {DatabaseSync} from 'node:sqlite';
 import {checkoutTotals,CHECKOUT_SERVICE_FEE} from '../v4/checkout-fee.mjs';
 const item=(id,estimate)=>({id,estimate});
@@ -36,5 +37,33 @@ test('candidate SQL snapshots new groups once and preserves old checkout history
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM checkout_service_fees').get().n,1);
   assert.throws(()=>db.exec("UPDATE checkout_service_fees SET amount=0 WHERE checkout_id='new'"),/checkout_service_fee_immutable/);
   assert.throws(()=>db.exec("DELETE FROM checkout_service_fees WHERE checkout_id='new'"),/checkout_service_fee_immutable/);
+ }finally{db.close();}
+});
+
+test('real checkout transaction and replay expose only opt-in persisted group fee estimates',async()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  db.exec('PRAGMA foreign_keys=ON');
+  const dir=new URL('../v4/migrations/',import.meta.url);
+  for(const name of (await readdir(dir)).filter(n=>n.endsWith('.sql')).sort())db.exec(await readFile(new URL(name,dir),'utf8'));
+  const user={id:'123456789012345678',role:'customer'};
+  db.prepare('INSERT INTO users(id,display_name,created_at) VALUES(?,?,?)').run(user.id,'Fixture',1);
+  const DB={prepare(sql){return {args:[],bind(...args){this.args=args;return this;},async first(){return db.prepare(sql).get(...this.args)||null;},async all(){return {results:db.prepare(sql).all(...this.args)};},async run(){return {meta:{changes:Number(db.prepare(sql).run(...this.args).changes)}};}};},async batch(stmts){db.exec('BEGIN');try{const r=[];for(const stmt of stmts)r.push(await stmt.run());db.exec('COMMIT');return r;}catch(e){db.exec('ROLLBACK');throw e;}}};
+  const env={DB,DISCORD_MEMBERSHIP_BOT_TOKEN:'fixture',DISCORD_MEMBERSHIP_FETCH:async()=>Response.json({user:{id:user.id},roles:[]})};
+  const items=[{service_id:'optiwindows',quantity:1}];
+  const call=(key,items,single=false)=>createCheckout({env,user,items,key,single});
+  const old=await call('legacy-checkout-0001',items,true);assert.equal(old.status,201);assert.equal((await old.json()).checkout_pricing,undefined);
+  db.exec(await readFile(new URL('../v4/candidates/checkout-service-fee.sql',import.meta.url),'utf8'));
+  env.CHECKOUT_FEE_PREVIEW='true';
+  const historic=await (await call('legacy-checkout-0001',items,true)).json();
+  assert.equal(historic.checkout_pricing.service_fee,0);assert.equal(historic.checkout_pricing.fee_snapshot_present,false);
+  const res=await call('new-fee-checkout-001',items,true);assert.equal(res.status,201);
+  const fresh=await res.json();assert.equal(fresh.order.estimate,150000);assert.equal(fresh.checkout_pricing.total,150500);assert.equal(fresh.checkout_pricing.status,'estimate_only');
+  const replay=await call('new-fee-checkout-001',items);assert.equal(replay.status,200);
+  const repeated=await replay.json();assert.deepEqual(repeated.checkout_pricing,fresh.checkout_pricing);assert.equal(repeated.orders[0].id,fresh.order.id);
+  const multi=await call('new-fee-checkout-002',[{service_id:'optiwindows',quantity:2},{service_id:'gta-heist',quantity:1}]);assert.equal(multi.status,201);
+  const m=await multi.json();assert.equal(m.checkout_pricing.service_fee,500);assert.equal(m.checkout_pricing.total,null);assert.equal(m.checkout_pricing.known_subtotal,300000);assert.equal(m.checkout_pricing.unknown_count,1);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM checkout_service_fees').get().n,2);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM order_finance').get().n,0);
  }finally{db.close();}
 });

@@ -1,5 +1,6 @@
 import {services} from '../services-data.js';
 import {fixedPriceValue} from '../catalog.js';
+import {checkoutTotals} from './checkout-fee.mjs';
 import {membershipStatus,membershipMessage} from './membership.mjs';
 const json=(d,s=200)=>new Response(JSON.stringify(d),{status:s,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'}});
 const err=(error,s=400)=>json({error},s);
@@ -19,7 +20,16 @@ export async function createCheckout({env,user,items,key,single=false}){
  items=normalizeCart(items);
  if(!items||typeof key!=='string'||!/^[a-zA-Z0-9_-]{16,80}$/.test(key)||single&&items.length!==1)return err('Layanan, jumlah atau ID permintaan tidak valid.');
  const signature=JSON.stringify(items),legacyId=await legacyOrderId(user.id,key);
- const response=(id,rows,replayed)=>json(single?{order:rows[0],...(replayed?{replayed:true}:{})}:{checkout_id:id,orders:rows,...(replayed?{replayed:true}:{})},replayed?200:201);
+ // Candidate-only preview. Never expose this as a payable invoice.
+ const preview=env.CHECKOUT_FEE_PREVIEW==='true';
+ const response=async(id,rows,replayed,legacy=false)=>{
+  let pricing={};
+  if(preview){
+   const snapshot=legacy?null:await db.prepare('SELECT amount FROM checkout_service_fees WHERE checkout_id=?').bind(id).first();
+   pricing={checkout_pricing:{...checkoutTotals(rows,{fee:snapshot?.amount??0}),status:'estimate_only',fee_snapshot_present:Boolean(snapshot)}};
+  }
+  return json(single?{order:rows[0],...pricing,...(replayed?{replayed:true}:{})}:{checkout_id:id,orders:rows,...pricing,...(replayed?{replayed:true}:{})},replayed?200:201);
+ };
  const replay=async(replayed=true)=>{
   const g=await db.prepare('SELECT id,signature FROM checkout_groups WHERE customer_id=? AND request_id=?').bind(user.id,key).first();
   if(g){
@@ -33,7 +43,7 @@ export async function createCheckout({env,user,items,key,single=false}){
   const old=await db.prepare('SELECT id,service_id,quantity,catalog_price,estimate,status FROM orders WHERE id=? AND customer_id=?').bind(legacyId,user.id).first();
   if(!old)return null;
   if(items.length!==1||old.service_id!==items[0].service_id||old.quantity!==items[0].quantity)return err('ID permintaan sudah digunakan untuk order lain.',409);
-  return response(old.id,[old],true);
+  return response(old.id,[old],true,true);
  };
  const old=await replay();if(old)return old;
  const membership=await membershipStatus(env,user.id,env.DISCORD_MEMBERSHIP_FETCH||fetch);
