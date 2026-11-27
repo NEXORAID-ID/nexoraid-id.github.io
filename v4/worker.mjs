@@ -40,7 +40,7 @@ export function mayTransition(role,assigned,actor,from,to){
 async function session(r,env){
  const token=getCookie(r,'nexo_session');
  if(!/^[a-f0-9-]{72}$/.test(token))return null;
- const user=await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+' FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?').bind(await hash(token),now()).first();
+ const user=await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+' FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND NOT EXISTS(SELECT 1 FROM account_suspensions a WHERE a.user_id=u.id)').bind(await hash(token),now()).first();
  return user?{...user,role:roleFor(user,env)}:null;
 }
 async function body(r){
@@ -103,7 +103,7 @@ async function handle(r,env){
   return page.ok?new Response(page.body,{status:404,headers:page.headers}):asset;
  }
  if(p==='/api/health'&&m==='GET'){
-  let ready=false;try{if(env.DB){const check=await env.DB.prepare('SELECT (SELECT COUNT(*) FROM users WHERE 0)+(SELECT COUNT(*) FROM order_ticket_links WHERE 0)+(SELECT COUNT(*) FROM rejected_payment_claims WHERE 0)+(SELECT COUNT(*) FROM order_attachments WHERE 0)+(SELECT COUNT(*) FROM order_messages WHERE 0)+(SELECT COUNT(*) FROM order_plans WHERE 0)+(SELECT COUNT(*) FROM checkout_groups WHERE 0)+(SELECT COUNT(*) FROM session_metadata WHERE 0)+(SELECT COUNT(*) FROM completed_refunds WHERE 0)+(SELECT COUNT(*) FROM web_ticket_outbox WHERE 0)+(SELECT COUNT(*) FROM cash_opening WHERE 0)+(SELECT COUNT(*) FROM cash_movements WHERE 0)+(SELECT COUNT(*) FROM rental_reservations WHERE 0)+(SELECT COUNT(*) FROM investor_attestations WHERE 0)+(SELECT COUNT(*) FROM service_policies WHERE 0)+(SELECT COUNT(*) FROM order_policy_snapshots WHERE 0) AS probe').first();const trigger=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name='web_ticket_order_insert'").first();const policyTrigger=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name='order_policy_snapshot'").first();ready=check?.probe===0&&trigger?.name==='web_ticket_order_insert'&&policyTrigger?.name==='order_policy_snapshot';}}catch{}
+  let ready=false;try{if(env.DB){const check=await env.DB.prepare('SELECT (SELECT COUNT(*) FROM users WHERE 0)+(SELECT COUNT(*) FROM order_ticket_links WHERE 0)+(SELECT COUNT(*) FROM rejected_payment_claims WHERE 0)+(SELECT COUNT(*) FROM order_attachments WHERE 0)+(SELECT COUNT(*) FROM order_messages WHERE 0)+(SELECT COUNT(*) FROM order_plans WHERE 0)+(SELECT COUNT(*) FROM checkout_groups WHERE 0)+(SELECT COUNT(*) FROM session_metadata WHERE 0)+(SELECT COUNT(*) FROM completed_refunds WHERE 0)+(SELECT COUNT(*) FROM web_ticket_outbox WHERE 0)+(SELECT COUNT(*) FROM cash_opening WHERE 0)+(SELECT COUNT(*) FROM cash_movements WHERE 0)+(SELECT COUNT(*) FROM rental_reservations WHERE 0)+(SELECT COUNT(*) FROM investor_attestations WHERE 0)+(SELECT COUNT(*) FROM service_policies WHERE 0)+(SELECT COUNT(*) FROM order_policy_snapshots WHERE 0)+(SELECT COUNT(*) FROM account_suspensions WHERE 0) AS probe').first();const trigger=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name='web_ticket_order_insert'").first();const policyTrigger=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name='order_policy_snapshot'").first();ready=check?.probe===0&&trigger?.name==='web_ticket_order_insert'&&policyTrigger?.name==='order_policy_snapshot';}}catch{}
   return json({status:ready&&oauthReady(env)?'ok':'degraded',version:4,release:env.RELEASE_SHA||null,database_configured:Boolean(env.DB),database_ready:ready,login_configured:oauthReady(env),schema:ready?18:null,maintenance:env.MAINTENANCE_MODE==='true'},ready&&oauthReady(env)?200:503);
  }
  const limited=await publicRateLimit(r,env,p,m);if(limited)return limited;
@@ -136,13 +136,14 @@ async function handle(r,env){
    return json({ok:check.status===200,reason:check.reason,upstream_status:check.upstreamStatus},check.status===200?200:503);
   }
   if(m==='GET'&&(p==='/api/bot/health'||p==='/api/bot/orders'&&url.searchParams.get('probe')==='1'))return json({ok:true});
+  if(await env.DB.prepare('SELECT 1 AS suspended FROM account_suspensions WHERE user_id=?').bind(actor).first())return err('Akun ditangguhkan.',403);
   p=p.replace('/api/bot/','/api/');
   if(!((p==='/api/orders'&&['GET','POST'].includes(m))||(m==='POST'&&/^\/api\/orders\/[a-f0-9-]{36}\/(claim|status|evidence)$/.test(p))||(['GET','POST'].includes(m)&&/^\/api\/orders\/[a-f0-9-]{36}\/ticket$/.test(p))))return err('Endpoint bot tidak diizinkan.',404);
   // In maintenance, authenticated bot mutations must stop before any actor provisioning.
   // Existing actors can still read orders; unknown actors cannot create a row via GET.
   if(env.MAINTENANCE_MODE==='true'&&!['GET','HEAD'].includes(m))return err('Sistem sedang dalam pemeliharaan. Tidak ada perubahan yang disimpan.',503);
   if(env.MAINTENANCE_MODE!=='true')await env.DB.prepare("INSERT INTO users(id,display_name,created_at) VALUES(?,?,?) ON CONFLICT(id) DO NOTHING").bind(actor,'Discord '+actor,now()).run();
-  const u=await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+' FROM users u WHERE u.id=?').bind(actor).first();
+  const u=await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+' FROM users u WHERE u.id=? AND NOT EXISTS(SELECT 1 FROM account_suspensions a WHERE a.user_id=u.id)').bind(actor).first();
   botUser=u?{...u,role:roleFor(u,env)}:null;
   if(botUser?.role==='worker'){
    const verified=await guildMembership(env,actor,env.DISCORD_MEMBERSHIP_FETCH||fetch);
@@ -173,6 +174,7 @@ async function handle(r,env){
   const result=await discordIdentity(env,code,env.DISCORD_OAUTH_FETCH||fetch,undefined,verifier,true);
   if(result.error)return loginFailure(result.error);
   const user=result.user;
+  if(await env.DB.prepare('SELECT 1 AS suspended FROM account_suspensions WHERE user_id=?').bind(user.id).first())return loginFailure('account_suspended');
   const t=now(),s=random(),sessionHash=await hash(s);
   const isOwner=validId(env.OWNER_DISCORD_ID)&&user.id===env.OWNER_DISCORD_ID;
   const displayName=String(user.global_name||user.username||'Pelanggan').slice(0,100);
@@ -190,6 +192,7 @@ async function handle(r,env){
    env.DB.prepare('INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)').bind(sessionHash,user.id,t+age),
    env.DB.prepare('INSERT INTO session_metadata VALUES(?,?,?,?)').bind(sessionHash,crypto.randomUUID(),deviceLabel(r.headers.get('user-agent')||''),t)
   ]);}catch(e){
+   if(String(e?.message).includes('account_suspended'))return loginFailure('account_suspended');
    if(!isOwner&&String(e?.message).includes('worker_has_active_orders')){
     await env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(user.id).run();
     return loginFailure('worker_role_review');
@@ -243,9 +246,21 @@ async function handle(r,env){
   if(user.role!=='owner')return err('Akses owner diperlukan.',403);
   const after=url.searchParams.get('after')||'';
   if(after&&!validId(after))return err('Cursor tidak valid.',400);
-  const rows=(await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+' FROM users u WHERE u.id>? ORDER BY u.id LIMIT 101').bind(after).all()).results;
+  const rows=(await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+',EXISTS(SELECT 1 FROM account_suspensions a WHERE a.user_id=u.id) AS suspended FROM users u WHERE u.id>? ORDER BY u.id LIMIT 101').bind(after).all()).results;
   const page=rows.slice(0,100).map(u=>({...u,role:roleFor(u,env)}));
   return json({members:page,next:rows.length>100?page.at(-1).id:null});
+ }
+ if(p==='/api/team/suspension'&&m==='POST'){
+  if(user.role!=='owner')return err('Akses owner diperlukan.',403);
+  const b=await body(r);
+  if(!b||Object.keys(b).some(k=>!['user_id','suspended'].includes(k))||!validId(b.user_id)||typeof b.suspended!=='boolean'||b.user_id===env.OWNER_DISCORD_ID)return err('Target tidak valid.',400);
+  if(!await env.DB.prepare('SELECT id FROM users WHERE id=?').bind(b.user_id).first())return err('Pengguna belum terdaftar.',404);
+  const t=now();
+  const change=b.suspended
+   ?env.DB.prepare('INSERT INTO account_suspensions(user_id,suspended_by,suspended_at) VALUES(?,?,?) ON CONFLICT(user_id) DO NOTHING').bind(b.user_id,user.id,t)
+   :env.DB.prepare('DELETE FROM account_suspensions WHERE user_id=?').bind(b.user_id);
+  const result=await env.DB.batch([change,env.DB.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,?,?,? WHERE changes()=1").bind(user.id,b.suspended?'account:active->suspended':'account:suspended->active',b.user_id,t)]);
+  return json({ok:true,changed:Boolean(result[0].meta.changes),suspended:b.suspended});
  }
  if(p==='/api/team/role'&&m==='POST'){
   if(user.role!=='owner')return err('Akses owner diperlukan.',403);
