@@ -163,6 +163,13 @@ test('Four-role API lifecycle with SQLite D1 adapter and real persisted records'
   assert.equal((await call('customer','business/notifications/read',{last_id:notices.latest})).status,200);
   assert.equal((await (await call('customer','business/notifications')).json()).unread,0);
   assert.equal((await call('owner','team/role',{user_id:ids.worker,role:'customer'})).status,200);
+  // Old worker cookie must be rejected after owner role change. Model a fresh login
+  // by issuing a new fixture session; the separate OAuth suite tests issuance.
+  assert.equal((await call('worker','settlements')).status,401);
+  const renewed=crypto.randomUUID()+crypto.randomUUID();
+  const renewedHash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(renewed))),n=>n.toString(16).padStart(2,'0')).join('');
+  db.prepare('INSERT INTO sessions VALUES(?,?,?)').run(renewedHash,ids.worker,Math.floor(Date.now()/1000)+3600);
+  cookies.worker='nexo_session='+renewed;
   assert.equal((await call('worker','settlements')).status,200);assert.equal((await (await call('worker','workspace/payouts')).json()).balance.available,1000);assert.equal((await (await call('worker','me')).json()).user.finance_access,true);
   assert.equal((await call('customer','customer/saved',{service_id:'gta-heist',saved:true})).status,200);
   assert.deepEqual((await (await call('other','customer/saved')).json()).saved,[]);
