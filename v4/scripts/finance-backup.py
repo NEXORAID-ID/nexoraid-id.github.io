@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 from datetime import datetime, timezone
+from urllib.request import Request, urlopen
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CONFIG = ROOT / "v4/.generated/wrangler.json"
@@ -101,6 +102,18 @@ def pending_digest(ref,applied):
         digest.update(b"\0")
     return pending,digest.hexdigest()
 
+def verify_live_freeze(opener=urlopen):
+    url="https://nexoraid-v4.nexoraid.workers.dev/api/health"
+    with opener(Request(url,headers={"Cache-Control":"no-cache","Accept":"application/json"}),timeout=15) as response:
+        if response.status!=200 or response.geturl()!=url:
+            raise ValueError("Production maintenance health unavailable")
+        raw=response.read(16385)
+        if len(raw)>16384:
+            raise ValueError("Invalid health payload")
+        health=json.loads(raw)
+    if not isinstance(health,dict) or health.get("status")!="ok" or health.get("database_ready") is not True or health.get("maintenance") is not True:
+        raise ValueError("Live production maintenance must be active")
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--candidate",required=True,help="Exact local or remote-tracking ref; fetch first")
@@ -138,6 +151,7 @@ def main():
             migration_sql.append(raw.decode("utf-8"))
         if actual_digest.hexdigest()!=digest:
             raise ValueError("Rehearsal migration digest mismatch")
+        verify_live_freeze()
         before=source_snapshot()
         with tempfile.TemporaryDirectory(prefix="nexoraid-finance-") as work:
             work=pathlib.Path(work)
@@ -168,6 +182,7 @@ def main():
             restore.verify(recovered.decode("utf-8"),before,migrations=migration_sql)
             if source_snapshot()!=before:
                 raise ValueError("Source changed during restore")
+            verify_live_freeze()
             evidence={"database_id":dbs[0]["database_id"],"migration_digest":digest,
                       "pending_migrations":pending,"backup_sha256":checksum_value,
                       "verified_at":datetime.now(timezone.utc).isoformat(),
