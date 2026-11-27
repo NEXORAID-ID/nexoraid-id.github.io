@@ -13,6 +13,30 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+          fetch-depth: 0
+      - name: Scan fetched Git history for secrets (A68)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse --is-shallow-repository)" = false
+          config="$(mktemp -d)"
+          trap 'rm -rf -- "$config"' EXIT
+          printf '[extend]\nuseDefault = true\n' > "$config/gitleaks.toml"
+          touch "$config/.gitleaksignore"
+          # No network during scan; read-only source; never print or upload findings.
+          if docker run --rm --network none --read-only --tmpfs /tmp \
+            --user "$(id -u):$(id -g)" \
+            -v "$PWD:/repo:ro" -v "$config:/scan-config:ro" \
+            ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            git --config /scan-config/gitleaks.toml \
+            --gitleaks-ignore-path /scan-config/.gitleaksignore \
+            --ignore-gitleaks-allow --redact=100 --exit-code 1 \
+            --log-opts="--all --full-history -m" /repo > "$config/scan.log" 2>&1; then
+            echo "A68: history scanner passed for fetched refs"
+          else
+            echo "::error::A68 history scan failed or detected possible secrets; investigate privately before release."
+            exit 1
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
