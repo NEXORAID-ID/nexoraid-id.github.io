@@ -69,3 +69,8 @@ body.session-expired>:not(#sessionExpired){display:none!important}
 @media print{.print-invoice tr{break-inside:avoid}.print-invoice{overflow-wrap:anywhere}}
 
 #toastRegion .toast-error{border-left-color:#ef7474}.dash-view [aria-busy=true]{min-height:76px}
+
+/* Keyboard navigation and form feedback without changing dashboard layout. */
+.portal-skip-link{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.portal-skip-link:focus{position:fixed;top:12px;left:12px;z-index:30;width:auto;height:auto;clip-path:none;padding:12px 16px;background:var(--panel);color:var(--text);border:2px solid var(--accent);border-radius:8px}
+#globalSearchPanel:focus-visible,.dashboard-mode :is(a,button,input,select,textarea):focus-visible{outline:2px solid var(--accent);outline-offset:3px}
