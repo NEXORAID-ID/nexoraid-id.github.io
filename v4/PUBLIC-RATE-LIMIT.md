@@ -1,0 +1,5 @@
+# A69 — public request rate limit candidate
+
+Cloudflare Workers rate-limiting binding: https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/
+
+Production preparation and manual redeploy configure a 120/minute catalog lane and shared 20/minute login/callback lane, per edge location and connecting-IP hash. The provider's approximate limits are not a global strict quota. Existing per-actor D1 mutation quota remains unchanged. No raw IP is logged or stored in D1. Shared NAT users can share a budget; validate before rollout. The namespace IDs are deterministic from DB identity and must be checked against other Workers in the same Cloudflare account. Missing binding or edge IP on a required deployment, malformed provider response or provider failure returns 503; limit rejection returns 429. No production binding or acceptance is claimed until actual dry run, deployment and live probes. No test should flood the live OAuth endpoint. Staging without configured binding remains synthetic; use dedicated staging with separate counters for live acceptance.
