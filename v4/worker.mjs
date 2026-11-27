@@ -136,15 +136,15 @@ async function handle(r,env){
    return json({ok:check.status===200,reason:check.reason,upstream_status:check.upstreamStatus},check.status===200?200:503);
   }
   if(m==='GET'&&(p==='/api/bot/health'||p==='/api/bot/orders'&&url.searchParams.get('probe')==='1'))return json({ok:true});
-  if(await env.DB.prepare('SELECT 1 AS suspended FROM account_suspensions WHERE user_id=?').bind(actor).first())return err('Akun ditangguhkan.',403);
   p=p.replace('/api/bot/','/api/');
   if(!((p==='/api/orders'&&['GET','POST'].includes(m))||(m==='POST'&&/^\/api\/orders\/[a-f0-9-]{36}\/(claim|status|evidence)$/.test(p))||(['GET','POST'].includes(m)&&/^\/api\/orders\/[a-f0-9-]{36}\/ticket$/.test(p))))return err('Endpoint bot tidak diizinkan.',404);
   // In maintenance, authenticated bot mutations must stop before any actor provisioning.
   // Existing actors can still read orders; unknown actors cannot create a row via GET.
   if(env.MAINTENANCE_MODE==='true'&&!['GET','HEAD'].includes(m))return err('Sistem sedang dalam pemeliharaan. Tidak ada perubahan yang disimpan.',503);
-  if(env.MAINTENANCE_MODE!=='true')await env.DB.prepare("INSERT INTO users(id,display_name,created_at) VALUES(?,?,?) ON CONFLICT(id) DO NOTHING").bind(actor,'Discord '+actor,now()).run();
-  const u=await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+' FROM users u WHERE u.id=? AND NOT EXISTS(SELECT 1 FROM account_suspensions a WHERE a.user_id=u.id)').bind(actor).first();
-  botUser=u?{...u,role:roleFor(u,env)}:null;
+  if(env.MAINTENANCE_MODE!=='true')await env.DB.prepare("INSERT INTO users(id,display_name,created_at) SELECT ?,?,? WHERE NOT EXISTS(SELECT 1 FROM account_suspensions WHERE user_id=?) ON CONFLICT(id) DO NOTHING").bind(actor,'Discord '+actor,now(),actor).run();
+  const u=await env.DB.prepare('SELECT u.id,u.display_name,'+teamRoleSql+',EXISTS(SELECT 1 FROM account_suspensions a WHERE a.user_id=u.id) AS suspended FROM users u WHERE u.id=?').bind(actor).first();
+  if(u?.suspended)return err('Akun ditangguhkan.',403);
+  botUser=u?{id:u.id,display_name:u.display_name,role:roleFor(u,env)}:null;
   if(botUser?.role==='worker'){
    const verified=await guildMembership(env,actor,env.DISCORD_MEMBERSHIP_FETCH||fetch);
    if(verified.status!==200)return err(membershipMessage(verified.status),verified.status);
