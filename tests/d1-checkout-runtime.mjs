@@ -66,6 +66,38 @@ export default {async fetch(request,bindings){
   eq((await db.prepare('SELECT estimate FROM orders WHERE id=?').bind(winner.id).first()).estimate,198000,'historical price unchanged');
   await db.prepare("UPDATE orders SET status='cancelled' WHERE id=?").bind(winner.id).run();
   eq((await catalog()).availability,'available','released stock public');
+  // Real local D1: actor-confirmed presence, canonical lease/ack, exclusive
+  // dispatch, concurrent retries and fixed invoice. No production requests.
+  const workerId='666666666666666666',machineKey='d'.repeat(64),workerRole='1511392414516903966';
+  await db.prepare("INSERT INTO users(id,display_name,role,created_at) VALUES(?,?,'worker',1)").bind(workerId,'CI worker').run();
+  const dispatchEnv={...env,CHECKOUT_FEE_PREVIEW:'false',AUTO_FIXED_INVOICE_ENABLED:'true',WEB_RANDOM_ASSIGNMENT_EXCLUSIVE:'true',NEXORAID_TICKET_MACHINE_KEY:machineKey,DISCORD_MEMBERSHIP_FETCH:async url=>{const id=url.split('/').at(-1);return Response.json({user:{id},roles:id===workerId?[workerRole]:[]});}};
+  const machine=async body=>worker.fetch(new Request(origin+'/api/bot/ticket-queue',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+machineKey,'x-discord-guild-id':guild},body:JSON.stringify(body)}),dispatchEnv);
+  const actor=(path,body)=>worker.fetch(new Request(origin+'/api/bot/'+path,{method:body===undefined?'GET':'POST',headers:{'content-type':'application/json',authorization:'Bearer '+key,'x-discord-user-id':workerId,'x-discord-guild-id':guild},...(body===undefined?{}:{body:JSON.stringify(body)})}),dispatchEnv);
+  const presence=async()=> (await (await actor('workspace/presence')).json()).available;
+  eq(await presence(),false,'worker default OFF');
+  const leased=await (await machine({action:'lease'})).json();
+  eq(Boolean(leased.order?.id&&leased.lease_token),true,'canonical order lease');
+  const orderId=leased.order.id;
+  eq((await machine({action:'ack',order_id:orderId,lease_token:leased.lease_token,channel_id:'777777777777777777',message_id:'888888888888888888',ticket_id:'9001'})).status,200,'canonical ticket acknowledgment');
+  eq((await (await machine({action:'dispatch'})).json()).assigned,false,'no assignment without ON');
+  eq((await actor('orders/'+orderId+'/claim',{})).status,409,'exclusive mode blocks manual claim');
+  eq((await actor('workspace/presence',{available:true})).status,200,'worker confirms ON');
+  eq(await presence(),true,'canonical ON');
+  eq((await actor('workspace/presence',{available:false})).status,200,'worker confirms OFF');
+  eq((await (await machine({action:'dispatch'})).json()).assigned,false,'OFF excludes worker');
+  eq((await actor('workspace/presence',{available:true})).status,200,'worker renews ON');
+  const assigned=await Promise.all([machine({action:'dispatch'}),machine({action:'dispatch'})]);
+  const responses=await Promise.all(assigned.map(r=>r.json()));
+  eq(responses.filter(r=>r.assigned===true).length,1,'concurrent dispatch exactly once');
+  const actual=await db.prepare('SELECT assigned_to,status,estimate FROM orders WHERE id=?').bind(orderId).first();
+  eq(actual.assigned_to,workerId,'selected worker');
+  eq(actual.status,'claimed','claimed status');
+  const finance=await db.prepare('SELECT amount,state,paid_by FROM order_finance WHERE order_id=?').bind(orderId).first();
+  eq(finance.amount,actual.estimate,'fixed invoice matches atomic price');
+  eq(finance.state,'quoted','invoice never auto paid');
+  eq(finance.paid_by,null,'no fabricated payer');
+  eq((await db.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE target_id=? AND action='invoice:auto_quote'").bind(orderId).first()).n,1,'one automatic invoice audit');
+  eq(await count('order_finance'),1,'one invoice only');
   return Response.json({ok:true,checks});
  }catch(e){return Response.json({ok:false,checks,error:String(e.message).slice(0,400)},{status:500});}
 }};
