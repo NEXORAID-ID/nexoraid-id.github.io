@@ -32,7 +32,7 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  assert.equal(await page.locator('#roleBadge').innerText(),'Pelanggan');
  const addCart=async p=>{await p.locator('[data-view="shop"]').click();const add=p.locator('#shopBody > form');await add.locator('select').selectOption('optiwindows');await add.getByRole('button',{name:'Simpan'}).click();await p.getByRole('button',{name:'Buat pesanan',exact:true}).waitFor();};
  await addCart(page);await page.getByRole('button',{name:'Buat pesanan',exact:true}).click();
- await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('belum pasti'));
+ await page.locator('.checkout-review [role=alert]').filter({hasText:'belum pasti'}).waitFor();assert.match(await page.locator('#status').innerText(),/belum pasti/);
  const lost=JSON.parse(lastOrderBody);assert.equal(db.prepare('SELECT COUNT(*) n FROM orders').get().n,1);
  await page.reload();await page.waitForFunction(()=>document.querySelector('#status')?.textContent==='Terhubung.');
  await page.locator('[data-view="shop"]').click();
