@@ -57,7 +57,7 @@ class FreshStartTests(unittest.TestCase):
               VALUES('fixture-order',100000,'joki','paid','o',1,'o',2,'fixture-payment');
             INSERT INTO order_work(order_id,worker_id,evidence,submitted_at) VALUES('fixture-order','w','synthetic evidence only',3);
             UPDATE orders SET status='completed',updated_at=4 WHERE id='fixture-order';
-            INSERT INTO order_attachments VALUES('fixture-attachment','fixture-order','c','payment','image/png',X'0102',5);
+            INSERT INTO order_attachments VALUES('fixture-attachment','fixture-order','c','payment','image/png',X'89504E470D0A1A0A0000000D49484452',5);
             INSERT INTO cash_opening VALUES(1,100000,1,'synthetic opening','o',1);
             """)
             before={table:rows(source,table) for table in inventory(source)}
