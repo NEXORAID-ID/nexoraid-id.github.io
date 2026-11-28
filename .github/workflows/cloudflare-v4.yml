@@ -101,3 +101,6 @@ jobs:
           npx --yes wrangler@4.168.0 deploy --config v4/.generated/wrangler.json --secrets-file "$secret_file"
       - name: Verify deployment
         run: node v4/scripts/verify.mjs
+      - name: Fresh-start read-only aggregate inventory
+        continue-on-error: true
+        run: node v4/scripts/fresh-start-inventory.mjs
