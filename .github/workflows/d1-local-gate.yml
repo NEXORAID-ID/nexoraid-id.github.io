@@ -27,6 +27,8 @@ jobs:
           node v4/scripts/prepare.mjs
       - name: Verify seeded financial backup restore and session cleanup
         run: python3 tests/restore-check.test.py
+      - name: Rehearse fresh-start configuration preservation in memory
+        run: python3 tests/fresh-start.test.py
       - name: Apply migrations only to temporary local D1
         run: |
           set -eu
