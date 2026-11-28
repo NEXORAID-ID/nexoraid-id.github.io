@@ -98,6 +98,32 @@ export default {async fetch(request,bindings){
   eq(finance.paid_by,null,'no fabricated payer');
   eq((await db.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE target_id=? AND action='invoice:auto_quote'").bind(orderId).first()).n,1,'one automatic invoice audit');
   eq(await count('order_finance'),1,'one invoice only');
+  // Shared account cart across two independent sessions using actual local D1.
+  const sharedUser='911111111111111111',sharedOther='922222222222222222',tokenA='e'.repeat(72),tokenB='f'.repeat(72),tokenOther='9'.repeat(72);
+  await db.batch([db.prepare('INSERT INTO users(id,display_name,created_at) VALUES(?,?,1)').bind(sharedUser,'CI shared cart'),db.prepare('INSERT INTO users(id,display_name,created_at) VALUES(?,?,1)').bind(sharedOther,'CI other customer'),...await Promise.all([[sharedUser,tokenA],[sharedUser,tokenB],[sharedOther,tokenOther]].map(async ([id,tok])=>db.prepare('INSERT INTO sessions VALUES(?,?,?)').bind(await hash(tok),id,Math.floor(Date.now()/1000)+600)))]);
+  const sharedEnv={...dispatchEnv,SHARED_CART_CANDIDATE:'true'};
+  const sharedCall=(tok,path,body)=>worker.fetch(new Request(origin+path,{method:body===undefined?'GET':'POST',headers:{cookie:'nexo_session='+tok,origin,'content-type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})}),sharedEnv);
+  const draft=(tok,body)=>sharedCall(tok,'/api/customer/cart',body);
+  eq((await (await draft(tokenA)).json()).revision,null,'new shared account empty');
+  const saved=await (await draft(tokenA,{action:'save',revision:null,items:[item]})).json();
+  eq(typeof saved.revision,'string','shared cart revision');
+  eq((await (await draft(tokenB)).json()).revision,saved.revision,'second session sees saved cart');
+  eq((await (await draft(tokenOther)).json()).revision,null,'other account cannot read cart');
+  eq((await draft(tokenOther,{action:'save',revision:saved.revision,items:[item]})).status,409,'other account cannot update revision');
+  eq((await draft(tokenB,{action:'save',revision:null,items:[item]})).status,409,'stale revision rejected');
+  eq((await (await draft(tokenB,{action:'save',revision:saved.revision,items:[item]})).json()).revision,saved.revision,'identical save preserves idempotency key');
+  eq((await draft(tokenA,{action:'clear-confirmed',revision:saved.revision})).status,409,'no clearing before receipt');
+  const n=await count('orders'),sharedPayload={request_id:saved.revision,items:[item]};
+  const receipts=await Promise.all([sharedCall(tokenA,'/api/customer/checkout',sharedPayload),sharedCall(tokenB,'/api/customer/checkout',sharedPayload)]);
+  eq(receipts.map(r=>r.status).sort().join(','),'200,201','two sessions checkout exactly once');
+  const [a,b]=await Promise.all(receipts.map(r=>r.json()));
+  eq(a.orders[0].id,b.orders[0].id,'same canonical order receipt');
+  eq(await count('orders'),n+1,'one new order across both sessions');
+  const cleared=await (await draft(tokenA,{action:'clear-confirmed',revision:saved.revision})).json();
+  eq(cleared.items.length,0,'confirmed receipt clears account cart');
+  eq(cleared.revision!==saved.revision,true,'clearing advances revision');
+  eq((await draft(tokenB,{action:'save',revision:saved.revision,items:[item]})).status,409,'stale session cannot resurrect purchased items');
+  eq((await (await draft(tokenB)).json()).items.length,0,'second session sees cleared cart');
   return Response.json({ok:true,checks});
  }catch(e){return Response.json({ok:false,checks,error:String(e.message).slice(0,400)},{status:500});}
 }};

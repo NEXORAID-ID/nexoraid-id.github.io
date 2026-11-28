@@ -27,6 +27,8 @@ jobs:
           node v4/scripts/prepare.mjs
       - name: Verify seeded financial backup restore and session cleanup
         run: python3 tests/restore-check.test.py
+      - name: Rehearse fresh-start configuration preservation in memory
+        run: python3 tests/fresh-start.test.py
       - name: Apply migrations only to temporary local D1
         run: |
           set -eu
@@ -83,6 +85,7 @@ jobs:
           npx --yes wrangler@4.168.0 d1 migrations apply nexoraid-v4 --local --persist-to "$scratch/state" --config "$config"
           # Candidate preview schema only: apply to isolated fixture storage, never remote.
           npx --yes wrangler@4.168.0 d1 execute nexoraid-v4 --local --persist-to "$scratch/state" --config "$config" --file v4/candidates/checkout-service-fee.sql
+          npx --yes wrangler@4.168.0 d1 execute nexoraid-v4 --local --persist-to "$scratch/state" --config "$config" --file v4/candidates/customer-cart-drafts.sql
           npx --yes wrangler@4.168.0 dev --local --persist-to "$scratch/state" --config "$config" --ip 127.0.0.1 --port 8791 > "$scratch/worker.log" 2>&1 &
           worker_pid=$!
           trap 'kill "$worker_pid" 2>/dev/null || true; rm -rf "$scratch"; rm -f "$config"' EXIT
@@ -94,4 +97,4 @@ jobs:
           if [ "$ready" != 1 ]; then cat "$scratch/worker.log"; exit 1; fi
           curl --silent --show-error --max-time 90 http://127.0.0.1:8791/run > "$scratch/result.json"
           cat "$scratch/result.json"
-          node -e 'const r=require(process.argv[1]);if(r.ok!==true||r.checks!==48)process.exit(1)' "$scratch/result.json"
+          node -e 'const r=require(process.argv[1]);if(r.ok!==true||r.checks!==63)process.exit(1)' "$scratch/result.json"
