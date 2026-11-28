@@ -99,7 +99,7 @@ export default {async fetch(request,bindings){
   eq((await db.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE target_id=? AND action='invoice:auto_quote'").bind(orderId).first()).n,1,'one automatic invoice audit');
   eq(await count('order_finance'),1,'one invoice only');
   // Shared account cart across two independent sessions using actual local D1.
-  const sharedUser='555555555555555555',sharedOther='777777777777777777',tokenA='e'.repeat(72),tokenB='f'.repeat(72),tokenOther='c'.repeat(72);
+  const sharedUser='911111111111111111',sharedOther='922222222222222222',tokenA='e'.repeat(72),tokenB='f'.repeat(72),tokenOther='9'.repeat(72);
   await db.batch([db.prepare('INSERT INTO users(id,display_name,created_at) VALUES(?,?,1)').bind(sharedUser,'CI shared cart'),db.prepare('INSERT INTO users(id,display_name,created_at) VALUES(?,?,1)').bind(sharedOther,'CI other customer'),...await Promise.all([[sharedUser,tokenA],[sharedUser,tokenB],[sharedOther,tokenOther]].map(async ([id,tok])=>db.prepare('INSERT INTO sessions VALUES(?,?,?)').bind(await hash(tok),id,Math.floor(Date.now()/1000)+600)))]);
   const sharedEnv={...dispatchEnv,SHARED_CART_CANDIDATE:'true'};
   const sharedCall=(tok,path,body)=>worker.fetch(new Request(origin+path,{method:body===undefined?'GET':'POST',headers:{cookie:'nexo_session='+tok,origin,'content-type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})}),sharedEnv);
