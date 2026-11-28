@@ -1,0 +1,1 @@
+export function sharedCartEnabled(env){return env.PUBLIC_ORIGIN==='https://staging.invalid'&&env.SHARED_CART_CANDIDATE==='true'||env.PUBLIC_ORIGIN==='https://nexoraid-v4.nexoraid.workers.dev'&&env.SHARED_CART_ENABLED==='true';}
