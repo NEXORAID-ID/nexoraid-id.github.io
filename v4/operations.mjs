@@ -1,3 +1,4 @@
+import {autoInvoiceEnabled,fixedInvoiceStatements} from './auto-fixed-invoice.mjs';
 import {PRESENCE_TTL} from './worker-dispatch.mjs';
 import {feeTrialEnabled,trialQuote} from './checkout-fee-trial.mjs';
 const staff=r=>r==='owner'||r==='management';
@@ -36,8 +37,8 @@ export async function dashboardSummary(db,user){
  }
  return json(result);
 }
-async function mutate(db,statement,actor,action,id,time){
- const rows=await db.batch([statement,db.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,?,?,? WHERE changes()=1").bind(actor,action,id,time)]);
+async function mutate(db,statement,actor,action,id,time,after=[]){
+ const rows=await db.batch([statement,db.prepare("INSERT INTO audit_events(actor_id,action,target_id,created_at) SELECT ?,?,?,? WHERE changes()=1").bind(actor,action,id,time),...after]);
  return rows[0].meta.changes?json({ok:true}):err('Data sudah berubah atau syarat belum terpenuhi. Muat ulang.',409);
 }
 export async function operations({p,m,url,user,env,readBody,r}){
@@ -142,7 +143,7 @@ export async function operations({p,m,url,user,env,readBody,r}){
   if(!over)return err('Akses management diperlukan.',403);
   if(!validId(b.worker_id)||b.worker_id===order.customer_id||b.worker_id===env.OWNER_DISCORD_ID)return err('Penjoki tidak valid.',400);
   // Override only before work starts, and never assign a management member.
-  return mutate(db,db.prepare("UPDATE orders SET assigned_to=?,status=CASE WHEN status='requested' THEN 'claimed' ELSE status END,updated_at=? WHERE id=? AND status IN ('requested','claimed','confirmed') AND customer_id<>? AND EXISTS(SELECT 1 FROM users u WHERE u.id=? AND u.role='worker' AND NOT EXISTS(SELECT 1 FROM management_grants g WHERE g.user_id=u.id) AND NOT EXISTS(SELECT 1 FROM account_suspensions a WHERE a.user_id=u.id))").bind(b.worker_id,t,id,b.worker_id,b.worker_id),user.id,'order:assign',id,t);
+  return mutate(db,db.prepare("UPDATE orders SET assigned_to=?,status=CASE WHEN status='requested' THEN 'claimed' ELSE status END,updated_at=? WHERE id=? AND status IN ('requested','claimed','confirmed') AND customer_id<>? AND EXISTS(SELECT 1 FROM users u WHERE u.id=? AND u.role='worker' AND NOT EXISTS(SELECT 1 FROM management_grants g WHERE g.user_id=u.id) AND NOT EXISTS(SELECT 1 FROM account_suspensions a WHERE a.user_id=u.id))").bind(b.worker_id,t,id,b.worker_id,b.worker_id),user.id,'order:assign',id,t,autoInvoiceEnabled(env)&&order.status==='requested'?fixedInvoiceStatements(db,{id,worker:b.worker_id,owner:env.OWNER_DISCORD_ID,time:t,requireCanonical:true}):[]);
  }
  if(action==='cancel'){
   if(!owns||order.status!=='requested')return err('Hanya permintaan sendiri yang belum diambil dapat dibatalkan.',403);

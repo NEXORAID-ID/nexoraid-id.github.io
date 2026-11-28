@@ -153,7 +153,7 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
   await input.setInputFiles({name:'synthetic.png',mimeType:'image/png',buffer:png});
   await submit(page,page.getByRole('button',{name:'Unggah file',exact:true}),attachmentBase+kind);
   const label=kind==='payment'?'pembayaran':'pengerjaan';
-  if(kind==='payment'){await page.locator('.customer-order-extra > summary').click();}await page.getByRole('link',{name:new RegExp('Unduh bukti '+label)}).waitFor();
+  if(kind==='payment'){await page.getByRole('link',{name:new RegExp('Unduh bukti '+label),includeHidden:true}).waitFor({state:'attached'});if(await page.locator('.customer-order-extra').getAttribute('open')===null)await page.locator('.customer-order-extra > summary').click();}await page.getByRole('link',{name:new RegExp('Unduh bukti '+label)}).waitFor();
   const record=db.prepare('SELECT id,bytes FROM order_attachments WHERE order_id=? AND kind=?').get(order.id,kind);
   assert.deepEqual(Buffer.from(record.bytes),png);
   return record.id;
