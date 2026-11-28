@@ -23,27 +23,29 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  for(const [name,body] of Object.entries(portalFiles))await page.route('**/'+name,r=>r.fulfill({contentType:name.endsWith('.html')?'text/html':name.endsWith('.css')?'text/css':'text/javascript',body}));
  await page.route('**/api/**',async route=>{
   const req=route.request(),u=new URL(req.url()),method=req.method(),body=req.postDataBuffer();
-  if(u.pathname==='/api/orders'&&method==='POST')lastOrderBody=req.postData();
+  if(u.pathname==='/api/customer/checkout'&&method==='POST')lastOrderBody=req.postData();
   const response=await worker.fetch(new Request(origin+u.pathname+u.search,{method,headers:{cookie,origin,'content-type':req.headers()['content-type']||'application/json'},...(body?{body}:{})}),env);
-  if(lostOrderResponse&&u.pathname==='/api/orders'&&method==='POST'&&response.status===201){lostOrderResponse=false;await route.abort('failed');return;}
+  if(lostOrderResponse&&u.pathname==='/api/customer/checkout'&&method==='POST'&&response.status===201){lostOrderResponse=false;await route.abort('failed');return;}
   await route.fulfill({status:response.status,headers:Object.fromEntries(response.headers),body:Buffer.from(await response.arrayBuffer())});
  });
  await page.goto(url+'portal.html');await page.waitForFunction(()=>document.querySelector('#status')?.textContent==='Terhubung.');
  assert.equal(await page.locator('#roleBadge').innerText(),'Pelanggan');
- await page.locator('#service').selectOption('optiwindows');await page.locator('#quantity').fill('1');
- await page.locator('#request button').click();await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('belum pasti'));
+ const addCart=async p=>{await p.locator('[data-view="shop"]').click();const add=p.locator('#shopBody > form');await add.locator('select').selectOption('optiwindows');await add.getByRole('button',{name:'Simpan'}).click();await p.getByRole('button',{name:'Buat pesanan',exact:true}).waitFor();};
+ await addCart(page);await page.getByRole('button',{name:'Buat pesanan',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('belum pasti'));
  const lost=JSON.parse(lastOrderBody);assert.equal(db.prepare('SELECT COUNT(*) n FROM orders').get().n,1);
  await page.reload();await page.waitForFunction(()=>document.querySelector('#status')?.textContent==='Terhubung.');
- await page.locator('#service').selectOption('optiwindows');await page.locator('#quantity').fill('2');
- page.once('dialog',d=>d.accept());
- await page.locator('#request button').click();await page.waitForFunction(()=>document.querySelector('#status')?.textContent.startsWith('Permintaan tercatat:'));
+ await page.locator('[data-view="shop"]').click();
+ assert.equal(await page.locator('.checkout-review input[type=number]').isDisabled(),true);
+ page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Ulangi pengiriman pesanan',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('pesanan berhasil tercatat'));
  assert.deepEqual(JSON.parse(lastOrderBody),lost);assert.equal(db.prepare('SELECT COUNT(*) n FROM orders').get().n,1);
- await page.locator('#quantity').fill('1');
- console.log('Browser lost-response checkout recovery passed: persisted original key and payload after reload and edited quantity.');
+ await page.locator('#orderDialog[open]').waitFor();await page.locator('#closeDetail').click();
+ console.log('Browser lost-response checkout recovery passed: original cart key and payload persisted and locked after reload.');
  const order=db.prepare('SELECT * FROM orders').get();assert.equal(order.customer_id,id);assert.equal(order.estimate,150000);
  assert.equal(db.prepare('SELECT COUNT(*) n FROM web_ticket_outbox WHERE order_id=?').get(order.id).n,1);
  const call=(path,body)=>worker.fetch(new Request(origin+path,{method:'POST',headers:{cookie,origin,'content-type':'application/json'},body}),env);
- assert.equal((await call('/api/orders',lastOrderBody)).status,200);assert.equal(db.prepare('SELECT COUNT(*) n FROM orders').get().n,1);
+ assert.equal((await call('/api/customer/checkout',lastOrderBody)).status,200);assert.equal(db.prepare('SELECT COUNT(*) n FROM orders').get().n,1);
  const queue=async body=>worker.fetch(new Request(origin+'/api/bot/ticket-queue',{method:'POST',headers:{authorization:'Bearer '+machine,'x-discord-guild-id':guild,'content-type':'application/json'},body:JSON.stringify(body)}),env);
  const lease=await (await queue({action:'lease'})).json();assert.equal(lease.order.id,order.id);
  const ack=await queue({action:'ack',order_id:order.id,lease_token:lease.lease_token,channel_id:'666666666666666666',message_id:'777777777777777777',ticket_id:'0001'});
@@ -51,7 +53,7 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  const link=await worker.fetch(new Request(origin+'/api/orders/'+order.id+'/ticket',{headers:{cookie}}),env);
  assert.equal((await link.json()).ticket.ticket_id,'0001');
  member=false;
- await page.locator('#request button').click();await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('Gabung server Discord'));
+ await addCart(page);await page.getByRole('button',{name:'Buat pesanan',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('Gabung server Discord'));
  assert.equal(db.prepare('SELECT COUNT(*) n FROM orders').get().n,1);assert.deepEqual(errors,[]);
  console.log('Portal backend E2E passed: OAuth fixture, browser checkout, persistent D1/outbox, replay, machine lease/ACK and nonmember rejection. No real Discord side effects.');
 
@@ -84,7 +86,7 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  assert.equal((await api('seller','/api/orders/'+order.id)).status,404);
  assert.equal((await api('seller','/api/team')).status,403);
  assert.equal((await api('seller','/api/orders/'+order.id+'/claim',{})).status,403);
- const open=async role=>{const p=pages[role];await p.reload();await p.waitForFunction(()=>document.querySelector('#status')?.textContent==='Terhubung.');await p.getByRole('button',{name:'Detail & tindakan'}).first().click();await p.locator('#orderDialog[open]').waitFor();return p;};
+ const open=async role=>{const p=pages[role];await p.reload();await p.waitForFunction(()=>document.querySelector('#status')?.textContent==='Terhubung.');await p.getByRole('button',{name:role==='customer'||role==='seller'?/^(Lihat pesanan|Bayar sekarang)$/: 'Detail & tindakan',exact:true}).first().click();await p.locator('#orderDialog[open]').waitFor();return p;};
  const submit=async(p,locator,endpoint)=>{const done=p.waitForResponse(r=>new URL(r.url()).pathname===endpoint&&r.request().method()==='POST');await locator.click();const response=await done;assert.equal(response.status(),200,endpoint+' '+await response.text());};
  const endpoint='/api/orders/'+order.id;
  let p=await open('worker');await submit(p,p.getByRole('button',{name:'Ambil pesanan',exact:true}),endpoint+'/claim');
@@ -95,7 +97,7 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  const sharedMessage='Synthetic shared communication for acceptance';
  const internalMessage='Synthetic internal management note';
  for(const [role,visibility,message] of [['customer','shared',sharedMessage],['management','internal',internalMessage]]){
-  p=await open(role);
+  p=await open(role);if(role==='customer')await p.locator('.customer-order-extra > summary').click();
   const form=p.locator('form').filter({has:p.getByRole('heading',{name:'Kirim pesan',exact:true})});
   await form.getByLabel('Visibilitas',{exact:true}).selectOption(visibility);
   await form.getByLabel('Pesan',{exact:true}).fill(message);
@@ -151,7 +153,7 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
   await input.setInputFiles({name:'synthetic.png',mimeType:'image/png',buffer:png});
   await submit(page,page.getByRole('button',{name:'Unggah file',exact:true}),attachmentBase+kind);
   const label=kind==='payment'?'pembayaran':'pengerjaan';
-  await page.getByRole('link',{name:new RegExp('Unduh bukti '+label)}).waitFor();
+  if(kind==='payment'){await page.locator('.customer-order-extra > summary').click();}await page.getByRole('link',{name:new RegExp('Unduh bukti '+label)}).waitFor();
   const record=db.prepare('SELECT id,bytes FROM order_attachments WHERE order_id=? AND kind=?').get(order.id,kind);
   assert.deepEqual(Buffer.from(record.bytes),png);
   return record.id;
@@ -178,7 +180,7 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
   if(response.status===200)assert.deepEqual(Buffer.from(await response.arrayBuffer()),png);
  }
 
- form=p.locator('form').filter({has:p.getByRole('heading',{name:'Laporkan pembayaran',exact:true})});await form.getByLabel('Referensi pembayaran (bukan PIN/OTP)').fill('fixture-ui-receipt');await submit(p,form.getByRole('button',{name:'Simpan'}),'/api/workspace/orders/'+order.id+'/receipt');
+ form=p.locator('form').filter({has:p.getByRole('heading',{name:'Laporkan pembayaran',exact:true})});await form.getByLabel('Referensi pembayaran (bukan PIN/OTP)').fill('fixture-ui-receipt');await submit(p,form.getByRole('button',{name:'Kirim laporan pembayaran'}),'/api/workspace/orders/'+order.id+'/receipt');await p.locator('.customer-step h3').filter({hasText:'Menunggu verifikasi pembayaran'}).waitFor();assert.equal(await p.locator('.qris-payment').count(),0);
  p=await open('management');assert.equal(await p.getByRole('heading',{name:'Verifikasi pembayaran manual',exact:true}).count(),0);
  assert.equal((await api('management',endpoint+'/payment',{amount:150000,reference:'fixture-forbidden'})).status,403);
  p=await open('owner');form=p.locator('form').filter({has:p.getByRole('heading',{name:'Verifikasi pembayaran manual',exact:true})});await form.getByLabel('Referensi transaksi (bukan data rekening)').fill('fixture-ui-payment');await submit(p,form.getByRole('button',{name:'Simpan'}),endpoint+'/payment');
@@ -202,7 +204,7 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  const reviewPath='/api/workspace/orders/'+order.id+'/review';
  const complaint='Synthetic customer support request for acceptance';
  const resolution='Synthetic management resolution confirmed';
- p=await open('customer');
+ p=await open('customer');await p.locator('.customer-order-extra > summary').click();
  form=p.locator('form').filter({has:p.getByRole('heading',{name:'Ajukan bantuan',exact:true})});
  await form.getByLabel('Jenis bantuan',{exact:true}).selectOption('complaint');
  await form.getByLabel('Jelaskan kebutuhan (tanpa kredensial)',{exact:true}).fill(complaint);
@@ -223,7 +225,7 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  await submit(p,form.getByRole('button',{name:'Simpan'}),resolvePath);
  await p.locator('#supportBody').getByText('Resolusi: '+resolution,{exact:true}).waitFor();
  assert.equal(db.prepare('SELECT state FROM support_cases WHERE id=?').get(supportCase.id).state,'resolved');
- p=await open('customer');
+ p=await open('customer');await p.locator('.customer-order-extra > summary').click();
  form=p.locator('form').filter({has:p.getByRole('heading',{name:'Beri ulasan',exact:true})});
  await form.getByLabel('Penilaian 1–5',{exact:true}).fill('4');
  await form.getByLabel('Catatan singkat',{exact:true}).fill('Synthetic completed-order review');
@@ -249,7 +251,7 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  console.log('Report acceptance passed: real isolated settlement totals, owner-only finance and XLSX/PDF export.');
 
  const closure=await queue({action:'closure-status',customer_id:id,channel_id:'666666666666666666',ticket_id:'0001'});assert.equal(closure.status,200);assert.equal((await closure.json()).eligible,true);
- p=pages.seller;await p.locator('[data-view="orders"]').click();await p.locator('#service').selectOption('optiwindows');await p.locator('#request button').click();await p.waitForFunction(()=>document.querySelector('#status')?.textContent.startsWith('Permintaan tercatat:'));
+ p=pages.seller;await addCart(p);await p.getByRole('button',{name:'Buat pesanan',exact:true}).click();await p.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('pesanan berhasil tercatat'));
  assert.equal(db.prepare('SELECT COUNT(*) n FROM orders WHERE customer_id=?').get(ids.seller).n,1);
  assert.equal((await (await api('seller','/api/orders')).json()).orders.length,1);
  assert.equal((await (await api('customer','/api/orders')).json()).orders.length,1);
@@ -277,7 +279,7 @@ export async function runPortalBackendE2E({browser,url,portalFiles}){
  assert.equal((await call('/api/customer/checkout',JSON.stringify({request_id:cartKey,items:cartItems}))).status,201);
  await page.evaluate(({id,cartKey,cartItems})=>localStorage.setItem('nexo-order-draft-v1:'+id,JSON.stringify({cart:cartItems,cartKey,requestKey:null})),{id,cartKey,cartItems});
  await page.reload();await page.waitForFunction(()=>document.querySelector('#status')?.textContent==='Terhubung.');
- await page.locator('[data-view="shop"]').click();
+ if(await page.locator('#orderDialog').isVisible())await page.locator('#closeDetail').click();await page.locator('[data-view="shop"]').click();
  const retryButton=page.getByRole('button',{name:'Ulangi pengiriman pesanan',exact:true});
  await retryButton.waitFor();
  await page.evaluate(()=>{const original=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){if(key.startsWith('nexo-order-draft-v1:'))throw new DOMException('fixture storage failure','QuotaExceededError');return original.call(this,key,value);};window.restoreFixtureStorage=()=>{Storage.prototype.setItem=original;};});

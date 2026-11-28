@@ -79,6 +79,6 @@ export function customerOrderStep(o){
  if(o.status==='processing')return {step:3,label:'Sedang dikerjakan',hint:'Pantau perkembangan melalui tiket atau pesan.'};
  if(o.payment_state==='paid')return {step:3,label:'Pembayaran terverifikasi',hint:'Tim akan melanjutkan pengerjaan.'};
  if(o.payment_claimed)return {step:2,label:'Menunggu verifikasi pembayaran',hint:'Laporan diterima. Jangan transfer lagi sebelum diperiksa.'};
- if(o.payment_state==='quoted'&&Number.isSafeInteger(o.invoice_amount)&&o.invoice_amount>0&&['claimed','confirmed'].includes(o.status))return {step:2,label:'Bayar tagihan',hint:'Scan QRIS dan laporkan pembayaran.'};
+ if(o.payment_state==='quoted'&&Number.isSafeInteger(o.invoice_amount)&&o.invoice_amount>0&&(o.outstanding_amount??o.invoice_amount)>0&&['claimed','confirmed'].includes(o.status))return {step:2,label:'Bayar tagihan',hint:'Scan QRIS dan laporkan pembayaran.'};
  return {step:1,label:'Menunggu tagihan',hint:'Penjoki dan tagihan diproses otomatis untuk layanan harga tetap. Jangan transfer dulu.'};
 }
