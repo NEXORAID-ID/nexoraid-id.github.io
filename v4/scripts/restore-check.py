@@ -46,7 +46,7 @@ OPTIONAL_TOTALS = {
     "order_cost_basis": ("order_cost_basis", "SELECT COALESCE(SUM(amount),0) FROM order_cost_basis"),
     "investor_noncash_bonuses": ("noncash_bonus_value", "SELECT COALESCE(SUM(value_amount),0) FROM investor_noncash_bonuses"),
 }
-OPTIONAL_NAMES = ("account_suspensions", "cash_period_closes", "payout_approvals", "order_receipts", "receipt_refunds", "seller_order_fees", "seller_settlements", "order_cost_basis", "investor_post_policies", "investor_noncash_bonuses", "service_policies", "order_policy_snapshots", "ticket_closure_fences")
+OPTIONAL_NAMES = ("customer_cart_drafts", "account_suspensions", "cash_period_closes", "payout_approvals", "order_receipts", "receipt_refunds", "seller_order_fees", "seller_settlements", "order_cost_basis", "investor_post_policies", "investor_noncash_bonuses", "service_policies", "order_policy_snapshots", "ticket_closure_fences")
 def snapshot_plan(existing):
     return NAMES + tuple(n for n in OPTIONAL_NAMES if n in existing), {
         **TOTALS, **{label: query for table, (label, query) in OPTIONAL_TOTALS.items() if table in existing}

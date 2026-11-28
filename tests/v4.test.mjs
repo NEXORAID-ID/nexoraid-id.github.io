@@ -244,7 +244,7 @@ test('combined release health requires closure, catalog and finance schema guard
  const dir=new URL('../v4/migrations/',import.meta.url);for(const n of (await readdir(dir)).filter(x=>x.endsWith('.sql')).sort())sql.exec(await readFile(new URL(n,dir),'utf8'));
  const DB={prepare(q){return {first:async()=>sql.prepare(q).get()}}};const env={DB,PUBLIC_ORIGIN:'https://nexoraid.example',DISCORD_CLIENT_ID:'123',DISCORD_CLIENT_SECRET:'synthetic'};
  const health=()=>worker.fetch(req('/api/health'),env);
- let response=await health();assert.equal(response.status,200);assert.equal((await response.json()).schema,24);
+ let response=await health();assert.equal(response.status,200);assert.equal((await response.json()).schema,25);
  for(const name of ["ticket_closure_checkout_fence","receipt_guard","receipt_apply","receipt_invoice_lock","receipt_refund_guard","receipt_no_update","receipt_no_delete","receipt_refund_no_update","receipt_refund_no_delete","payout_paid_requires_approval","cash_period_close_guard","investor_distribution_post_guard","seller_fee_before_complete","suspension_revoke_sessions","suspended_session_insert","suspended_session_update"]){
   sql.exec('SAVEPOINT health_probe');
   try{

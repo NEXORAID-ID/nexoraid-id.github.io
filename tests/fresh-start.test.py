@@ -8,7 +8,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 CONFIG = ("users", "management_grants", "account_suspensions", "catalog_overrides",
           "service_policies", "rental_capacity", "suppliers", "saved_services")
 TRANSIENT = {"sessions", "session_metadata", "worker_presence", "api_rate_limits",
-             "notification_reads"}
+             "notification_reads", "customer_cart_drafts"}
 ORDER = {"orders", "order_finance", "order_work", "order_settlements", "support_cases",
          "payment_claims", "order_reviews", "order_refunds", "order_ticket_links",
          "rejected_payment_claims", "order_attachments", "order_messages", "order_plans",

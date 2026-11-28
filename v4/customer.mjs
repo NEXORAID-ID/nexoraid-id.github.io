@@ -1,3 +1,4 @@
+import {sharedCartEnabled} from './shared-cart-policy.mjs';
 import {sharedCart} from './shared-cart.mjs';
 import {services} from '../services-data.js';
 import {fixedPriceValue} from '../catalog.js';
@@ -88,7 +89,7 @@ export function deviceLabel(ua=''){return (/Android/i.test(ua)?'Android':/iPhone
 export async function customer({p,m,user,env,r,readBody,sessionHash}){
  const db=env.DB,t=Math.floor(Date.now()/1000);
  if(p==='/api/customer/cart'){
-  if(env.SHARED_CART_CANDIDATE!=='true'||env.PUBLIC_ORIGIN!=='https://staging.invalid')return err('Keranjang akun belum tersedia.',503);
+  if(!sharedCartEnabled(env))return err('Keranjang akun belum tersedia.',503);
   return sharedCart({db,user,m,readBody:()=>readBody(r),normalize:normalizeCart});
  }
  if(p==='/api/customer/saved'&&m==='GET'){const rows=(await db.prepare('SELECT service_id FROM saved_services WHERE user_id=? ORDER BY service_id').bind(user.id).all()).results;return json({saved:rows.map(x=>x.service_id)});}
