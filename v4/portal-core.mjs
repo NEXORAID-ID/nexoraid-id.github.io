@@ -71,3 +71,14 @@ export function confirmedBasketRemoval(raw,submitted,source){
  try{const rows=JSON.parse(raw);if(!Array.isArray(rows)||rows.length!==submitted.length||rows.some(x=>!x||typeof x.id!=='string'||!Number.isSafeInteger(x.quantity)||x.quantity<1||x.quantity>99)||new Set(rows.map(x=>x.id)).size!==rows.length)return null;
  const converted=rows.map(x=>({service_id:x.id,quantity:x.quantity}));return sameStorefrontCart(converted,submitted)?[]:null;}catch{return null;}
 }
+
+// A single next action is derived only from authoritative order state.
+export function customerOrderStep(o){
+ if(o.status==='cancelled')return {step:0,label:'Pesanan dibatalkan',hint:o.refunded_amount?'Pengembalian dana tercatat.':'Tidak perlu membayar.'};
+ if(o.status==='completed')return {step:4,label:'Pesanan selesai',hint:'Lihat hasil atau beri ulasan.'};
+ if(o.status==='processing')return {step:3,label:'Sedang dikerjakan',hint:'Pantau perkembangan melalui tiket atau pesan.'};
+ if(o.payment_state==='paid')return {step:3,label:'Pembayaran terverifikasi',hint:'Tim akan melanjutkan pengerjaan.'};
+ if(o.payment_claimed)return {step:2,label:'Menunggu verifikasi pembayaran',hint:'Laporan diterima. Jangan transfer lagi sebelum diperiksa.'};
+ if(o.payment_state==='quoted'&&Number.isSafeInteger(o.invoice_amount)&&o.invoice_amount>0&&(o.outstanding_amount??o.invoice_amount)>0&&['claimed','confirmed'].includes(o.status))return {step:2,label:'Bayar tagihan',hint:'Scan QRIS dan laporkan pembayaran.'};
+ return {step:1,label:'Menunggu tagihan',hint:'Penjoki dan tagihan diproses otomatis untuk layanan harga tetap. Jangan transfer dulu.'};
+}
